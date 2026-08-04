@@ -1,0 +1,1 @@
+import type {MetadataRoute} from "next";const base=process.env.NEXT_PUBLIC_SITE_URL??"https://rovixautomation.com.br";export default function robots():MetadataRoute.Robots{return{rules:{userAgent:"*",allow:"/apps",disallow:["/api/","/admin/"]},sitemap:`${base}/sitemap.xml`,host:base}}

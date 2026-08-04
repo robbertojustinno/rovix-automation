@@ -1,0 +1,1 @@
+import type {MetadataRoute} from "next";export default function manifest():MetadataRoute.Manifest{return{name:"ROVIX Apps",short_name:"ROVIX Apps",description:"Aplicativos e soluções digitais da ROVIX Automation",start_url:"/apps",display:"standalone",background_color:"#070a12",theme_color:"#070a12",lang:"pt-BR",icons:[]}}
