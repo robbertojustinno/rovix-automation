@@ -1,0 +1,1 @@
+import type{Metadata}from"next";import{ContactForm}from"@/components/contact-form";export const metadata:Metadata={title:"Contato",description:"Fale com a ROVIX Automation sobre aplicativos, sistemas e automações.",alternates:{canonical:"/contato"}};export default function Contato(){return <ContactForm/>}
