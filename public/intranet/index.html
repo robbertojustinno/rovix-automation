@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#07101d" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Rovix Hub • Intranet</title>
+  <link rel="icon" type="image/png" href="./public/favicon.png" />
+  <link rel="apple-touch-icon" href="./public/favicon.png" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar card">
+      <a class="brand" href="./" aria-label="Rovix Hub">
+        <img src="./public/logo.png" alt="Rovix Automation" class="brand-logo" />
+        <div>
+          <h1>Rovix Hub</h1>
+          <p>Intranet • Sistemas • Atalhos internos</p>
+        </div>
+      </a>
+
+      <div class="topbar-actions">
+        <a class="outline-button" href="https://www.rovixautomation.com.br/" target="_blank" rel="noopener">Site Rovix</a>
+        <button id="logoutButton" class="outline-button hidden" type="button">Sair</button>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <section id="loginScreen" class="login-layout">
+        <div class="card login-card">
+          <div class="login-head">
+            <img src="./public/logo.png" alt="Rovix Automation" />
+            <p class="eyebrow">Acesso interno</p>
+            <h2>Rovix Hub</h2>
+            <p>Use o mesmo usuário e senha do TAGCheck Admin.</p>
+          </div>
+
+          <form id="loginForm" class="login-form">
+            <label>
+              Usuário
+              <input id="username" name="username" type="text" autocomplete="username" placeholder="Seu usuário" required />
+            </label>
+
+            <label>
+              Senha
+              <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Sua senha" required />
+            </label>
+
+            <button class="primary-button" type="submit">Entrar no Hub</button>
+            <p id="loginMessage" class="message"></p>
+          </form>
+        </div>
+      </section>
+
+      <section id="hubScreen" class="hidden">
+        <div class="hero card">
+          <div>
+            <p class="eyebrow">Rovix Automation</p>
+            <h2>Centro de acesso aos sistemas</h2>
+            <p id="welcomeText">Bem-vindo ao Rovix Hub.</p>
+          </div>
+          <div class="status-card">
+            <span id="apiDot" class="dot checking"></span>
+            <div>
+              <strong id="apiStatusTitle">Verificando TAG API</strong>
+              <small id="apiStatusText">Aguarde...</small>
+            </div>
+          </div>
+        </div>
+
+        <section class="quick-grid">
+          <article class="metric card">
+            <span>🏷️</span>
+            <strong>TAGCheck</strong>
+            <small>Admin, Viewer e Campo</small>
+          </article>
+          <article class="metric card">
+            <span>🐶</span>
+            <strong>AmigoPet</strong>
+            <small>Admin, Cliente e Walker</small>
+          </article>
+          <article class="metric card">
+            <span>📊</span>
+            <strong>Rovix Control</strong>
+            <small>Em desenvolvimento</small>
+          </article>
+        </section>
+
+        <section id="systemsContainer" class="systems"></section>
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer-note">
+    HP Rovix Hub V1 • Powered by Rovix Automation™ • Roberto Justino
+  </footer>
+
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

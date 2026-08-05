@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: rovix-automation
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./out
+    routes:
+      - type: redirect
+        source: /sucesso.html
+        destination: /sucesso/
+      - type: redirect
+        source: /tagcheck.html
+        destination: /apps/tagcheck/
+      - type: redirect
+        source: /amigopet.html
+        destination: /apps/amigopet/
+      - type: redirect
+        source: /intranet.html
+        destination: /intranet/
+      - type: rewrite
+        source: /*
+        destination: /index.html
