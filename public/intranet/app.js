@@ -7,6 +7,8 @@ const loginMessage = document.getElementById("loginMessage");
 const logoutButton = document.getElementById("logoutButton");
 const welcomeText = document.getElementById("welcomeText");
 const systemsContainer = document.getElementById("systemsContainer");
+const projectSearch = document.getElementById("projectSearch");
+const searchEmpty = document.getElementById("searchEmpty");
 const apiDot = document.getElementById("apiDot");
 const apiStatusTitle = document.getElementById("apiStatusTitle");
 const apiStatusText = document.getElementById("apiStatusText");
@@ -64,8 +66,17 @@ function showHub() {
 
 function renderSystems() {
   systemsContainer.innerHTML = "";
+  const normalize = value => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const query = normalize(projectSearch.value.trim());
+  let visibleItems = 0;
 
   CONFIG.SYSTEMS.forEach(group => {
+    const items = group.items.filter(item => normalize(
+      `${item.name} ${item.description} ${group.group} ${item.status} ${item.type}`
+    ).includes(query));
+    if (!items.length) return;
+    visibleItems += items.length;
+
     const title = document.createElement("div");
     title.className = "group-title";
     title.innerHTML = `<span>${group.icon}</span><h3>${group.group}</h3>`;
@@ -74,27 +85,45 @@ function renderSystems() {
     const grid = document.createElement("div");
     grid.className = "system-grid";
 
-    group.items.forEach(item => {
+    items.forEach(item => {
       const card = document.createElement("article");
-      card.className = `system-card card ${item.disabled ? "disabled" : ""}`;
+      card.className = "system-card card";
 
       card.innerHTML = `
         <header>
           <h4>${item.name}</h4>
-          <span class="badge">${item.badge}</span>
+          <span class="badge">${item.status}</span>
         </header>
         <p>${item.description}</p>
-        <a class="system-button" href="${item.disabled ? "#" : item.url}" target="_blank" rel="noopener">
-          ${item.disabled ? "Em desenvolvimento" : "Abrir sistema"}
-        </a>
+        <p class="system-type">${item.type}</p>
       `;
+
+      if (item.links?.length) {
+        const actions = document.createElement("div");
+        actions.className = "system-actions";
+        item.links.forEach(link => {
+          const button = document.createElement("a");
+          button.className = "system-button";
+          button.textContent = link.label;
+          button.href = link.url;
+          if (new URL(link.url, window.location.href).origin !== window.location.origin) {
+            button.target = "_blank";
+            button.rel = "noopener noreferrer";
+          }
+          actions.appendChild(button);
+        });
+        card.appendChild(actions);
+      }
 
       grid.appendChild(card);
     });
 
     systemsContainer.appendChild(grid);
   });
+  searchEmpty.classList.toggle("hidden", visibleItems > 0);
 }
+
+projectSearch.addEventListener("input", renderSystems);
 
 async function login(username, password) {
   const url = `${CONFIG.API_BASE_URL}${CONFIG.ENDPOINTS.login}`;

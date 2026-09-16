@@ -22,7 +22,7 @@
       </a>
 
       <div class="topbar-actions">
-        <a class="outline-button" href="https://www.rovixautomation.com.br/" target="_blank" rel="noopener">Site Rovix</a>
+        <a class="outline-button" href="https://www.rovixautomation.com.br/" target="_blank" rel="noopener noreferrer">Site Rovix</a>
         <button id="logoutButton" class="outline-button hidden" type="button">Sair</button>
       </div>
     </header>
@@ -83,11 +83,16 @@
           </article>
           <article class="metric card">
             <span>📊</span>
-            <strong>Rovix Control</strong>
-            <small>Em desenvolvimento</small>
+            <strong>ROVIX Automation / ROVIX HUB</strong>
+            <small>Plataforma central e intranet</small>
           </article>
         </section>
 
+        <div class="project-search">
+          <label for="projectSearch">Buscar projetos</label>
+          <input id="projectSearch" type="search" placeholder="Nome, descrição ou categoria" />
+        </div>
+        <p id="searchEmpty" class="hidden" role="status">Nenhum projeto encontrado.</p>
         <section id="systemsContainer" class="systems"></section>
       </section>
     </main>

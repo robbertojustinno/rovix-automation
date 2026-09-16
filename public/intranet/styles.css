@@ -187,14 +187,16 @@ button { border: 0; cursor: pointer; }
   gap: 14px;
 }
 
-.login-form label {
+.login-form label,
+.project-search label {
   display: grid;
   gap: 8px;
   color: #d7e5ff;
   font-weight: 800;
 }
 
-.login-form input {
+.login-form input,
+.project-search input {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -204,7 +206,8 @@ button { border: 0; cursor: pointer; }
   outline: none;
 }
 
-.login-form input:focus {
+.login-form input:focus,
+.project-search input:focus {
   border-color: rgba(96,165,250,.75);
   box-shadow: 0 0 0 4px rgba(37,99,235,.14);
 }
@@ -291,6 +294,8 @@ button { border: 0; cursor: pointer; }
   gap: 18px;
 }
 
+.project-search { display: grid; gap: 8px; margin: 18px 0; }
+
 .group-title {
   margin: 26px 4px 12px;
   display: flex;
@@ -310,6 +315,7 @@ button { border: 0; cursor: pointer; }
 }
 
 .system-card {
+  min-width: 0;
   padding: 20px;
   display: grid;
   gap: 14px;
@@ -322,12 +328,14 @@ button { border: 0; cursor: pointer; }
 
 .system-card header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 10px;
   align-items: flex-start;
 }
 
 .system-card h4 {
+  overflow-wrap: anywhere;
   margin: 0;
   font-size: 21px;
 }
@@ -354,6 +362,10 @@ button { border: 0; cursor: pointer; }
   color: white;
   background: linear-gradient(135deg, #2563eb, #ed1c24);
 }
+
+.system-card .system-type { font-size: 12px; }
+.system-actions { display: flex; flex-wrap: wrap; gap: 8px; align-self: end; }
+.system-actions .system-button { padding: 10px 14px; text-align: center; max-width: 100%; }
 
 .system-card.disabled .system-button {
   pointer-events: none;
