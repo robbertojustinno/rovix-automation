@@ -1,0 +1,1 @@
+import Link from "next/link";export default function NotFound(){return <section className="notFound"><span>404</span><h1>Produto não encontrado</h1><p>Ele pode estar oculto, indisponível ou o endereço mudou.</p><Link className="button" href="/apps">Voltar ao catálogo</Link></section>}
