@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#050b15">
+  <title>ROVIX Automation • Guardian Platform</title>
+  <link rel="icon" type="image/png" href="./public/favicon.png">
+  <link rel="apple-touch-icon" href="./public/favicon.png">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="brand">
+    <img src="./public/favicon.png" alt="ROVIX Automation">
+    <div><strong>ROVIX AUTOMATION</strong><span>Guardian Platform • Centro de Operações</span></div>
+  </div>
+  <nav class="nav" aria-label="Navegação principal">
+    <button class="active" onclick="show('dashboard')">Dashboard</button>
+    <button onclick="show('projects')">Central de Projetos</button>
+    <button onclick="show('explorer')">Explorador ROVIX</button>
+    <button onclick="show('search')">Pesquisa Global</button>
+    <button onclick="startIndex(true)">Atualizar agora</button>
+    <button onclick="startIndex(false)">Reindexar tudo</button>
+  </nav>
+</header>
+<main>
+  <div class="hero-strip">
+    <div><span class="eyebrow">Tecnologia • Automação • Inovação</span><h1>ROVIX Guardian Platform</h1><p class="muted">Central local segura para projetos, arquivos e inventário da ROVIX Automation.</p></div>
+    <img class="hero-mark" src="./public/favicon.png" alt="Marca ROVIX">
+  </div>
+  <section id="dashboard"><h2>Dashboard</h2><div id="stats" class="stats"></div><div class="panel security-panel"><h3>Segurança</h3><p>Nenhum arquivo ou script é executado automaticamente. Conteúdo sensível permanece oculto. A navegação é confinada à raiz oficial.</p><p id="indexState" class="muted"></p></div></section>
+  <section id="projects" class="hidden"><h2>Central de Projetos</h2><div id="projectCards" class="cards"></div></section>
+  <section id="explorer" class="hidden"><h2>Explorador ROVIX</h2><div class="toolbar"><input id="browsePath" placeholder="Caminho relativo"><button onclick="browse(document.querySelector('#browsePath').value)">Abrir</button><button onclick="browse('')">Raiz</button><button onclick="copyPath()">Copiar caminho</button><button onclick="openFolder()">Abrir no Windows</button></div><div id="crumbs" class="breadcrumbs"></div><div class="panel"><table><thead><tr><th>Nome</th><th>Tipo</th><th>Tamanho</th><th>Modificado</th><th>Alertas</th></tr></thead><tbody id="browserRows"></tbody></table></div><div id="preview" class="panel hidden"><h3>Pré-visualização somente leitura</h3><pre id="previewText"></pre></div></section>
+  <section id="search" class="hidden"><h2>Pesquisa Global</h2><div class="toolbar"><input id="query" placeholder="Nome ou caminho"><select id="kind"><option value="">Todos os tipos</option><option>texto</option><option>imagem</option><option>banco</option><option>backup</option><option>binario</option></select><button onclick="searchFiles()">Pesquisar</button></div><p id="searchCount" class="muted"></p><div class="panel"><table><thead><tr><th>Arquivo</th><th>Projeto</th><th>Tipo</th><th>Tamanho</th><th>Alertas</th></tr></thead><tbody id="searchRows"></tbody></table></div></section>
+</main>
+<footer class="footer"><img src="./public/favicon.png" alt="ROVIX Automation"><p><strong>ROVIX Guardian Platform 1.0</strong> • © 2026 Rovix Automation. Todos os direitos reservados.</p></footer>
+<script>
+
+const $=s=>document.querySelector(s);let currentPath='';
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const size=n=>{if(n==null)return '—';for(const u of ['B','KB','MB','GB','TB']){if(n<1024)return n.toFixed(n<10?1:0)+' '+u;n/=1024}return n.toFixed(1)+' PB'};
+async function api(url,opt){const r=await fetch(url,opt);const j=await r.json();if(!r.ok)throw new Error(j.error||j.message||r.statusText);return j}
+function show(id){document.querySelectorAll('main>section').forEach(x=>x.classList.add('hidden'));$('#'+id).classList.remove('hidden');if(id==='projects')loadProjects();if(id==='explorer')browse(currentPath);if(id==='search')searchFiles();if(id==='dashboard')loadDashboard()}
+async function loadDashboard(){try{const d=await api('/api/dashboard');$('#stats').innerHTML=[['Projetos',d.projects],['Arquivos indexados',d.files],['Tamanho indexado',size(d.size)],['Duplicados',d.duplicates],['Sensíveis',d.sensitive],['Último índice',d.last_index||'não executado']].map(x=>`<div class="stat"><b>${esc(x[1])}</b>${esc(x[0])}</div>`).join('');$('#indexState').textContent=d.index.running?`Indexando: ${d.index.processed} arquivos; erros: ${d.index.errors}`:`Última conclusão: ${d.index.finished||'—'}`;}catch(e){$('#indexState').textContent=e.message}}
+async function loadProjects(){const ps=await api('/api/projects');$('#projectCards').innerHTML=ps.map(p=>`<article class="card"><h3>${esc(p.name)}</h3><p>${esc(p.technology)} · ${p.files} arquivos · ${size(p.size)}</p><div>${p.git.exists?'<span class="pill">Git '+esc(p.git.branch||'')+'</span>':'<span class="pill warn">Sem Git</span>'}${p.database?'<span class="pill">Banco</span>':''}${p.docs?'<span class="pill">Docs</span>':'<span class="pill warn">Sem README</span>'}${p.tests?'<span class="pill">Testes</span>':''}${p.sensitive?'<span class="pill bad">Sensível</span>':''}</div><p class="muted truncate">${esc(p.path)}</p><button onclick="browse('${esc(p.relative_path)}');show('explorer')">Explorar</button></article>`).join('')}
+async function browse(path){try{const d=await api('/api/browse?path='+encodeURIComponent(path||''));currentPath=d.path;$('#browsePath').value=currentPath;const parts=currentPath?currentPath.split('/'):[];$('#crumbs').innerHTML='<button onclick="browse(\'\')">ROVIX_AUTOMATION</button> / '+parts.map((p,i)=>`<button onclick="browse('${esc(parts.slice(0,i+1).join('/'))}')">${esc(p)}</button>`).join(' / ');$('#browserRows').innerHTML=d.items.map(x=>`<tr><td><button onclick="${x.directory?`browse('${esc(x.path)}')`:`preview('${esc(x.path)}')`}">${x.directory?'📁':'📄'} ${esc(x.name)}</button></td><td>${esc(x.kind||'erro')}</td><td>${size(x.size)}</td><td>${x.modified?new Date(x.modified*1000).toLocaleString():'—'}</td><td>${x.sensitive?'<span class="bad">sensível</span>':''}${x.hidden?' oculto':''}${x.error?esc(x.error):''}</td></tr>`).join('')}catch(e){alert(e.message)}}
+async function preview(path){try{const d=await api('/api/preview?path='+encodeURIComponent(path));$('#preview').classList.remove('hidden');$('#previewText').textContent=d.hidden?d.message:(d.content??d.message??JSON.stringify(d,null,2));}catch(e){alert(e.message)}}
+async function searchFiles(){try{const q=$('#query')?.value||'',kind=$('#kind')?.value||'';const d=await api('/api/files?q='+encodeURIComponent(q)+'&kind='+encodeURIComponent(kind));$('#searchCount').textContent=`${d.total} resultado(s); página ${d.page}`;$('#searchRows').innerHTML=d.items.map(x=>`<tr><td><button onclick="preview('${esc(x.path)}');show('explorer')">${esc(x.path)}</button></td><td>${esc(x.project)}</td><td>${esc(x.kind)}</td><td>${size(x.size)}</td><td>${x.sensitive?'<span class="bad">sensível</span> ':''}${x.duplicate?'<span class="warn">duplicado</span>':''}</td></tr>`).join('')}catch(e){$('#searchCount').textContent=e.message}}
+async function startIndex(incremental){try{await api('/api/index',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({incremental})});loadDashboard()}catch(e){alert(e.message)}}
+function copyPath(){navigator.clipboard.writeText('E:\\ROVIX_AUTOMATION'+(currentPath?'\\'+currentPath.replaceAll('/','\\'):''))}
+async function openFolder(){if(!confirm('Abrir esta pasta no Explorador do Windows?'))return;try{await api('/api/open-folder',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:currentPath,confirm:true})})}catch(e){alert(e.message)}}
+loadDashboard();setInterval(loadDashboard,15000);
+
+// Estado visual da navegação sem alterar as funções existentes
+document.querySelectorAll('.nav button').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));btn.classList.add('active')}));
+</script>
+</body></html>
