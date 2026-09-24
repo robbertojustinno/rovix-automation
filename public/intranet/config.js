@@ -33,6 +33,58 @@ window.ROVIX_HUB_CONFIG = {
           ]
         },
         {
+          "name": "ROVIX Drive",
+          "description": "Armazenamento privado administrativo da ROVIX e repositório dos arquivos associados aos produtos.",
+          "status": "PREVIEW",
+          "type": "Cloud / Privado",
+          "links": [
+            {
+              "label": "Abrir Drive",
+              "url": "https://rovix-drive-preview.onrender.com/cloud"
+            }
+          ]
+        },
+        {
+          "name": "ROVIX Store",
+          "description": "Catálogo e venda de produtos digitais, softwares e arquivos ROVIX.",
+          "status": "PREVIEW",
+          "type": "Web / Loja",
+          "links": [
+            {
+              "label": "Produtos",
+              "url": "https://rovix-drive-preview.onrender.com/produtos"
+            },
+            {
+              "label": "Minhas compras",
+              "url": "https://rovix-drive-preview.onrender.com/minhas-compras"
+            }
+          ]
+        },
+        {
+          "name": "ROVIX Store Admin",
+          "description": "Área administrativa para cadastrar produtos, preços, versões e arquivos associados.",
+          "status": "PREVIEW",
+          "type": "Admin / Loja",
+          "links": [
+            {
+              "label": "Gerenciar produtos",
+              "url": "https://rovix-drive-preview.onrender.com/admin/produtos"
+            }
+          ]
+        },
+        {
+          "name": "ROVIX Projects",
+          "description": "Central pública para apresentar projetos, ferramentas, versões e downloads liberados.",
+          "status": "PREVIEW",
+          "type": "Web / Projetos",
+          "links": [
+            {
+              "label": "Projetos",
+              "url": "https://rovix-drive-preview.onrender.com/projetos"
+            }
+          ]
+        },
+        {
           "name": "ROVIX Setup / System Center",
           "description": "Ferramenta Windows para instalação, configuração, diagnóstico e manutenção de computadores.",
           "status": "LOCAL",
