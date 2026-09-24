@@ -1,5 +1,5 @@
 "use client";
-import{Download,FileText,Folder,HardDrive,MoreVertical,Upload}from"lucide-react";
+import{Download,FileText,Folder,HardDrive,Share2,Upload}from"lucide-react";
 import{useEffect,useMemo,useRef,useState}from"react";
 import{useRouter}from"next/navigation";
 import{authRest,getValidSession}from"@/services/rovix-auth";
@@ -18,6 +18,9 @@ export default function Cloud(){
   const[busy,setBusy]=useState(false);
   const[msg,setMsg]=useState("");
   const[currentFolder,setCurrentFolder]=useState<string|null>(null);
+  const[shareItem,setShareItem]=useState<Item|null>(null);
+  const[shareHours,setShareHours]=useState(24);
+  const[shareUrl,setShareUrl]=useState("");
 
   async function api(path:string,init:RequestInit={}){
     const s=await getValidSession();
@@ -102,6 +105,25 @@ export default function Cloud(){
     finally{setBusy(false)}
   }
 
+
+  async function generateShare(){
+    if(!shareItem)return;
+    setBusy(true);setMsg("");setShareUrl("");
+    try{
+      const d=await api("/share-url",{method:"POST",body:JSON.stringify({file_id:shareItem.id,hours:shareHours})});
+      setShareUrl(d.share_url);
+    }catch(e){setMsg(e instanceof Error?e.message:"Falha ao compartilhar.")}
+    finally{setBusy(false)}
+  }
+
+  async function copyShare(){
+    if(!shareUrl)return;
+    try{
+      await navigator.clipboard.writeText(shareUrl);
+      setMsg("Link de compartilhamento copiado.");
+    }catch{setMsg("Não foi possível copiar o link.")}
+  }
+
   async function rename(item:Item){
     const name=window.prompt("Novo nome:",item.name);
     if(!name||name===item.name)return;
@@ -129,6 +151,7 @@ export default function Cloud(){
     }
     return <div className="fileActions">
       <button onClick={()=>download(item)}><Download size={16}/> Baixar</button>
+      <button onClick={()=>{setShareItem(item);setShareHours(24);setShareUrl("")}}><Share2 size={16}/> Compartilhar</button>
       <button onClick={()=>rename(item)}>Renomear</button>
       <button onClick={()=>remove(item)}>Excluir</button>
     </div>
@@ -155,6 +178,17 @@ export default function Cloud(){
       <span>{actions(item)}</span>
     </div>)}
   </section>
+  {shareItem&&<div className="shareOverlay" role="dialog" aria-modal="true">
+    <div className="shareDialog">
+      <div className="shareHead"><div><span className="kicker">Compartilhar arquivo</span><h2>{shareItem.name}</h2></div><button className="shareClose" type="button" onClick={()=>{setShareItem(null);setShareUrl("")}}>×</button></div>
+      <p className="muted">O arquivo continua privado. O link deixa de funcionar automaticamente quando expirar.</p>
+      <div className="shareChoices">
+        {[1,24,168].map(h=><button key={h} className={shareHours===h?"shareChoice active":"shareChoice"} type="button" onClick={()=>{setShareHours(h);setShareUrl("")}}>{h===1?"1 hora":h===24?"24 horas":"7 dias"}</button>)}
+      </div>
+      {!shareUrl?<button className="button" type="button" disabled={busy} onClick={generateShare}><Share2/> {busy?"Gerando...":"Gerar link"}</button>:
+      <div className="shareResult"><input readOnly value={shareUrl}/><button className="button" type="button" onClick={copyShare}>Copiar link</button></div>}
+    </div>
+  </div>}
   <p className="portalNote">{API?"ROVIX Drive pronto para uso assim que as credenciais privadas do R2 forem configuradas no backend.":"Backend do ROVIX Drive ainda não configurado."}</p></>
 }
 function formatBytes(n:number){if(n<1024)return n+" B";if(n<1048576)return (n/1024).toFixed(1)+" KB";if(n<1073741824)return (n/1048576).toFixed(1)+" MB";return (n/1073741824).toFixed(2)+" GB"}
