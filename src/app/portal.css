@@ -11,3 +11,10 @@
 
 .adminHero{padding-bottom:24px}.compactAdminForm{gap:6px}.compactAdminForm h2{margin:0}.adminFormHead{display:flex;align-items:center;justify-content:space-between;gap:12px}.adminFormGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.adminFormGrid>div{display:flex;flex-direction:column;gap:5px}.compactAdminForm label{font-size:.9rem;margin-top:2px}.compactAdminForm input,.compactAdminForm textarea,.compactAdminForm select{padding:8px 10px;border-radius:8px}.compactAdminForm textarea{min-height:74px;resize:vertical}.compactAdminForm select{width:100%;border:1px solid rgba(127,127,127,.28);background:transparent;color:inherit}.inlineTextButton{width:auto;margin:0;padding:6px 8px}.adminItemActions{display:flex;gap:6px;align-items:center}.adminProductItem .button{padding:7px 10px}
 @media(max-width:680px){.adminFormGrid{grid-template-columns:1fr}.adminProductItem{align-items:flex-start;flex-direction:column}.adminItemActions{width:100%}}
+
+.shareOverlay{position:fixed;inset:0;z-index:80;background:rgba(2,6,14,.72);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px}
+.shareDialog{width:min(560px,100%);border:1px solid rgba(127,127,127,.24);border-radius:18px;background:#0a101b;padding:20px;box-shadow:0 24px 80px rgba(0,0,0,.45)}
+.shareHead{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.shareHead h2{margin:5px 0 0}.shareClose{border:0;background:transparent;color:inherit;font-size:1.8rem;cursor:pointer;line-height:1}
+.shareChoices{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.shareChoice{border:1px solid rgba(127,127,127,.28);background:transparent;color:inherit;border-radius:9px;padding:8px 12px;cursor:pointer}.shareChoice.active{background:rgba(73,126,255,.18);border-color:rgba(73,126,255,.7)}
+.shareResult{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}.shareResult input{min-width:0;width:100%;padding:9px 10px;border:1px solid rgba(127,127,127,.28);border-radius:9px;background:transparent;color:inherit}
+@media(max-width:620px){.shareResult{grid-template-columns:1fr}.shareDialog{padding:16px}}
