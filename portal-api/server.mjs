@@ -93,6 +93,10 @@ async function supa(path,token,init={}){
   const t=await r.text();
   return t?JSON.parse(t):null;
 }
+async function requireAdmin(token){
+  const rows=await supa("rovix_profiles?select=role",token);
+  if(rows?.[0]?.role!=="admin")throw Object.assign(new Error("ADMIN_REQUIRED"),{status:403});
+}
 async function usedBytes(token){
   const rows=await supa("rovix_files?select=size_bytes&kind=eq.file",token);
   return (rows||[]).reduce((n,x)=>n+Number(x.size_bytes||0),0);
@@ -113,11 +117,13 @@ const server=http.createServer(async(req,res)=>{
     const {token,user}=await requireUser(req);
 
     if(req.method==="GET"&&req.url==="/usage"){
+      await requireAdmin(token);
       const used=await usedBytes(token);
       return reply(res,200,{used_bytes:used,max_bytes:MAX_BYTES,remaining_bytes:Math.max(0,MAX_BYTES-used)},origin);
     }
 
     if(req.method==="POST"&&req.url==="/folders"){
+      await requireAdmin(token);
       const body=await readBody(req);
       const name=safeName(body.name);
       if(!name)return reply(res,400,{error:"invalid_name"},origin);
@@ -129,6 +135,7 @@ const server=http.createServer(async(req,res)=>{
     }
 
     if(req.method==="POST"&&req.url==="/upload-url"){
+      await requireAdmin(token);
       const body=await readBody(req);
       const name=safeName(body.name);
       const size=Number(body.size||0);
@@ -146,6 +153,7 @@ const server=http.createServer(async(req,res)=>{
     }
 
     if(req.method==="POST"&&req.url==="/complete-upload"){
+      await requireAdmin(token);
       const body=await readBody(req);
       const name=safeName(body.name);
       const size=Number(body.size||0);
@@ -169,6 +177,7 @@ const server=http.createServer(async(req,res)=>{
     }
 
     if(req.method==="POST"&&req.url==="/download-url"){
+      await requireAdmin(token);
       const body=await readBody(req);
       const rows=await supa("rovix_files?id=eq."+encodeURIComponent(body.file_id)+"&kind=eq.file&select=id,name,object_key",token);
       const file=rows?.[0];
@@ -183,6 +192,7 @@ const server=http.createServer(async(req,res)=>{
     }
 
     if(req.method==="PATCH"&&req.url==="/files"){
+      await requireAdmin(token);
       const body=await readBody(req);
       if(!body.id)return reply(res,400,{error:"missing_id"},origin);
       const patch={};
@@ -256,6 +266,7 @@ const server=http.createServer(async(req,res)=>{
     }
 
     if(req.method==="DELETE"&&req.url?.startsWith("/files/")){
+      await requireAdmin(token);
       const id=req.url.slice("/files/".length);
       const rows=await supa("rovix_files?id=eq."+encodeURIComponent(id)+"&select=id,kind,object_key",token);
       const file=rows?.[0];
