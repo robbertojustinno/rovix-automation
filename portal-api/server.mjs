@@ -191,6 +191,29 @@ const server=http.createServer(async(req,res)=>{
       return reply(res,200,{download_url:downloadUrl,expires_in:300},origin);
     }
 
+    if(req.method==="POST"&&req.url==="/share-url"){
+      await requireAdmin(token);
+      const body=await readBody(req);
+      const hours=Number(body.hours||24);
+      if(![1,24,168].includes(hours))return reply(res,400,{error:"invalid_expiration"},origin);
+      const rows=await supa("rovix_files?id=eq."+encodeURIComponent(body.file_id)+"&kind=eq.file&select=id,name,object_key",token);
+      const file=rows?.[0];
+      if(!file)return reply(res,404,{error:"file_not_found"},origin);
+      const expiresIn=hours*3600;
+      const cmd=new GetObjectCommand({
+        Bucket:R2_BUCKET,
+        Key:file.object_key,
+        ResponseContentDisposition:'attachment; filename="'+String(file.name).replace(/"/g,"")+'"'
+      });
+      const shareUrl=await getSignedUrl(s3(),cmd,{expiresIn});
+      const expiresAt=new Date(Date.now()+expiresIn*1000).toISOString();
+      await supa("rovix_shares",token,{
+        method:"POST",
+        body:JSON.stringify({user_id:user.id,file_id:file.id,expires_at:expiresAt})
+      });
+      return reply(res,200,{share_url:shareUrl,expires_in:expiresIn,expires_at:expiresAt,file_name:file.name},origin);
+    }
+
     if(req.method==="PATCH"&&req.url==="/files"){
       await requireAdmin(token);
       const body=await readBody(req);
