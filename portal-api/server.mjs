@@ -46,7 +46,7 @@ async function readBody(req){
     });
     req.on("end",()=>{
       if(!data)return resolve({});
-      try{resolve(JSON.parse(data))}catch(reject)
+      try{resolve(JSON.parse(data))}catch(err){reject(err)}
     });
     req.on("error",reject);
   });
