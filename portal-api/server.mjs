@@ -237,6 +237,24 @@ const server=http.createServer(async(req,res)=>{
       },origin);
     }
 
+    if(req.method==="POST"&&req.url==="/product-download-url"){
+      const body=await readBody(req);
+      if(!body.product_id)return reply(res,400,{error:"missing_product_id"},origin);
+      const ent=await supa("rovix_entitlements?product_id=eq."+encodeURIComponent(body.product_id)+"&status=eq.active&select=id,expires_at",token);
+      const active=(ent||[]).find(e=>!e.expires_at||new Date(e.expires_at).getTime()>Date.now());
+      if(!active)return reply(res,403,{error:"product_not_entitled"},origin);
+      const rows=await supa("rovix_files?product_id=eq."+encodeURIComponent(body.product_id)+"&is_product_asset=eq.true&kind=eq.file&select=id,name,object_key",token);
+      const file=rows?.[0];
+      if(!file)return reply(res,404,{error:"product_file_not_found"},origin);
+      const cmd=new GetObjectCommand({
+        Bucket:R2_BUCKET,
+        Key:file.object_key,
+        ResponseContentDisposition:'attachment; filename="'+String(file.name).replace(/"/g,"")+'"'
+      });
+      const downloadUrl=await getSignedUrl(s3(),cmd,{expiresIn:300});
+      return reply(res,200,{download_url:downloadUrl,expires_in:300,file_name:file.name},origin);
+    }
+
     if(req.method==="DELETE"&&req.url?.startsWith("/files/")){
       const id=req.url.slice("/files/".length);
       const rows=await supa("rovix_files?id=eq."+encodeURIComponent(id)+"&select=id,kind,object_key",token);
