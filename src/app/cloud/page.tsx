@@ -41,6 +41,8 @@ export default function Cloud(){
     try{
       const s=await getValidSession();
       if(!s){router.replace("/login");return}
+      const profile=await authRest("rovix_profiles?select=role");
+      if(profile?.[0]?.role!=="admin"){router.replace("/minha-conta");return}
       const parent=currentFolder?"parent_id=eq."+currentFolder:"parent_id=is.null";
       const data=await authRest("rovix_files?select=id,kind,name,size_bytes,updated_at,parent_id&"+parent+"&order=kind.desc,name.asc");
       setItems(Array.isArray(data)?data:[]);
