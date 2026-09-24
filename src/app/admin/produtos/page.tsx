@@ -126,7 +126,7 @@ export default function RovixAdminProdutos(){
         const linked=files.find(f=>f.product_id===p.id&&f.is_product_asset);
         return <article className="adminProductItem" key={p.id}>
           <div><strong>{p.name}</strong><small>{p.slug} · {p.is_free?"Grátis":new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(Number(p.price))}</small>{linked&&<small>Arquivo: {linked.name}</small>}</div>
-          <div className="adminItemActions"><button className="button secondary" type="button" onClick={()=>startEdit(p)} disabled={busy}>Editar</button><button className="button secondary" type="button" onClick={()=>toggle(p)} disabled={busy}>{p.is_active?"Desativar":"Ativar"}</button></div>
+          <div className="adminItemActions"><button className="button secondary" type="button" onClick={()=>{navigator.clipboard.writeText(window.location.origin+"/produtos/?produto="+p.slug);setMsg("Link do produto copiado.")}}>Copiar link</button><button className="button secondary" type="button" onClick={()=>startEdit(p)} disabled={busy}>Editar</button><button className="button secondary" type="button" onClick={()=>toggle(p)} disabled={busy}>{p.is_active?"Desativar":"Ativar"}</button></div>
         </article>
       })}
     </div>
