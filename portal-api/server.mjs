@@ -199,6 +199,44 @@ const server=http.createServer(async(req,res)=>{
       return reply(res,200,{item:rows?.[0]||null},origin);
     }
 
+    if(req.method==="POST"&&req.url==="/orders/start"){
+      const body=await readBody(req);
+      if(!body.product_id)return reply(res,400,{error:"missing_product_id"},origin);
+      const products=await supa("rovix_products?id=eq."+encodeURIComponent(body.product_id)+"&is_active=eq.true&select=id,name,price,currency,is_free",token);
+      const product=products?.[0];
+      if(!product)return reply(res,404,{error:"product_not_found"},origin);
+
+      if(product.is_free){
+        const entitlement=await supa("rovix_entitlements",token,{
+          method:"POST",
+          headers:{Prefer:"resolution=merge-duplicates,return=representation"},
+          body:JSON.stringify({
+            user_id:user.id,
+            product_id:product.id,
+            status:"active"
+          })
+        });
+        return reply(res,200,{status:"granted",entitlement:entitlement?.[0]||null},origin);
+      }
+
+      const order=await supa("rovix_orders",token,{
+        method:"POST",
+        body:JSON.stringify({
+          user_id:user.id,
+          product_id:product.id,
+          status:"pending",
+          amount:Number(product.price||0),
+          currency:product.currency||"BRL",
+          payment_provider:"pending"
+        })
+      });
+      return reply(res,201,{
+        status:"payment_pending",
+        order:order?.[0]||null,
+        checkout_url:null
+      },origin);
+    }
+
     if(req.method==="DELETE"&&req.url?.startsWith("/files/")){
       const id=req.url.slice("/files/".length);
       const rows=await supa("rovix_files?id=eq."+encodeURIComponent(id)+"&select=id,kind,object_key",token);
