@@ -18,3 +18,9 @@
 .shareChoices{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.shareChoice{border:1px solid rgba(127,127,127,.28);background:transparent;color:inherit;border-radius:9px;padding:8px 12px;cursor:pointer}.shareChoice.active{background:rgba(73,126,255,.18);border-color:rgba(73,126,255,.7)}
 .shareResult{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}.shareResult input{min-width:0;width:100%;padding:9px 10px;border:1px solid rgba(127,127,127,.28);border-radius:9px;background:transparent;color:inherit}
 @media(max-width:620px){.shareResult{grid-template-columns:1fr}.shareDialog{padding:16px}}
+
+.projectVisualGrid{max-width:1200px;margin:0 auto;padding:0 6vw 72px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px}
+.projectVisualCard{border:1px solid rgba(127,127,127,.22);border-radius:22px;overflow:hidden;background:rgba(127,127,127,.05);display:flex;flex-direction:column}
+.projectVisualCard>img{width:100%;aspect-ratio:16/10;object-fit:cover;display:block;border-bottom:1px solid rgba(127,127,127,.18)}
+.projectVisualBody{padding:18px;display:flex;flex-direction:column;gap:10px;flex:1}
+.projectVisualBody h2{margin:0}.projectVisualBody p{margin:0;opacity:.76;line-height:1.5}.projectVisualBody .button{margin-top:auto;align-self:flex-start}
