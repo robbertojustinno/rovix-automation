@@ -90,12 +90,15 @@ function renderSystems() {
       card.className = "system-card card";
 
       card.innerHTML = `
-        <header>
-          <h4>${item.name}</h4>
-          <span class="badge">${item.status}</span>
-        </header>
-        <p>${item.description}</p>
-        <p class="system-type">${item.type}</p>
+        ${item.image ? `<div class="system-art"><img src="${item.image}" alt="${item.name}" loading="lazy" /></div>` : ""}
+        <div class="system-card-body">
+          <header>
+            <h4>${item.name}</h4>
+            <span class="badge">${item.status}</span>
+          </header>
+          <p>${item.description}</p>
+          <p class="system-type">${item.type}</p>
+        </div>
       `;
 
       if (item.links?.length) {
