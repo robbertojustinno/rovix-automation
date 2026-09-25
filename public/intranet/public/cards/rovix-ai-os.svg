@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 620" role="img" aria-label="ROVIX AI OS">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#07101d"/><stop offset="1" stop-color="#0b1324"/></linearGradient>
+<linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#6366f1"/><stop offset="1" stop-color="#e11d48"/></linearGradient>
+<filter id="glow"><feGaussianBlur stdDeviation="12" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<rect width="920" height="620" rx="42" fill="url(#bg)"/>
+<circle cx="460" cy="290" r="218" fill="#6366f1" opacity=".08"/>
+<circle cx="460" cy="290" r="205" fill="none" stroke="#6366f1" opacity=".35" stroke-width="3"/>
+<g filter="url(#glow)"><path fill="none" stroke="url(#g)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" d="M402 122c-54 0-98 43-98 96 0 12 2 23 6 34-28 18-46 50-46 86 0 57 47 103 105 103h33m0-319v319m0-319c31-25 78-22 105 8 15-7 32-11 50-11 61 0 111 48 111 108 0 14-3 27-8 39 25 19 41 49 41 83 0 57-47 103-105 103h-33"/><path fill="none" stroke="url(#g)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" d="M402 220h-55m55 91h-72m72 91h-45m56-231h74m-74 91h92m-92 91h62"/></g>
+<text x="54" y="555" fill="#fff" font-family="Arial,Helvetica,sans-serif" font-size="42" font-weight="800">ROVIX AI OS</text>
+<text x="56" y="590" fill="#9fb2d8" font-family="Arial,Helvetica,sans-serif" font-size="20" letter-spacing="4">AI</text>
+</svg>
