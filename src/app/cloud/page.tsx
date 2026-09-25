@@ -74,23 +74,45 @@ export default function Cloud(){
     finally{setBusy(false)}
   }
 
-  async function uploadFile(file:File){
-    setBusy(true);setMsg("Preparando upload...");
+  async function uploadOne(file:File){
+    const u=await api("/upload-url",{method:"POST",body:JSON.stringify({
+      name:file.name,size:file.size,mime_type:file.type||"application/octet-stream",parent_id:currentFolder
+    })});
+    const put=await fetch(u.upload_url,{
+      method:"PUT",
+      headers:{"Content-Type":file.type||"application/octet-stream"},
+      body:file
+    });
+    if(!put.ok)throw new Error('Falha ao enviar "'+file.name+'" para o armazenamento.');
+    await api("/complete-upload",{method:"POST",body:JSON.stringify({
+      name:file.name,size:file.size,mime_type:file.type||"application/octet-stream",
+      parent_id:currentFolder,object_key:u.object_key
+    })});
+  }
+
+  async function uploadFiles(files:FileList|File[]){
+    const selected=Array.from(files);
+    if(!selected.length)return;
+    setBusy(true);setMsg("");
+    let sent=0;
+    const failed:string[]=[];
     try{
-      const u=await api("/upload-url",{method:"POST",body:JSON.stringify({
-        name:file.name,size:file.size,mime_type:file.type||"application/octet-stream",parent_id:currentFolder
-      })});
-      const put=await fetch(u.upload_url,{
-        method:"PUT",
-        headers:{"Content-Type":file.type||"application/octet-stream"},
-        body:file
-      });
-      if(!put.ok)throw new Error("Falha ao enviar o arquivo para o armazenamento.");
-      await api("/complete-upload",{method:"POST",body:JSON.stringify({
-        name:file.name,size:file.size,mime_type:file.type||"application/octet-stream",
-        parent_id:currentFolder,object_key:u.object_key
-      })});
-      setMsg("Upload concluído.");
+      for(let i=0;i<selected.length;i++){
+        const file=selected[i];
+        setMsg(`Enviando ${i+1} de ${selected.length}: ${file.name}`);
+        try{
+          await uploadOne(file);
+          sent++;
+        }catch(e){
+          failed.push(file.name);
+          if(e instanceof Error&&/quota|limit|exceed|storage/i.test(e.message))break;
+        }
+      }
+      if(failed.length===0){
+        setMsg(`${sent} arquivo${sent===1?"":"s"} enviado${sent===1?"":"s"} com sucesso.`);
+      }else{
+        setMsg(`${sent} enviado${sent===1?"":"s"}; ${failed.length} falhou/falharam: ${failed.join(", ")}`);
+      }
       await load();
     }catch(e){setMsg(e instanceof Error?e.message:"Falha no upload.")}
     finally{setBusy(false);if(inputRef.current)inputRef.current.value=""}
@@ -159,8 +181,8 @@ export default function Cloud(){
 
   return <><section className="portalHero"><span className="kicker">ROVIX Drive</span><h1>Seus arquivos na nuvem.</h1><p>Área privada para documentos, manuais, projetos, backups e arquivos pessoais — sem precisar deixar um computador ligado.</p></section>
   <div className="portalToolbar">
-    <input ref={inputRef} type="file" hidden onChange={e=>{const f=e.target.files?.[0];if(f)uploadFile(f)}}/>
-    <button className="button" type="button" disabled={busy||!API} onClick={()=>inputRef.current?.click()}><Upload/> Enviar arquivo</button>
+    <input ref={inputRef} type="file" multiple hidden onChange={e=>{if(e.target.files?.length)uploadFiles(e.target.files)}}/>
+    <button className="button" type="button" disabled={busy||!API} onClick={()=>inputRef.current?.click()}><Upload/> Enviar arquivos</button>
     <button className="button secondary" type="button" disabled={busy||!API} onClick={createFolder}>Nova pasta</button>
     {currentFolder&&<button className="button secondary" type="button" onClick={()=>setCurrentFolder(null)}>Voltar à raiz</button>}
     <span className="portalBadge"><HardDrive/> {usedGb.toFixed(2)} GB de 10 GB</span>
