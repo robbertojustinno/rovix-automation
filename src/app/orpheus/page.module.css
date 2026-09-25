@@ -46,3 +46,14 @@
 .footer{max-width:1180px;margin:0 auto;padding:0 28px 42px;color:#617078;font-size:12px;display:flex;justify-content:space-between;gap:20px;position:relative;z-index:1}
 @media(max-width:900px){.grid,.access{grid-template-columns:1fr}.features{grid-template-columns:1fr 1fr}.access{margin-left:28px;margin-right:28px}.terminalBody{min-height:260px}}
 @media(max-width:580px){.hero{padding-top:68px}.copy h1{font-size:44px}.features{grid-template-columns:1fr}.footer{flex-direction:column}.primary,.primaryDisabled,.secondary{width:100%;justify-content:center}}
+
+.languageBar{
+  position:relative;z-index:3;max-width:1180px;margin:0 auto;
+  padding:20px 28px 0;display:flex;justify-content:flex-end;
+}
+.languageBar button{
+  border:1px solid #39474e;background:rgba(5,9,11,.82);color:#e7eef1;
+  padding:9px 14px;border-radius:5px;font:700 12px/1 ui-monospace,SFMono-Regular,Consolas,monospace;
+  letter-spacing:.08em;cursor:pointer;
+}
+.languageBar button:hover{border-color:#d94b43;color:#fff}
