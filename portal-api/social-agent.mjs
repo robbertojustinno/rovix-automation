@@ -87,7 +87,28 @@ function buildCaption(project,topic,i){const variants=[
   "Mais controle, menos improviso. "+topic+" faz parte da proposta da "+project.name+": aplicar tecnologia de forma prática onde ela realmente gera valor.",
   "A evolução industrial também passa por ferramentas simples de usar e fáceis de integrar. Hoje o destaque é: "+topic+"."
 ];return variants[i%variants.length]+"\n\n"+project.cta+".\n\n#ROVIX #Automacao #Tecnologia #Industria40 #Inovacao"}
-async function ensureDailyContent(force=false){const db=await loadDb(),s=db.settings;if(!s.enabled&&!force)return{created:0};const day=saoDate(),existing=db.posts.filter(p=>p.generatedDate===day&&p.generatedBy==="agent").length,target=Math.max(1,Math.min(12,Number(s.postsPerDay)||3));let created=0;for(let i=existing;i<target;i++){const active=db.projects.filter(p=>p.active);if(!active.length)break;const p=active[i%active.length],topics=TOPICS[p.id]||TOPICS.rovix,topic=topics[(Number(db.meta.topicCursor||0)+i)%topics.length],status=s.approvalMode==="auto"?"approved":s.approvalMode==="hybrid"&&i===0?"approved":"draft";db.posts.unshift({id:id("agent"),projectId:p.id,projectName:p.name,title:topic,caption:buildCaption(p,topic,i),imageUrl:SOCIAL_PUBLIC_BASE+"/brand.png",scheduledAt:scheduleFor(day,i,target,s),status,createdAt:new Date().toISOString(),generatedBy:"agent",generatedDate:day});created++}db.meta.topicCursor=Number(db.meta.topicCursor||0)+created;if(created)await saveDb(db);return{created,target,day}}
+async function ensureDailyContent(force=false){
+  const db=await loadDb(),s=db.settings;
+  if(!s.enabled&&!force)return{created:0,target:0,day:saoDate(),reason:"disabled"};
+  const day=saoDate(),target=Math.max(1,Math.min(12,Number(s.postsPerDay)||3));
+  const existing=db.posts.filter(p=>p.generatedDate===day&&p.generatedBy==="agent").length;
+  if(!force&&existing>=target)return{created:0,target,day,existing,reason:"daily_target_already_met"};
+  const startIndex=force?0:existing;
+  let created=0;
+  for(let i=startIndex;i<target;i++){
+    const active=db.projects.filter(p=>p.active);if(!active.length)break;
+    const p=active[(Number(db.meta.topicCursor||0)+i)%active.length],topics=TOPICS[p.id]||TOPICS.rovix;
+    const topic=topics[(Number(db.meta.topicCursor||0)+i)%topics.length];
+    const status=s.approvalMode==="auto"?"approved":s.approvalMode==="hybrid"&&i===0?"approved":"draft";
+    let scheduledAt=scheduleFor(day,i,target,s);
+    if(force&&new Date(scheduledAt)<=new Date())scheduledAt=new Date(Date.now()+(created+1)*2*60*1000).toISOString();
+    db.posts.unshift({id:id("agent"),projectId:p.id,projectName:p.name,title:topic,caption:buildCaption(p,topic,i),imageUrl:SOCIAL_PUBLIC_BASE+"/brand.png",scheduledAt,status,createdAt:new Date().toISOString(),generatedBy:"agent",generatedDate:day,forcedBatch:force});
+    created++;
+  }
+  db.meta.topicCursor=Number(db.meta.topicCursor||0)+created;
+  if(created)await saveDb(db);
+  return{created,target,day,existing,forced:force}
+}
 async function publishDue(){const db=await loadDb(),now=new Date(),due=db.posts.filter(p=>p.status==="approved"&&p.scheduledAt&&new Date(p.scheduledAt)<=now).slice(0,10),results=[];if(due.length)console.log("[Social Agent] Publicações vencidas:",due.length,now.toISOString());for(const p of due){try{const r=await publish(p);p.status="published";p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError="";results.push({id:p.id,ok:true});console.log("[Social Agent] Publicado:",p.id,r.id)}catch(e){p.status="error";p.lastError=e.message;results.push({id:p.id,ok:false,error:e.message});console.error("[Social Agent] Falha ao publicar",p.id,e.message)}}if(due.length)await saveDb(db);return results}
 let busy=false;async function automationTick(){if(busy)return;busy=true;try{await ensureDailyContent(false);await publishDue()}catch(e){console.error("Social Agent:",e.message)}finally{busy=false}}
 setTimeout(()=>automationTick(),5000);setInterval(()=>automationTick(),60*1000);
