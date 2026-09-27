@@ -209,7 +209,7 @@ async function ensureDailyContent(force=false){
   if(created)await saveDb(db);
   return{created,target,day,existing,forced:force}
 }
-async function publishDue(){const db=await loadDb(),now=new Date(),due=db.posts.filter(p=>p.status==="approved"&&p.scheduledAt&&new Date(p.scheduledAt)<=now).slice(0,10),results=[];if(due.length)console.log("[Social Agent] Publicações vencidas:",due.length,now.toISOString());for(const p of due){try{const r=await publish(p);p.status="published";p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError="";results.push({id:p.id,ok:true});console.log("[Social Agent] Publicado:",p.id,r.id)}catch(e){p.status="error";p.lastError=e.message;results.push({id:p.id,ok:false,error:e.message});console.error("[Social Agent] Falha ao publicar",p.id,e.message)}}if(due.length)await saveDb(db);return results}
+async function publishDue(){const db=await loadDb(),now=new Date(),due=db.posts.filter(p=>p.status==="approved"&&p.scheduledAt&&new Date(p.scheduledAt)<=now&&(!p.nextRetryAt||new Date(p.nextRetryAt)<=now)).slice(0,10),results=[];if(due.length)console.log("[Social Agent] Publicações vencidas:",due.length,now.toISOString());for(const p of due){try{const r=await publish(p);p.status="published";p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError="";p.publishAttempts=Number(p.publishAttempts||0)+1;delete p.nextRetryAt;results.push({id:p.id,ok:true});console.log("[Social Agent] Publicado:",p.id,r.id)}catch(e){p.publishAttempts=Number(p.publishAttempts||0)+1;p.lastError=e.message;const transient=/Media ID is not available|temporar|try again|timeout|rate/i.test(e.message||"");if(transient&&p.publishAttempts<4){p.status="approved";p.nextRetryAt=new Date(Date.now()+2*60*1000).toISOString()}else p.status="error";results.push({id:p.id,ok:false,error:e.message,retry:!!p.nextRetryAt});console.error("[Social Agent] Falha ao publicar",p.id,e.message)}}if(due.length)await saveDb(db);return results}
 let busy=false;async function automationTick(){if(busy)return;busy=true;try{await ensureDailyContent(false);await prepareArtworkForQueue();await publishDue()}catch(e){console.error("Social Agent:",e.message)}finally{busy=false}}
 setTimeout(()=>automationTick(),5000);setInterval(()=>automationTick(),60*1000);
 
@@ -225,7 +225,7 @@ async function api(req,res,u){
   if(!authed(req))return json(res,401,{error:"Autenticação obrigatória"});
 
   const db=await loadDb();
-  if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"0.3.0",online:true,metaConfigured:metaConfigured(),storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings});
+  if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"0.4.0",online:true,metaConfigured:metaConfigured(),imageGenerationConfigured:!!OPENAI_API_KEY,storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings});
   if(req.method==="GET"&&u.pathname==="/social-api/meta/test"){if(!metaConfigured())return json(res,200,{connected:false,error:"Credenciais Meta ainda não configuradas"});try{return json(res,200,await testMeta())}catch(e){return json(res,200,{connected:false,error:e.message})}}
   if(req.method==="GET"&&u.pathname==="/social-api/projects")return json(res,200,db.projects);
   if(req.method==="GET"&&u.pathname==="/social-api/posts")return json(res,200,db.posts);
