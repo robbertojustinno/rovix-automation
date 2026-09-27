@@ -15,3 +15,26 @@ body.logged-in #shell{display:block!important}
 .preview-card h3{margin:14px 2px 4px}
 .preview-close{position:absolute;right:24px;top:24px;width:38px;height:38px;border-radius:999px;border:1px solid #ffffff33;background:#07101ccc;color:white;font-size:24px;cursor:pointer}
 @media(max-width:760px){.post{grid-template-columns:90px 1fr}.post>div:last-child{grid-column:1/-1}.post-thumb{width:90px;height:90px}}
+
+/* V0.3.3 — official ROVIX artwork */
+.login-card img{
+  width:min(250px,76%)!important;
+  height:auto!important;
+  aspect-ratio:1/1;
+  object-fit:contain!important;
+  object-position:center!important;
+  display:block!important;
+  margin:0 auto 22px!important;
+  border-radius:18px!important;
+  background:#050b13!important;
+  padding:0!important;
+}
+.brand img{
+  width:56px!important;
+  height:56px!important;
+  object-fit:contain!important;
+  object-position:center!important;
+  border-radius:10px!important;
+  background:#050b13!important;
+  padding:0!important;
+}
