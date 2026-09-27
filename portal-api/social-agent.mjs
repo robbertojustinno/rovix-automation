@@ -19,6 +19,40 @@ const SESSION_SECRET=process.env.SOCIAL_SESSION_SECRET||"";
 const SOCIAL_PUBLIC_BASE=(process.env.SOCIAL_PUBLIC_BASE||"https://rovix-drive-api.onrender.com/social-agent").replace(/\/$/,"");
 const LOGO_JPG=Buffer.from("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","base64");
 const DEFAULT_SETTINGS={enabled:true,postsPerDay:3,approvalMode:"manual",scheduleMode:"interval",startHour:9,endHour:19,postTimes:["09:00","14:00","19:00"],timezone:"America/Sao_Paulo"};
+const POSTING_POLICY=Object.freeze({
+  id:"rovix-premium-v1",
+  immutable:true,
+  image:{
+    minWidth:1080,
+    minHeight:1080,
+    preferredFormats:["1080x1080","1080x1350"],
+    style:["realista","premium","industrial","tecnologico","cinematografico"],
+    palette:["azul-escuro","vermelho","prata","grafite","preto"],
+    requirements:[
+      "logo ROVIX integrada sem distorcao",
+      "composicao publicitaria profissional",
+      "tipografia forte e legivel",
+      "coerencia visual com o produto",
+      "variacao suficiente para evitar repeticao",
+      "sem placeholder em publicacao final"
+    ]
+  },
+  categories:[
+    "Institucional ROVIX",
+    "Produto / solucao",
+    "Tecnologia / inovacao",
+    "Automacao industrial",
+    "Ciberseguranca / software",
+    "TagCheck / ROVIX Drive / UAP / CIPHER"
+  ],
+  publication:{
+    defaultPostsPerDay:3,
+    requiresFinalArtwork:true,
+    allowPlaceholderPublish:false,
+    keepBrandFamily:true,
+    avoidRepeatedThemes:true
+  }
+});
 const TOPICS={
   rovix:["Automação que resolve","Tecnologia aplicada","Integração de sistemas","Produtividade industrial","Engenharia e software","Inovação prática"],
   tagcheck:["Inspeções sem papel","Rastreabilidade de ativos","Organização das inspeções","Histórico e evidências","Padronização de campo","Gestão digital de ativos"],
@@ -102,7 +136,7 @@ async function ensureDailyContent(force=false){
     const status=s.approvalMode==="auto"?"approved":s.approvalMode==="hybrid"&&i===0?"approved":"draft";
     let scheduledAt=scheduleFor(day,i,target,s);
     if(force&&new Date(scheduledAt)<=new Date())scheduledAt=new Date(Date.now()+(created+1)*2*60*1000).toISOString();
-    db.posts.unshift({id:id("agent"),projectId:p.id,projectName:p.name,title:topic,caption:buildCaption(p,topic,i),imageUrl:SOCIAL_PUBLIC_BASE+"/brand.png",scheduledAt,status,createdAt:new Date().toISOString(),generatedBy:"agent",generatedDate:day,forcedBatch:force});
+    db.posts.unshift({id:id("agent"),projectId:p.id,projectName:p.name,title:topic,caption:buildCaption(p,topic,i),imageUrl:SOCIAL_PUBLIC_BASE+"/brand.png",scheduledAt,status,createdAt:new Date().toISOString(),generatedBy:"agent",generatedDate:day,forcedBatch:force,visualPolicy:POSTING_POLICY.id,artStatus:"placeholder"});
     created++;
   }
   db.meta.topicCursor=Number(db.meta.topicCursor||0)+created;
@@ -134,6 +168,7 @@ async function api(req,res,u){
   const imgMatch=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/image$/);
   if(req.method==="GET"&&imgMatch){const p=db.posts.find(x=>x.id===imgMatch[1]);if(!p)return json(res,404,{error:"Post não encontrado"});try{const loc=await mediaUrl(p);res.writeHead(302,{Location:loc,"Cache-Control":"no-store"});res.end();return}catch(e){return json(res,400,{error:e.message})}}
   if(req.method==="GET"&&u.pathname==="/social-api/settings")return json(res,200,db.settings);
+  if(req.method==="GET"&&u.pathname==="/social-api/policies")return json(res,200,POSTING_POLICY);
   if(req.method==="PUT"&&u.pathname==="/social-api/settings"){const d=await body(req);const postsPerDay=Math.max(1,Math.min(12,Number(d.postsPerDay)||3));const incomingTimes=Array.isArray(d.postTimes)?d.postTimes.map(x=>String(x)).filter(x=>/^([01]\d|2[0-3]):([0-5]\d)$/.test(x)).slice(0,postsPerDay):[];db.settings={...db.settings,enabled:Boolean(d.enabled),postsPerDay,approvalMode:["manual","auto","hybrid"].includes(d.approvalMode)?d.approvalMode:"manual",scheduleMode:["interval","exact"].includes(d.scheduleMode)?d.scheduleMode:"interval",startHour:Math.max(0,Math.min(23,Number(d.startHour)||9)),endHour:Math.max(0,Math.min(23,Number(d.endHour)||19)),postTimes:incomingTimes};await saveDb(db);return json(res,200,db.settings)}
   if(req.method==="POST"&&u.pathname==="/social-api/agent/run"){const a=await ensureDailyContent(true),r=await publishDue();return json(res,200,{...a,published:r})}
   if(req.method==="POST"&&u.pathname==="/social-api/uploads"){try{return json(res,201,{imageKey:await uploadImage(await body(req))})}catch(e){return json(res,400,{error:e.message})}}
