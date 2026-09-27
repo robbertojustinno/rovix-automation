@@ -34,6 +34,19 @@ window.ROVIX_HUB_CONFIG = {
           ]
         },
         {
+          "name": "ROVIX Social Agent",
+          "image": "/intranet/public/cards/rovix-social-agent.svg",
+          "description": "Agente de mídia da ROVIX para criação, aprovação, agendamento e publicação automática de conteúdo no Instagram.",
+          "status": "PRODUÇÃO",
+          "type": "IA / Marketing / Social",
+          "links": [
+            {
+              "label": "Abrir Media Agent",
+              "url": "https://www.rovixautomation.com.br/mediaagente/"
+            }
+          ]
+        },
+        {
           "name": "ROVIX Drive",
           "image": "/intranet/public/cards/rovix-drive.svg",
           "description": "Armazenamento privado administrativo da ROVIX e repositório dos arquivos associados aos produtos.",
