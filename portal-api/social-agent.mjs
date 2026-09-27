@@ -106,6 +106,8 @@ async function api(req,res,u){
   if(req.method==="GET"&&u.pathname==="/social-api/meta/test"){if(!metaConfigured())return json(res,200,{connected:false,error:"Credenciais Meta ainda não configuradas"});try{return json(res,200,await testMeta())}catch(e){return json(res,200,{connected:false,error:e.message})}}
   if(req.method==="GET"&&u.pathname==="/social-api/projects")return json(res,200,db.projects);
   if(req.method==="GET"&&u.pathname==="/social-api/posts")return json(res,200,db.posts);
+  const imgUrlMatch=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/image-url$/);
+  if(req.method==="GET"&&imgUrlMatch){const p=db.posts.find(x=>x.id===imgUrlMatch[1]);if(!p)return json(res,404,{error:"Post não encontrado"});try{return json(res,200,{url:await mediaUrl(p)})}catch(e){return json(res,400,{error:e.message})}}
   const imgMatch=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/image$/);
   if(req.method==="GET"&&imgMatch){const p=db.posts.find(x=>x.id===imgMatch[1]);if(!p)return json(res,404,{error:"Post não encontrado"});try{const loc=await mediaUrl(p);res.writeHead(302,{Location:loc,"Cache-Control":"no-store"});res.end();return}catch(e){return json(res,400,{error:e.message})}}
   if(req.method==="GET"&&u.pathname==="/social-api/settings")return json(res,200,db.settings);
