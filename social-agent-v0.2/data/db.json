@@ -1,0 +1,9 @@
+{
+  "projects":[
+    {"id":"tagcheck","name":"TagCheck","active":true,"frequency":3,"tone":"técnico, profissional e comercial","cta":"Conheça o TagCheck"},
+    {"id":"rovix-drive","name":"ROVIX Drive","active":true,"frequency":2,"tone":"direto, tecnológico e acessível","cta":"Conheça o ROVIX Drive"},
+    {"id":"uap-studio","name":"UAP Studio","active":true,"frequency":2,"tone":"engenharia, automação e inovação","cta":"Acompanhe o desenvolvimento do UAP Studio"},
+    {"id":"cipher","name":"CIPHER — Protocolo Orpheus","active":true,"frequency":2,"tone":"thriller, mistério e espionagem","cta":"Descubra CIPHER — Protocolo Orpheus"}
+  ],
+  "posts":[]
+}
