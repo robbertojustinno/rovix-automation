@@ -75,9 +75,11 @@ function scheduleFor(date,index,count,settings){
         const t=String(settings.postTimes[index]).match(/^([01]\d|2[0-3]):([0-5]\d)$/);
         if(t)return new Date(date+"T"+t[1]+":"+t[2]+":00-03:00").toISOString();
       }
-      const start=Number(settings.startHour)||9,end=Number(settings.endHour)||19;
-      const h=count<=1?start:Math.round(start+(end-start)*(index/(count-1)));
-      return new Date(date+"T"+String(h).padStart(2,"0")+":00:00-03:00").toISOString()
+      const start=Math.max(0,Math.min(23,Number(settings.startHour)||9)),end=Math.max(start,Math.min(23,Number(settings.endHour)||19));
+      const startMin=start*60,endMin=end*60,total=Math.max(0,endMin-startMin);
+      const minute=count<=1?startMin:Math.round(startMin+(total*(index/(count-1))));
+      const h=Math.floor(minute/60),m=minute%60;
+      return new Date(date+"T"+String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":00-03:00").toISOString()
     }
 function buildCaption(project,topic,i){const variants=[
   topic+" não precisa ser complicado. A "+project.name+" foi pensada para transformar tarefas do dia a dia em um fluxo mais organizado, rastreável e eficiente.",
