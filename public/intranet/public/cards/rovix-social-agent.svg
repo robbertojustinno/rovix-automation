@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720">
+<defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="#07101d"/><stop offset="1" stop-color="#10253b"/></linearGradient><linearGradient id="a" x1="0" x2="1"><stop stop-color="#28d9c7"/><stop offset="1" stop-color="#187a68"/></linearGradient></defs>
+<rect width="1200" height="720" rx="48" fill="url(#g)"/><circle cx="245" cy="250" r="112" fill="none" stroke="#e52535" stroke-width="28"/><path d="M195 345 270 235 245 280 330 145 278 248 318 230 195 345z" fill="#e52535"/><circle cx="245" cy="250" r="67" fill="none" stroke="#f2f5f7" stroke-width="18"/>
+<text x="420" y="245" font-family="Arial,Helvetica,sans-serif" font-size="78" font-weight="700" fill="#f6f8fb">ROVIX</text>
+<text x="420" y="330" font-family="Arial,Helvetica,sans-serif" font-size="54" font-weight="700" fill="url(#a)">SOCIAL AGENT</text>
+<text x="420" y="395" font-family="Arial,Helvetica,sans-serif" font-size="28" fill="#91a4bc">Conteúdo · Aprovação · Agendamento · Instagram</text>
+<rect x="420" y="460" width="420" height="74" rx="18" fill="#0b1725" stroke="#27415e"/><text x="450" y="508" font-family="Arial,Helvetica,sans-serif" font-size="28" fill="#d8e2ee">Agente de mídia automatizado</text>
+</svg>
