@@ -1,4 +1,5 @@
 import http from "node:http";
+import {handleSocialAgent} from "./social-agent.mjs";
 import crypto from "node:crypto";
 import {
   S3Client,
@@ -106,6 +107,7 @@ function safeName(v){
 }
 
 const server=http.createServer(async(req,res)=>{
+  if(await handleSocialAgent(req,res))return;
   const origin=corsOrigin(req);
   if(req.method==="OPTIONS"){
     if(!origin)return reply(res,403,{error:"origin_not_allowed"});
