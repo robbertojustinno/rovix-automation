@@ -38,3 +38,9 @@ body.logged-in #shell{display:block!important}
   background:#050b13!important;
   padding:0!important;
 }
+
+.policy-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.policy-grid>div{background:#0a121e;border:1px solid var(--l);border-radius:12px;padding:18px}
+.policy-grid ul{padding-left:20px;color:#aebbcf;line-height:1.7}
+.policy-lock{margin-top:18px;padding:12px 14px;border:1px solid #187a68;border-radius:10px;color:#8cf3df;background:#071a18}
+@media(max-width:760px){.policy-grid{grid-template-columns:1fr}}
