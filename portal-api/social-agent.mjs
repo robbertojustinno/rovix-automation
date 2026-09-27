@@ -83,6 +83,11 @@ async function loadDb(){
   try{const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:DB_KEY}));db=JSON.parse(await readStream(r.Body))}
   catch(e){if(e?.name==="NoSuchKey"||e?.$metadata?.httpStatusCode===404)db={projects:[],posts:[]};else throw e}
   db.projects=db.projects||[];db.posts=db.posts||[];db.settings={...DEFAULT_SETTINGS,...(db.settings||{})};db.meta=db.meta||{};
+  if(!db.meta.purgedUnpublished20260927){
+    const before=db.posts.length;
+    db.posts=db.posts.filter(p=>p.status==="published");
+    db.meta.purgedUnpublished20260927={at:new Date().toISOString(),removed:before-db.posts.length};
+  }
   for(const p of BASE_PROJECTS)if(!db.projects.some(x=>x.id===p.id))db.projects.push(p);
   if(!db.meta.seededInstitutionalPost){
     db.posts.unshift({id:"seed-institucional-001",projectId:"rovix",projectName:"ROVIX Automation",title:"Tecnologia aplicada ao mundo real",caption:"A ROVIX une automação, software e inovação para transformar processos em soluções práticas.\n\nDo chão de fábrica ao ambiente digital, seguimos desenvolvendo ferramentas para organizar, conectar e automatizar operações.\n\nAcompanhe os próximos projetos e lançamentos da ROVIX.\n\n#ROVIX #AutomacaoIndustrial #Tecnologia #Industria40 #Software #Inovacao",imageUrl:SOCIAL_PUBLIC_BASE+"/brand.png",scheduledAt:"",status:"draft",createdAt:new Date().toISOString(),generatedBy:"agent"});
