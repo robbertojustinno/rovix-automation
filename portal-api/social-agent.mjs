@@ -13,217 +13,100 @@ const R2_ACCESS_KEY_ID=process.env.R2_ACCESS_KEY_ID||"";
 const R2_SECRET_ACCESS_KEY=process.env.R2_SECRET_ACCESS_KEY||"";
 const R2_BUCKET=process.env.R2_BUCKET||"rovix-drive";
 const DB_KEY="social-agent/db.json";
-const ADMIN_KEY=process.env.SOCIAL_ADMIN_KEY||"";
-const CRON_SECRET=process.env.SOCIAL_CRON_SECRET||"";
+const ADMIN_USER=process.env.SOCIAL_ADMIN_USER||"admin";
+const ADMIN_PASSWORD_HASH=process.env.SOCIAL_ADMIN_PASSWORD_HASH||"";
+const SESSION_SECRET=process.env.SOCIAL_SESSION_SECRET||"";
 const SOCIAL_PUBLIC_BASE=(process.env.SOCIAL_PUBLIC_BASE||"https://rovix-drive-api.onrender.com/social-agent").replace(/\/$/,"");
-
-const DEFAULT_DB={
-  projects:[
-    {id:"tagcheck",name:"TagCheck",active:true,frequency:3,tone:"técnico, profissional e comercial",cta:"Conheça o TagCheck"},
-    {id:"rovix-drive",name:"ROVIX Drive",active:true,frequency:2,tone:"direto, tecnológico e acessível",cta:"Conheça o ROVIX Drive"},
-    {id:"uap-studio",name:"UAP Studio",active:true,frequency:2,tone:"engenharia, automação e inovação",cta:"Acompanhe o desenvolvimento do UAP Studio"},
-    {id:"cipher",name:"CIPHER — Protocolo Orpheus",active:true,frequency:2,tone:"thriller, mistério e espionagem",cta:"Descubra CIPHER — Protocolo Orpheus"}
-  ],posts:[]
+const LOGO_JPG=Buffer.from("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","base64");
+const DEFAULT_SETTINGS={enabled:true,postsPerDay:3,approvalMode:"manual",startHour:9,endHour:19,timezone:"America/Sao_Paulo"};
+const TOPICS={
+  rovix:["Automação que resolve","Tecnologia aplicada","Integração de sistemas","Produtividade industrial","Engenharia e software","Inovação prática"],
+  tagcheck:["Inspeções sem papel","Rastreabilidade de ativos","Organização das inspeções","Histórico e evidências","Padronização de campo","Gestão digital de ativos"],
+  "rovix-drive":["Arquivos da ROVIX na nuvem","Distribuição segura de arquivos","Downloads organizados","Central de produtos digitais","Compartilhamento simples","Acesso online aos projetos"],
+  "uap-studio":["Integração industrial","Comunicação entre equipamentos","Ferramentas de diagnóstico","RS-485, CAN e TCP","Automação conectada","Engenharia de protocolo"],
+  cipher:["Protocolo Orpheus","Blake Langmere","Mistério e espionagem","Tecnologia e conspiração","Universo CIPHER","Suspense tecnológico"]
 };
 
-function s3(){
-  if(!R2_ENDPOINT||!R2_ACCESS_KEY_ID||!R2_SECRET_ACCESS_KEY)throw new Error("R2_NOT_CONFIGURED");
-  return new S3Client({region:"auto",endpoint:R2_ENDPOINT,credentials:{accessKeyId:R2_ACCESS_KEY_ID,secretAccessKey:R2_SECRET_ACCESS_KEY}});
-}
+const BASE_PROJECTS=[
+  {id:"rovix",name:"ROVIX Automation",active:true,frequency:7,tone:"tecnológico, industrial e profissional",cta:"Acompanhe a ROVIX"},
+  {id:"tagcheck",name:"TagCheck",active:true,frequency:3,tone:"técnico, profissional e comercial",cta:"Conheça o TagCheck"},
+  {id:"rovix-drive",name:"ROVIX Drive",active:true,frequency:2,tone:"direto, tecnológico e acessível",cta:"Conheça o ROVIX Drive"},
+  {id:"uap-studio",name:"UAP Studio",active:true,frequency:2,tone:"engenharia, automação e inovação",cta:"Acompanhe o UAP Studio"},
+  {id:"cipher",name:"CIPHER — Protocolo Orpheus",active:true,frequency:2,tone:"thriller, mistério e espionagem",cta:"Descubra CIPHER"}
+];
+
+function s3(){if(!R2_ENDPOINT||!R2_ACCESS_KEY_ID||!R2_SECRET_ACCESS_KEY)throw new Error("R2_NOT_CONFIGURED");return new S3Client({region:"auto",endpoint:R2_ENDPOINT,credentials:{accessKeyId:R2_ACCESS_KEY_ID,secretAccessKey:R2_SECRET_ACCESS_KEY}})}
 async function readStream(stream){return await stream.transformToString()}
-async function loadDb(){
-  try{
-    const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:DB_KEY}));
-    const db=JSON.parse(await readStream(r.Body));
-    db.meta=db.meta||{};
-    if(!db.meta.seededInstitutionalPost){
-      db.posts=db.posts||[];
-      db.posts.unshift({
-        id:"seed-institucional-001",
-        projectId:"rovix-drive",
-        projectName:"ROVIX Automation",
-        title:"Tecnologia aplicada ao mundo real",
-        caption:"A ROVIX une automação, software e inovação para transformar processos em soluções práticas.\n\nDo chão de fábrica ao ambiente digital, seguimos desenvolvendo ferramentas para organizar, conectar e automatizar operações.\n\nAcompanhe os próximos projetos e lançamentos da ROVIX.\n\n#ROVIX #AutomacaoIndustrial #Tecnologia #Industria40 #Software #Inovacao",
-        imageKey:"",
-        imageUrl:SOCIAL_PUBLIC_BASE+"/brand.png",
-        scheduledAt:"",
-        status:"draft",
-        createdAt:new Date().toISOString()
-      });
-      db.meta.seededInstitutionalPost=true;
-      await saveDb(db);
-    }
-    return db;
-  }catch(e){
-    if(e?.name==="NoSuchKey"||e?.$metadata?.httpStatusCode===404){
-      const db=structuredClone(DEFAULT_DB);
-      db.meta={seededInstitutionalPost:true};
-      db.posts=[{
-        id:"seed-institucional-001",
-        projectId:"rovix-drive",
-        projectName:"ROVIX Automation",
-        title:"Tecnologia aplicada ao mundo real",
-        caption:"A ROVIX une automação, software e inovação para transformar processos em soluções práticas.\n\nDo chão de fábrica ao ambiente digital, seguimos desenvolvendo ferramentas para organizar, conectar e automatizar operações.\n\nAcompanhe os próximos projetos e lançamentos da ROVIX.\n\n#ROVIX #AutomacaoIndustrial #Tecnologia #Industria40 #Software #Inovacao",
-        imageKey:"",
-        imageUrl:SOCIAL_PUBLIC_BASE+"/brand.png",
-        scheduledAt:"",
-        status:"draft",
-        createdAt:new Date().toISOString()
-      }];
-      await saveDb(db);return db
-    }
-    throw e;
-  }
-}
 async function saveDb(db){await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:DB_KEY,Body:JSON.stringify(db,null,2),ContentType:"application/json"}))}
-function json(res,status,data){res.writeHead(status,{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"});res.end(JSON.stringify(data))}
+async function loadDb(){
+  let db;
+  try{const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:DB_KEY}));db=JSON.parse(await readStream(r.Body))}
+  catch(e){if(e?.name==="NoSuchKey"||e?.$metadata?.httpStatusCode===404)db={projects:[],posts:[]};else throw e}
+  db.projects=db.projects||[];db.posts=db.posts||[];db.settings={...DEFAULT_SETTINGS,...(db.settings||{})};db.meta=db.meta||{};
+  for(const p of BASE_PROJECTS)if(!db.projects.some(x=>x.id===p.id))db.projects.push(p);
+  if(!db.meta.seededInstitutionalPost){
+    db.posts.unshift({id:"seed-institucional-001",projectId:"rovix",projectName:"ROVIX Automation",title:"Tecnologia aplicada ao mundo real",caption:"A ROVIX une automação, software e inovação para transformar processos em soluções práticas.\n\nDo chão de fábrica ao ambiente digital, seguimos desenvolvendo ferramentas para organizar, conectar e automatizar operações.\n\nAcompanhe os próximos projetos e lançamentos da ROVIX.\n\n#ROVIX #AutomacaoIndustrial #Tecnologia #Industria40 #Software #Inovacao",imageUrl:SOCIAL_PUBLIC_BASE+"/logo.jpg",scheduledAt:"",status:"draft",createdAt:new Date().toISOString(),generatedBy:"agent"});
+    db.meta.seededInstitutionalPost=true;
+  }
+  await saveDb(db);return db;
+}
+function json(res,status,data,extra={}){res.writeHead(status,{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff",...extra});res.end(JSON.stringify(data))}
 function text(res,status,data,type="text/plain; charset=utf-8"){res.writeHead(status,{"Content-Type":type,"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"});res.end(data)}
 function mime(p){return({".html":"text/html; charset=utf-8",".js":"application/javascript; charset=utf-8",".css":"text/css; charset=utf-8"})[path.extname(p)]||"application/octet-stream"}
 function body(req,limit=12*1024*1024){return new Promise((resolve,reject)=>{let raw="";req.on("data",c=>{raw+=c;if(raw.length>limit){reject(new Error("Payload muito grande"));req.destroy()}});req.on("end",()=>{if(!raw)return resolve({});try{resolve(JSON.parse(raw))}catch{reject(new Error("JSON inválido"))}});req.on("error",reject)})}
-function auth(req){return !ADMIN_KEY||req.headers["x-social-key"]===ADMIN_KEY}
+function cookies(req){return Object.fromEntries(String(req.headers.cookie||"").split(";").map(v=>v.trim()).filter(Boolean).map(v=>{const i=v.indexOf("=");return[decodeURIComponent(v.slice(0,i)),decodeURIComponent(v.slice(i+1))]}))}
+function verifyPassword(pass){if(!ADMIN_PASSWORD_HASH)return false;const [salt,expected]=ADMIN_PASSWORD_HASH.split(":");if(!salt||!expected)return false;const got=crypto.scryptSync(String(pass),Buffer.from(salt,"hex"),32).toString("hex");return crypto.timingSafeEqual(Buffer.from(got),Buffer.from(expected))}
+function makeSession(){const exp=Date.now()+12*60*60*1000,payload=ADMIN_USER+"|"+exp,sig=crypto.createHmac("sha256",SESSION_SECRET).update(payload).digest("hex");return Buffer.from(payload+"|"+sig).toString("base64url")}
+function authed(req){try{if(!SESSION_SECRET)return false;const t=cookies(req).rovix_social_session;if(!t)return false;const [user,exp,sig]=Buffer.from(t,"base64url").toString().split("|"),payload=user+"|"+exp,calc=crypto.createHmac("sha256",SESSION_SECRET).update(payload).digest("hex");return user===ADMIN_USER&&Number(exp)>Date.now()&&crypto.timingSafeEqual(Buffer.from(sig),Buffer.from(calc))}catch{return false}}
+function sessionCookie(token,maxAge=43200){return "rovix_social_session="+token+"; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age="+maxAge}
 function metaCfg(){return{token:process.env.META_ACCESS_TOKEN||"",ig:process.env.META_IG_USER_ID||"",version:process.env.META_GRAPH_VERSION||"v26.0",host:process.env.META_API_HOST||"graph.instagram.com"}}
 function metaConfigured(){const c=metaCfg();return!!(c.token&&c.ig&&c.version&&c.host)}
-async function metaFetch(route,{method="GET",params={}}={}){
-  const c=metaCfg();if(!metaConfigured())throw new Error("Instagram não configurado no servidor");
-  const u=new URL("https://"+c.host+"/"+encodeURIComponent(c.version)+"/"+String(route).replace(/^\//,""));
-  const headers={Authorization:"Bearer "+c.token,"User-Agent":"ROVIX-Social-Agent/0.2"};
-  const init={method,headers};
-  if(method==="GET")Object.entries(params).forEach(([k,v])=>v!==""&&v!=null&&u.searchParams.set(k,String(v)));
-  else{headers["Content-Type"]="application/x-www-form-urlencoded";init.body=new URLSearchParams(Object.entries(params).filter(([,v])=>v!==""&&v!=null)).toString()}
-  const r=await fetch(u,init),raw=await r.text();let d;try{d=JSON.parse(raw)}catch{d={raw}};
-  if(!r.ok||d.error)throw new Error(d?.error?.message||("Erro HTTP "+r.status));return d;
-}
-async function testMeta(){
-  const c=metaCfg(),d=await metaFetch(c.ig,{params:{fields:"id,username,account_type"}});
-  return{connected:true,id:d.id||c.ig,username:d.username||null,accountType:d.account_type||null,apiHost:c.host,apiVersion:c.version};
-}
-async function mediaUrl(post){
-  if(post.imageKey){
-    return await getSignedUrl(s3(),new GetObjectCommand({Bucket:R2_BUCKET,Key:post.imageKey}),{expiresIn:900});
-  }
-  if(/^https:\/\//i.test(post.imageUrl||""))return post.imageUrl;
-  throw new Error("Adicione uma imagem antes de publicar");
-}
-async function waitContainer(id){
-  for(let i=0;i<12;i++){const d=await metaFetch(id,{params:{fields:"status_code,status"}}),s=String(d.status_code||"").toUpperCase();if(!s||s==="FINISHED")return;if(s==="ERROR"||s==="EXPIRED")throw new Error(d.status||("Container "+s));await new Promise(r=>setTimeout(r,1800))}
-  throw new Error("A mídia ainda não ficou pronta para publicação");
-}
-async function publish(post){
-  const c=metaCfg(),url=await mediaUrl(post);
-  const created=await metaFetch(c.ig+"/media",{method:"POST",params:{image_url:url,caption:post.caption||""}});
-  if(!created.id)throw new Error("A Meta não retornou o ID do container");
-  await waitContainer(created.id);
-  const pub=await metaFetch(c.ig+"/media_publish",{method:"POST",params:{creation_id:created.id}});
-  if(!pub.id)throw new Error("A Meta não retornou o ID da publicação");
-  return{...pub,containerId:created.id};
-}
-async function uploadImage(data){
-  const m=String(data.dataUrl||"").match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
-  if(!m)throw new Error("Imagem inválida. Use JPG, PNG ou WEBP");
-  const b=Buffer.from(m[2],"base64");if(b.length>8*1024*1024)throw new Error("Imagem maior que 8 MB");
-  const ext=m[1]==="image/jpeg"?"jpg":m[1].split("/")[1],key="social-agent/media/"+Date.now()+"-"+crypto.randomBytes(6).toString("hex")+"."+ext;
-  await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:key,Body:b,ContentType:m[1]}));return key;
-}
+async function metaFetch(route,{method="GET",params={}}={}){const c=metaCfg();if(!metaConfigured())throw new Error("Instagram não configurado no servidor");const u=new URL("https://"+c.host+"/"+encodeURIComponent(c.version)+"/"+String(route).replace(/^\//,""));const headers={Authorization:"Bearer "+c.token,"User-Agent":"ROVIX-Social-Agent/0.3"};const init={method,headers};if(method==="GET")Object.entries(params).forEach(([k,v])=>v!==""&&v!=null&&u.searchParams.set(k,String(v)));else{headers["Content-Type"]="application/x-www-form-urlencoded";init.body=new URLSearchParams(Object.entries(params).filter(([,v])=>v!==""&&v!=null)).toString()}const r=await fetch(u,init),raw=await r.text();let d;try{d=JSON.parse(raw)}catch{d={raw}};if(!r.ok||d.error)throw new Error(d?.error?.message||("Erro HTTP "+r.status));return d}
+async function testMeta(){const c=metaCfg(),d=await metaFetch(c.ig,{params:{fields:"id,username,account_type"}});return{connected:true,id:d.id||c.ig,username:d.username||null,accountType:d.account_type||null,apiHost:c.host,apiVersion:c.version}}
+async function mediaUrl(post){if(post.imageKey)return await getSignedUrl(s3(),new GetObjectCommand({Bucket:R2_BUCKET,Key:post.imageKey}),{expiresIn:900});if(/^https:\/\//i.test(post.imageUrl||""))return post.imageUrl;return SOCIAL_PUBLIC_BASE+"/logo.jpg"}
+async function waitContainer(id){for(let i=0;i<12;i++){const d=await metaFetch(id,{params:{fields:"status_code,status"}}),s=String(d.status_code||"").toUpperCase();if(!s||s==="FINISHED")return;if(s==="ERROR"||s==="EXPIRED")throw new Error(d.status||("Container "+s));await new Promise(r=>setTimeout(r,1800))}throw new Error("A mídia ainda não ficou pronta para publicação")}
+async function publish(post){const c=metaCfg(),url=await mediaUrl(post);const created=await metaFetch(c.ig+"/media",{method:"POST",params:{image_url:url,caption:post.caption||""}});if(!created.id)throw new Error("A Meta não retornou o ID do container");await waitContainer(created.id);const pub=await metaFetch(c.ig+"/media_publish",{method:"POST",params:{creation_id:created.id}});if(!pub.id)throw new Error("A Meta não retornou o ID da publicação");return{...pub,containerId:created.id}}
+async function uploadImage(data){const m=String(data.dataUrl||"").match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);if(!m)throw new Error("Imagem inválida. Use JPG, PNG ou WEBP");const b=Buffer.from(m[2],"base64");if(b.length>8*1024*1024)throw new Error("Imagem maior que 8 MB");const ext=m[1]==="image/jpeg"?"jpg":m[1].split("/")[1],key="social-agent/media/"+Date.now()+"-"+crypto.randomBytes(6).toString("hex")+"."+ext;await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:key,Body:b,ContentType:m[1]}));return key}
 function id(p="id"){return p+"-"+Date.now()+"-"+crypto.randomBytes(3).toString("hex")}
-
-function crc32(buf){
-  let c=0xffffffff;
-  for(const b of buf){c^=b;for(let k=0;k<8;k++)c=(c>>>1)^((c&1)?0xedb88320:0)}
-  return (c^0xffffffff)>>>0;
-}
-function pngChunk(type,data){
-  const t=Buffer.from(type),len=Buffer.alloc(4),crc=Buffer.alloc(4);
-  len.writeUInt32BE(data.length);crc.writeUInt32BE(crc32(Buffer.concat([t,data])));
-  return Buffer.concat([len,t,data,crc]);
-}
-const FONT={
-R:["11110","10001","10001","11110","10100","10010","10001"],
-O:["01110","10001","10001","10001","10001","10001","01110"],
-V:["10001","10001","10001","10001","10001","01010","00100"],
-I:["11111","00100","00100","00100","00100","00100","11111"],
-X:["10001","10001","01010","00100","01010","10001","10001"],
-A:["01110","10001","10001","11111","10001","10001","10001"],
-U:["10001","10001","10001","10001","10001","10001","01110"],
-T:["11111","00100","00100","00100","00100","00100","00100"],
-M:["10001","11011","10101","10101","10001","10001","10001"],
-N:["10001","11001","10101","10011","10001","10001","10001"],
-C:["01111","10000","10000","10000","10000","10000","01111"],
-E:["11111","10000","10000","11110","10000","10000","11111"],
-L:["10000","10000","10000","10000","10000","10000","11111"],
-G:["01111","10000","10000","10111","10001","10001","01111"],
-P:["11110","10001","10001","11110","10000","10000","10000"],
-D:["11110","10001","10001","10001","10001","10001","11110"],
-S:["01111","10000","10000","01110","00001","00001","11110"],
-F:["11111","10000","10000","11110","10000","10000","10000"],
-B:["11110","10001","10001","11110","10001","10001","11110"],
-" ":["00000","00000","00000","00000","00000","00000","00000"]
-};
-function brandPng(){
-  const w=1080,h=1080,row=w*4+1,raw=Buffer.alloc(row*h);
-  for(let y=0;y<h;y++){const off=y*row;raw[off]=0;for(let x=0;x<w;x++){const i=off+1+x*4;raw[i]=6;raw[i+1]=11;raw[i+2]=18;raw[i+3]=255}}
-  const px=(x,y,r,g,b,a=255)=>{if(x<0||y<0||x>=w||y>=h)return;const i=y*row+1+x*4;raw[i]=r;raw[i+1]=g;raw[i+2]=b;raw[i+3]=a};
-  const rect=(x1,y1,x2,y2,r,g,b)=>{for(let y=y1;y<y2;y++)for(let x=x1;x<x2;x++)px(x,y,r,g,b)};
-  const outline=(x1,y1,x2,y2,t,r,g,b)=>{rect(x1,y1,x2,y1+t,r,g,b);rect(x1,y2-t,x2,y2,r,g,b);rect(x1,y1,x1+t,y2,r,g,b);rect(x2-t,y1,x2,y2,r,g,b)};
-  const drawText=(text,x,y,scale,r,g,b)=>{let cx=x;for(const ch of text){const p=FONT[ch]||FONT[" "];for(let yy=0;yy<7;yy++)for(let xx=0;xx<5;xx++)if(p[yy][xx]==="1")rect(cx+xx*scale,y+yy*scale,cx+(xx+1)*scale,y+(yy+1)*scale,r,g,b);cx+=6*scale}};
-  outline(68,68,1012,1012,4,28,48,68);
-  outline(92,98,220,240,4,48,216,197);
-  drawText("R",120,125,14,48,216,197);
-  drawText("ROVIX",270,118,15,244,247,251);
-  drawText("AUTOMATION",274,240,6,142,163,187);
-  drawText("AUTOMACAO",96,420,12,244,247,251);
-  drawText("SOFTWARE",96,540,12,244,247,251);
-  drawText("INOVACAO",96,660,12,244,247,251);
-  rect(96,840,984,944,10,29,39);outline(96,840,984,944,3,31,107,99);
-  drawText("TECNOLOGIA APLICADA",128,872,6,48,216,197);
-  const sig=Buffer.from([137,80,78,71,13,10,26,10]),ih=Buffer.alloc(13);ih.writeUInt32BE(w,0);ih.writeUInt32BE(h,4);ih[8]=8;ih[9]=6;ih[10]=0;ih[11]=0;ih[12]=0;
-  return Buffer.concat([sig,pngChunk("IHDR",ih),pngChunk("IDAT",zlib.deflateSync(raw,{level:9})),pngChunk("IEND",Buffer.alloc(0))]);
-}
+function saoDate(){return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date())}
+function scheduleFor(date,index,count,start,end){const h=count<=1?start:Math.round(start+(end-start)*(index/(count-1)));return new Date(date+"T"+String(h).padStart(2,"0")+":00:00-03:00").toISOString()}
+function buildCaption(project,topic,i){const variants=[
+  topic+" não precisa ser complicado. A "+project.name+" foi pensada para transformar tarefas do dia a dia em um fluxo mais organizado, rastreável e eficiente.",
+  "Quando tecnologia e operação trabalham juntas, o resultado aparece no processo. "+topic+" é um dos pontos em que a "+project.name+" busca reduzir retrabalho e dar mais visibilidade ao que acontece.",
+  "Mais controle, menos improviso. "+topic+" faz parte da proposta da "+project.name+": aplicar tecnologia de forma prática onde ela realmente gera valor.",
+  "A evolução industrial também passa por ferramentas simples de usar e fáceis de integrar. Hoje o destaque é: "+topic+"."
+];return variants[i%variants.length]+"\n\n"+project.cta+".\n\n#ROVIX #Automacao #Tecnologia #Industria40 #Inovacao"}
+async function ensureDailyContent(force=false){const db=await loadDb(),s=db.settings;if(!s.enabled&&!force)return{created:0};const day=saoDate(),existing=db.posts.filter(p=>p.generatedDate===day&&p.generatedBy==="agent").length,target=Math.max(1,Math.min(12,Number(s.postsPerDay)||3));let created=0;for(let i=existing;i<target;i++){const active=db.projects.filter(p=>p.active);if(!active.length)break;const p=active[i%active.length],topics=TOPICS[p.id]||TOPICS.rovix,topic=topics[(Number(db.meta.topicCursor||0)+i)%topics.length],status=s.approvalMode==="auto"?"approved":s.approvalMode==="hybrid"&&i===0?"approved":"draft";db.posts.unshift({id:id("agent"),projectId:p.id,projectName:p.name,title:topic,caption:buildCaption(p,topic,i),imageUrl:SOCIAL_PUBLIC_BASE+"/logo.jpg",scheduledAt:scheduleFor(day,i,target,Number(s.startHour)||9,Number(s.endHour)||19),status,createdAt:new Date().toISOString(),generatedBy:"agent",generatedDate:day});created++}db.meta.topicCursor=Number(db.meta.topicCursor||0)+created;if(created)await saveDb(db);return{created,target,day}}
+async function publishDue(){const db=await loadDb(),due=db.posts.filter(p=>p.status==="approved"&&p.scheduledAt&&new Date(p.scheduledAt)<=new Date()).slice(0,10),results=[];for(const p of due){try{const r=await publish(p);p.status="published";p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError="";results.push({id:p.id,ok:true})}catch(e){p.status="error";p.lastError=e.message;results.push({id:p.id,ok:false,error:e.message})}}if(due.length)await saveDb(db);return results}
+let busy=false;async function automationTick(){if(busy)return;busy=true;try{await ensureDailyContent(false);await publishDue()}catch(e){console.error("Social Agent:",e.message)}finally{busy=false}}
+setTimeout(()=>automationTick(),12000);setInterval(()=>automationTick(),5*60*1000);
 
 async function api(req,res,u){
-  if(req.method!=="GET"&&!auth(req))return json(res,401,{error:"Não autorizado"});
-  const db=await loadDb();
+  if(u.pathname==="/social-api/auth/status")return json(res,200,{authenticated:authed(req),user:authed(req)?ADMIN_USER:null});
+  if(req.method==="POST"&&u.pathname==="/social-api/auth/login"){const d=await body(req);if(d.user!==ADMIN_USER||!verifyPassword(d.password))return json(res,401,{error:"Usuário ou senha inválidos"});return json(res,200,{ok:true,user:ADMIN_USER},{"Set-Cookie":sessionCookie(makeSession())})}
+  if(req.method==="POST"&&u.pathname==="/social-api/auth/logout")return json(res,200,{ok:true},{"Set-Cookie":sessionCookie("",0)});
+  if(!authed(req))return json(res,401,{error:"Autenticação obrigatória"});
 
-  if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"0.2.0",online:true,metaConfigured:metaConfigured(),storage:"R2",projects:db.projects.length,posts:db.posts.length});
-  if(req.method==="GET"&&u.pathname==="/social-api/meta/test"){if(!metaConfigured())return json(res,200,{connected:false,error:"Credenciais Meta ainda não configuradas"});try{return json(res,200,await testMeta())}catch(e){return json(res,200,{connected:false,error:e.message,apiHost:metaCfg().host,apiVersion:metaCfg().version})}}
+  const db=await loadDb();
+  if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"0.3.0",online:true,metaConfigured:metaConfigured(),storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings});
+  if(req.method==="GET"&&u.pathname==="/social-api/meta/test"){if(!metaConfigured())return json(res,200,{connected:false,error:"Credenciais Meta ainda não configuradas"});try{return json(res,200,await testMeta())}catch(e){return json(res,200,{connected:false,error:e.message})}}
   if(req.method==="GET"&&u.pathname==="/social-api/projects")return json(res,200,db.projects);
   if(req.method==="GET"&&u.pathname==="/social-api/posts")return json(res,200,db.posts);
-
+  if(req.method==="GET"&&u.pathname==="/social-api/settings")return json(res,200,db.settings);
+  if(req.method==="PUT"&&u.pathname==="/social-api/settings"){const d=await body(req);db.settings={...db.settings,enabled:Boolean(d.enabled),postsPerDay:Math.max(1,Math.min(12,Number(d.postsPerDay)||3)),approvalMode:["manual","auto","hybrid"].includes(d.approvalMode)?d.approvalMode:"manual",startHour:Math.max(0,Math.min(23,Number(d.startHour)||9)),endHour:Math.max(0,Math.min(23,Number(d.endHour)||19))};await saveDb(db);return json(res,200,db.settings)}
+  if(req.method==="POST"&&u.pathname==="/social-api/agent/run"){const a=await ensureDailyContent(true),r=await publishDue();return json(res,200,{...a,published:r})}
   if(req.method==="POST"&&u.pathname==="/social-api/uploads"){try{return json(res,201,{imageKey:await uploadImage(await body(req))})}catch(e){return json(res,400,{error:e.message})}}
-  if(req.method==="POST"&&u.pathname==="/social-api/posts"){
-    const d=await body(req),pr=db.projects.find(x=>x.id===d.projectId);if(!pr)return json(res,400,{error:"Projeto inválido"});
-    const p={id:id("post"),projectId:pr.id,projectName:pr.name,title:String(d.title||"Novo post"),caption:String(d.caption||""),imageKey:String(d.imageKey||""),imageUrl:String(d.imageUrl||""),scheduledAt:String(d.scheduledAt||""),status:"draft",createdAt:new Date().toISOString()};
-    db.posts.unshift(p);await saveDb(db);return json(res,201,p);
-  }
-  const m=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/(approve|reject|publish)$/);
-  if(req.method==="POST"&&m){
-    const p=db.posts.find(x=>x.id===m[1]);if(!p)return json(res,404,{error:"Post não encontrado"});
-    if(m[2]==="approve"){p.status="approved";p.lastError=""}
-    else if(m[2]==="reject")p.status="rejected";
-    else{
-      try{const r=await publish(p);p.status="published";p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError=""}
-      catch(e){p.status="error";p.lastError=e.message;await saveDb(db);return json(res,400,{error:e.message})}
-    }
-    await saveDb(db);return json(res,200,p);
-  }
-  if(req.method==="GET"&&u.pathname==="/social-api/cron/publish-due"){
-    const key=u.searchParams.get("key")||req.headers["x-cron-secret"]||"";if(CRON_SECRET&&key!==CRON_SECRET)return json(res,401,{error:"Não autorizado"});
-    const due=db.posts.filter(p=>p.status==="approved"&&p.scheduledAt&&new Date(p.scheduledAt)<=new Date()).slice(0,10),results=[];
-    for(const p of due){try{const r=await publish(p);p.status="published";p.metaMediaId=r.id;p.publishedAt=new Date().toISOString();p.lastError="";results.push({id:p.id,ok:true})}catch(e){p.status="error";p.lastError=e.message;results.push({id:p.id,ok:false,error:e.message})}}
-    await saveDb(db);return json(res,200,{processed:results.length,results});
-  }
+  if(req.method==="POST"&&u.pathname==="/social-api/posts"){const d=await body(req),pr=db.projects.find(x=>x.id===d.projectId);if(!pr)return json(res,400,{error:"Projeto inválido"});const p={id:id("post"),projectId:pr.id,projectName:pr.name,title:String(d.title||"Novo post"),caption:String(d.caption||""),imageKey:String(d.imageKey||""),imageUrl:String(d.imageUrl||SOCIAL_PUBLIC_BASE+"/logo.jpg"),scheduledAt:String(d.scheduledAt||""),status:"draft",createdAt:new Date().toISOString()};db.posts.unshift(p);await saveDb(db);return json(res,201,p)}
+  const m=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/(approve|reject|publish)$/);if(req.method==="POST"&&m){const p=db.posts.find(x=>x.id===m[1]);if(!p)return json(res,404,{error:"Post não encontrado"});if(m[2]==="approve"){p.status="approved";p.lastError=""}else if(m[2]==="reject")p.status="rejected";else{try{const r=await publish(p);p.status="published";p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError=""}catch(e){p.status="error";p.lastError=e.message;await saveDb(db);return json(res,400,{error:e.message})}}await saveDb(db);return json(res,200,p)}
   return json(res,404,{error:"Rota social não encontrada"});
 }
 
 export async function handleSocialAgent(req,res){
   const u=new URL(req.url,"http://localhost");
   if(u.pathname.startsWith("/social-api/")){await api(req,res,u);return true}
-  if(u.pathname==="/social-agent/brand.png"){res.writeHead(200,{"Content-Type":"image/png","Cache-Control":"public, max-age=3600"});res.end(brandPng());return true}
+  if(u.pathname==="/social-agent/logo.jpg"){res.writeHead(200,{"Content-Type":"image/jpeg","Cache-Control":"public, max-age=86400"});res.end(LOGO_JPG);return true}
+  if(u.pathname==="/social-agent/brand.png"){res.writeHead(302,{Location:"/social-agent/logo.jpg"});res.end();return true}
   if(u.pathname==="/social-agent"){res.writeHead(302,{Location:"/social-agent/"});res.end();return true}
-  if(u.pathname.startsWith("/social-agent/")){
-    const rel=u.pathname.slice("/social-agent/".length)||"index.html";
-    const safe=rel.replace(/\.\./g,""),file=path.join(PUBLIC,safe);
-    if(!file.startsWith(PUBLIC)||!fs.existsSync(file)||fs.statSync(file).isDirectory()){text(res,404,"Não encontrado");return true}
-    text(res,200,fs.readFileSync(file),mime(file));return true;
-  }
+  if(u.pathname.startsWith("/social-agent/")){const rel=u.pathname.slice("/social-agent/".length)||"index.html",safe=rel.replace(/\.\./g,""),file=path.join(PUBLIC,safe);if(!file.startsWith(PUBLIC)||!fs.existsSync(file)||fs.statSync(file).isDirectory()){text(res,404,"Não encontrado");return true}text(res,200,fs.readFileSync(file),mime(file));return true}
   return false;
 }
