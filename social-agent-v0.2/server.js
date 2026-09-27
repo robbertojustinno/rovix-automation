@@ -1,0 +1,40 @@
+const http=require('http'),fs=require('fs'),path=require('path'),crypto=require('crypto');
+const {URL}=require('url');
+const ROOT=__dirname,PUBLIC=path.join(ROOT,'public'),UPLOADS=path.join(ROOT,'uploads'),DB=path.join(ROOT,'data','db.json'),PORT=Number(process.env.PORT||3000);
+fs.mkdirSync(UPLOADS,{recursive:true});fs.mkdirSync(path.dirname(DB),{recursive:true});
+if(!fs.existsSync(DB))fs.writeFileSync(DB,JSON.stringify({projects:[],posts:[]},null,2));
+
+function send(res,status,data,type='application/json; charset=utf-8'){res.writeHead(status,{'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(type.startsWith('application/json')?JSON.stringify(data,null,2):data)}
+function readDb(){try{return JSON.parse(fs.readFileSync(DB,'utf8'))}catch{return{projects:[],posts:[]}}}
+function writeDb(db){fs.writeFileSync(DB,JSON.stringify(db,null,2))}
+function body(req,limit=12e6){return new Promise((resolve,reject)=>{let raw='';req.on('data',c=>{raw+=c;if(raw.length>limit){reject(new Error('Payload muito grande'));req.destroy()}});req.on('end',()=>{if(!raw)return resolve({});try{resolve(JSON.parse(raw))}catch{reject(new Error('JSON inválido'))}});req.on('error',reject)})}
+const uid=(p='id')=>p+'-'+Date.now()+'-'+crypto.randomBytes(3).toString('hex');
+function cfg(){return{token:process.env.META_ACCESS_TOKEN||'',ig:process.env.META_IG_USER_ID||'',version:process.env.META_GRAPH_VERSION||'v26.0',host:process.env.META_API_HOST||'graph.instagram.com'}}
+function configured(){const c=cfg();return !!(c.token&&c.ig&&c.version&&c.host)}
+async function metaFetch(route,{method='GET',params={}}={}){const c=cfg();if(!configured())throw new Error('Instagram não configurado no servidor');
+ const u=new URL('https://'+c.host+'/'+encodeURIComponent(c.version)+'/'+String(route).replace(/^\//,''));
+ const headers={'Authorization':'Bearer '+c.token,'User-Agent':'ROVIX-Social-Agent/0.2'};const opt={method,headers};
+ if(method==='GET')Object.entries(params).forEach(([k,v])=>v!==''&&v!=null&&u.searchParams.set(k,String(v)));
+ else{headers['Content-Type']='application/x-www-form-urlencoded';opt.body=new URLSearchParams(Object.entries(params).filter(([,v])=>v!==''&&v!=null)).toString()}
+ const r=await fetch(u,opt);const t=await r.text();let d;try{d=JSON.parse(t)}catch{d={raw:t}};if(!r.ok||d.error)throw new Error(d?.error?.message||'Erro HTTP '+r.status);return d}
+async function testMeta(){const c=cfg(),d=await metaFetch(c.ig,{params:{fields:'id,username,account_type'}});return{connected:true,id:d.id||c.ig,username:d.username||null,accountType:d.account_type||null,apiHost:c.host,apiVersion:c.version}}
+async function waitContainer(id){for(let i=0;i<12;i++){const d=await metaFetch(id,{params:{fields:'status_code,status'}});const s=String(d.status_code||'').toUpperCase();if(!s||s==='FINISHED')return;if(s==='ERROR'||s==='EXPIRED')throw new Error(d.status||('Container '+s));await new Promise(r=>setTimeout(r,1800))}throw new Error('A mídia ainda não ficou pronta para publicação')}
+async function publish(post){if(!/^https:\/\//i.test(post.imageUrl||''))throw new Error('A imagem precisa estar disponível em uma URL pública HTTPS');
+ const c=cfg(),created=await metaFetch(c.ig+'/media',{method:'POST',params:{image_url:post.imageUrl,caption:post.caption||''}});if(!created.id)throw new Error('A Meta não retornou o ID do container');await waitContainer(created.id);
+ const pub=await metaFetch(c.ig+'/media_publish',{method:'POST',params:{creation_id:created.id}});if(!pub.id)throw new Error('A Meta não retornou o ID da publicação');return{...pub,containerId:created.id}}
+function base(req){return(process.env.PUBLIC_BASE_URL||((req.headers['x-forwarded-proto']||'https')+'://'+req.headers.host)).replace(/\/$/,'')}
+function upload(req,d){const m=String(d.dataUrl||'').match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);if(!m)throw new Error('Imagem inválida. Use JPG, PNG ou WEBP');const b=Buffer.from(m[2],'base64');if(b.length>8*1024*1024)throw new Error('Imagem maior que 8 MB');const ext=m[1]==='image/jpeg'?'jpg':m[1].split('/')[1],name=Date.now()+'-'+crypto.randomBytes(5).toString('hex')+'.'+ext;fs.writeFileSync(path.join(UPLOADS,name),b);return base(req)+'/uploads/'+name}
+async function api(req,res,u){let db=readDb();
+ if(req.method==='GET'&&u.pathname==='/api/status')return send(res,200,{app:'ROVIX Social Agent',version:'0.2.0',online:true,metaConfigured:configured(),metaHost:cfg().host,metaVersion:cfg().version,publicBaseUrlConfigured:!!process.env.PUBLIC_BASE_URL,projects:db.projects.length,posts:db.posts.length});
+ if(req.method==='GET'&&u.pathname==='/api/meta/test'){if(!configured())return send(res,200,{connected:false,error:'Credenciais não configuradas'});try{return send(res,200,await testMeta())}catch(e){return send(res,200,{connected:false,error:e.message,apiHost:cfg().host,apiVersion:cfg().version})}}
+ if(req.method==='GET'&&u.pathname==='/api/projects')return send(res,200,db.projects);
+ if(req.method==='GET'&&u.pathname==='/api/posts')return send(res,200,db.posts);
+ if(req.method==='POST'&&u.pathname==='/api/uploads'){try{return send(res,201,{imageUrl:upload(req,await body(req))})}catch(e){return send(res,400,{error:e.message})}}
+ if(req.method==='POST'&&u.pathname==='/api/posts'){const d=await body(req),pr=db.projects.find(x=>x.id===d.projectId);if(!pr)return send(res,400,{error:'Projeto inválido'});const p={id:uid('post'),projectId:pr.id,projectName:pr.name,title:String(d.title||'Novo post'),caption:String(d.caption||''),imageUrl:String(d.imageUrl||''),scheduledAt:String(d.scheduledAt||''),status:'draft',createdAt:new Date().toISOString()};db.posts.unshift(p);writeDb(db);return send(res,201,p)}
+ const m=u.pathname.match(/^\/api\/posts\/([^/]+)\/(approve|reject|publish)$/);if(req.method==='POST'&&m){const p=db.posts.find(x=>x.id===m[1]);if(!p)return send(res,404,{error:'Post não encontrado'});if(m[2]==='approve'){p.status='approved';p.lastError=''}else if(m[2]==='reject'){p.status='rejected'}else{try{const r=await publish(p);p.status='published';p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError=''}catch(e){p.status='error';p.lastError=e.message;writeDb(db);return send(res,400,{error:e.message})}}writeDb(db);return send(res,200,p)}
+ if(req.method==='GET'&&u.pathname==='/api/cron/publish-due'){const key=u.searchParams.get('key')||req.headers['x-cron-secret']||'';if(process.env.CRON_SECRET&&key!==process.env.CRON_SECRET)return send(res,401,{error:'Não autorizado'});const due=db.posts.filter(p=>p.status==='approved'&&p.scheduledAt&&new Date(p.scheduledAt)<=new Date()).slice(0,10);const out=[];for(const p of due){try{const r=await publish(p);p.status='published';p.metaMediaId=r.id;p.publishedAt=new Date().toISOString();out.push({id:p.id,ok:true})}catch(e){p.status='error';p.lastError=e.message;out.push({id:p.id,ok:false,error:e.message})}}writeDb(db);return send(res,200,{processed:out.length,results:out})}
+ return send(res,404,{error:'Rota não encontrada'})}
+function mime(f){return({'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp'})[path.extname(f).toLowerCase()]||'application/octet-stream'}
+http.createServer(async(req,res)=>{try{const u=new URL(req.url,'http://localhost');if(u.pathname==='/health')return send(res,200,{ok:true,version:'0.2.0'});if(u.pathname.startsWith('/api/'))return await api(req,res,u);
+ let file;if(u.pathname.startsWith('/uploads/'))file=path.join(UPLOADS,path.basename(u.pathname));else file=path.join(PUBLIC,u.pathname==='/'?'index.html':u.pathname.replace(/^\//,''));
+ if(!file.startsWith(ROOT)||!fs.existsSync(file)||fs.statSync(file).isDirectory())return send(res,404,'Não encontrado','text/plain; charset=utf-8');send(res,200,fs.readFileSync(file),mime(file))}catch(e){send(res,500,{error:e.message})}}).listen(PORT,'0.0.0.0',()=>console.log('ROVIX Social Agent V0.2 online na porta '+PORT));
