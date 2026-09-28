@@ -18,21 +18,31 @@ const ADMIN_USER=process.env.SOCIAL_ADMIN_USER||"admin";
 const ADMIN_PASSWORD_HASH=process.env.SOCIAL_ADMIN_PASSWORD_HASH||"";
 const SESSION_SECRET=process.env.SOCIAL_SESSION_SECRET||"";
 const SOCIAL_PUBLIC_BASE=(process.env.SOCIAL_PUBLIC_BASE||"https://rovix-drive-api.onrender.com/social-agent").replace(/\/$/,"");
-const OPENAI_API_KEY=process.env.OPENAI_API_KEY||"";
-const OPENAI_IMAGE_MODEL=process.env.OPENAI_IMAGE_MODEL||"gpt-image-2";
-const OPENAI_IMAGE_QUALITY=process.env.OPENAI_IMAGE_QUALITY||"high";
 const OFFICIAL_LOGO_URL=process.env.ROVIX_LOGO_URL||"https://www.rovixautomation.com.br/logo.png";
-const MAX_AI_IMAGES_PER_DAY=Math.max(1,Math.min(6,Number(process.env.MAX_AI_IMAGES_PER_DAY||3)));
+const VISUAL_ENGINE="rovix-fast-free-v1";
+const MAX_FAST_IMAGES_PER_RUN=12;
+const FREE_VISUAL_BANK=Object.freeze({
+  industrial:[
+    {url:"https://commons.wikimedia.org/wiki/Special:Redirect/file/Industrial%20Manipulator.jpg",license:"CC0 / Public Domain"},
+    {url:"https://commons.wikimedia.org/wiki/Special:Redirect/file/KUKA%20robot%20for%20flat%20glas%20handling.jpg",license:"Public Domain"},
+    {url:"https://commons.wikimedia.org/wiki/Special:Redirect/file/Robotics%20Cutting%20Bridge%20Building%20Parts.jpg",license:"Public Domain"}
+  ],
+  digital:[
+    {url:"https://commons.wikimedia.org/wiki/Special:Redirect/file/Server%20room%20rolar%20is%20located.png",license:"CC0 / Public Domain"},
+    {url:"https://commons.wikimedia.org/wiki/Special:Redirect/file/Matemati%C4%8Dka%20gimnazija%20-%20Mathematical%20Gymnasium%20Belgrade%20-%20MGB%20-%20Server%20Room.jpg",license:"Public Domain"},
+    {url:"https://commons.wikimedia.org/wiki/Special:Redirect/file/EFTA00000441%20-%20Server%20room%20filled%20with%20networking%20equipment%20cables%20and%20rack-mounted%20servers.jpg",license:"Public Domain (US Government)"}
+  ]
+});
 const LOGO_JPG=Buffer.from("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","base64");
 const DEFAULT_SETTINGS={enabled:true,postsPerDay:3,approvalMode:"manual",scheduleMode:"interval",startHour:9,endHour:19,postTimes:["09:00","14:00","19:00"],timezone:"America/Sao_Paulo"};
 const POSTING_POLICY=Object.freeze({
-  id:"rovix-premium-v1",
+  id:"rovix-fast-free-v1",
   immutable:true,
   image:{
     minWidth:1080,
     minHeight:1080,
     preferredFormats:["1080x1080","1080x1350"],
-    style:["realista","premium","industrial","tecnologico","cinematografico"],
+    style:["realista","premium","industrial","tecnologico","padrao-rapido"],
     palette:["azul-escuro","vermelho","prata","grafite","preto"],
     requirements:[
       "logo ROVIX integrada sem distorcao",
@@ -56,7 +66,9 @@ const POSTING_POLICY=Object.freeze({
     requiresFinalArtwork:true,
     allowPlaceholderPublish:false,
     keepBrandFamily:true,
-    avoidRepeatedThemes:true
+    avoidRepeatedThemes:true,
+    visualEngine:"ROVIX Fast Visual Engine (FREE)",
+    defaultVisualLevel:"rapido"
   }
 });
 const TOPICS={
@@ -126,65 +138,62 @@ function scheduleFor(date,index,count,settings){
       const h=Math.floor(minute/60),m=minute%60;
       return new Date(date+"T"+String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":00-03:00").toISOString()
     }
-function visualScene(project,topic){
-  const base="Photorealistic premium advertising image, cinematic industrial technology photography, dark navy and graphite environment, metallic silver details, controlled vivid red accents, dramatic realistic lighting, high-end corporate campaign, no text, no letters, no logos, no watermark, clean composition, realistic materials, sophisticated, 1:1 square social media composition.";
-  const byProject={
-    rovix:"Advanced smart factory with robotic arm, precision manufacturing, industrial HMI displays, engineering workstation and automation equipment.",
-    tagcheck:"Industrial field inspection scene with technician using a modern tablet near machinery, QR-code style asset tagging concept, organized maintenance and traceability environment.",
-    "rovix-drive":"Secure modern data center and industrial digital infrastructure, cloud storage concept represented physically with servers, encrypted data flow lighting, premium enterprise technology.",
-    "uap-studio":"Industrial automation engineering lab with PLCs, CAN bus and RS-485 network devices, protocol gateway, laptop diagnostics, cables and control cabinet, realistic.",
-    cipher:"Cinematic cybersecurity and espionage command center, secure digital intelligence environment, dark sophisticated thriller atmosphere, realistic monitors and secure systems."
-  };
-  return base+" "+(byProject[project.id]||byProject.rovix)+" Theme: "+topic+".";
-}
 function escapeXml(s=""){return String(s).replace(/[<>&'"]/g,m=>({"<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"}[m]))}
-async function generateAiBackground(prompt){
-  if(!OPENAI_API_KEY)throw new Error("OPENAI_API_KEY_NOT_CONFIGURED");
-  const r=await fetch("https://api.openai.com/v1/images/generations",{method:"POST",headers:{"Authorization":"Bearer "+OPENAI_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({model:OPENAI_IMAGE_MODEL,prompt,size:"1024x1024",quality:OPENAI_IMAGE_QUALITY})});
-  const raw=await r.text();let d;try{d=JSON.parse(raw)}catch{d={raw}};
-  if(!r.ok)throw new Error(d?.error?.message||("OpenAI Images HTTP "+r.status));
-  const b64=d?.data?.[0]?.b64_json;if(!b64)throw new Error("OpenAI Images não retornou imagem");
-  return Buffer.from(b64,"base64");
-}
 let cachedLogo=null;
+const fastAssetCache=new Map();
 async function getOfficialLogo(){
   if(cachedLogo)return cachedLogo;
-  const r=await fetch(OFFICIAL_LOGO_URL);if(!r.ok)throw new Error("Falha ao carregar logo oficial");
+  const r=await fetch(OFFICIAL_LOGO_URL,{redirect:"follow"});if(!r.ok)throw new Error("Falha ao carregar logo oficial");
   cachedLogo=Buffer.from(await r.arrayBuffer());return cachedLogo;
 }
-async function createPremiumArtwork(post,project){
-  const bg=await generateAiBackground(visualScene(project,post.title||"Tecnologia aplicada"));
-  const logo=await sharp(await getOfficialLogo()).resize({width:250,height:250,fit:"contain",background:{r:0,g:0,b:0,alpha:0}}).png().toBuffer();
-  const title=escapeXml(post.title||project.name),subtitle=escapeXml(project.name);
-  const overlay=Buffer.from(`<svg width="1024" height="1024" xmlns="http://www.w3.org/2000/svg">
-    <defs><linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="45%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#030914" stop-opacity=".9"/></linearGradient></defs>
-    <rect width="1024" height="1024" fill="url(#shade)"/>
-    <rect x="54" y="694" width="916" height="252" rx="22" fill="#06101c" fill-opacity=".77"/>
-    <rect x="54" y="694" width="8" height="252" fill="#e32435"/>
-    <text x="92" y="780" font-family="Arial,Helvetica,sans-serif" font-size="58" font-weight="700" fill="#f6f8fb">${title.slice(0,28)}</text>
-    <text x="92" y="840" font-family="Arial,Helvetica,sans-serif" font-size="28" font-weight="600" fill="#39d8c6">${subtitle}</text>
-    <text x="92" y="895" font-family="Arial,Helvetica,sans-serif" font-size="23" fill="#d6dee8">Automação • Software • Inovação</text>
+function visualGroup(project){
+  return ["rovix","tagcheck","uap-studio"].includes(project.id)?"industrial":"digital";
+}
+function visualHash(s=""){let h=2166136261;for(const ch of String(s)){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
+async function fetchFastAsset(asset){
+  if(fastAssetCache.has(asset.url))return fastAssetCache.get(asset.url);
+  const r=await fetch(asset.url,{redirect:"follow",headers:{"User-Agent":"ROVIX-Social-Agent/0.4"}});if(!r.ok)throw new Error("Banco visual indisponível HTTP "+r.status);
+  const b=Buffer.from(await r.arrayBuffer());fastAssetCache.set(asset.url,b);return b;
+}
+async function createFastArtwork(post,project){
+  const group=visualGroup(project),bank=FREE_VISUAL_BANK[group],idx=visualHash(post.id+post.title)%bank.length,asset=bank[idx];
+  const bg=await fetchFastAsset(asset),hash=visualHash(post.id);
+  const positions=["centre","north","south","east","west"],position=positions[hash%positions.length];
+  const base=await sharp(bg).resize(1080,1080,{fit:"cover",position}).modulate({brightness:.78,saturation:.92}).jpeg({quality:88,mozjpeg:true}).toBuffer();
+  const logo=await sharp(await getOfficialLogo()).resize({width:205,height:205,fit:"contain",background:{r:0,g:0,b:0,alpha:0}}).png().toBuffer();
+  const title=escapeXml((post.title||project.name).slice(0,34)),subtitle=escapeXml(project.name);
+  const accent=group==="industrial"?"#e32435":"#2bd7c4";
+  const overlay=Buffer.from(`<svg width="1080" height="1080" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#020711" stop-opacity=".24"/><stop offset="52%" stop-color="#020711" stop-opacity=".08"/><stop offset="100%" stop-color="#020711" stop-opacity=".96"/></linearGradient>
+      <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#07111f" stop-opacity=".94"/><stop offset="1" stop-color="#07111f" stop-opacity=".70"/></linearGradient>
+    </defs>
+    <rect width="1080" height="1080" fill="url(#shade)"/>
+    <rect x="42" y="732" width="996" height="294" rx="24" fill="url(#brand)" stroke="#233954" stroke-width="2"/>
+    <rect x="42" y="732" width="9" height="294" fill="${accent}"/>
+    <text x="86" y="820" font-family="Arial,Helvetica,sans-serif" font-size="57" font-weight="800" fill="#f7f9fc">${title}</text>
+    <text x="86" y="878" font-family="Arial,Helvetica,sans-serif" font-size="31" font-weight="700" fill="${accent}">${subtitle}</text>
+    <text x="86" y="932" font-family="Arial,Helvetica,sans-serif" font-size="24" fill="#d6dee8">AUTOMAÇÃO  •  SOFTWARE  •  INOVAÇÃO</text>
+    <rect x="86" y="968" width="520" height="5" rx="2" fill="#e32435"/>
   </svg>`);
-  const final=await sharp(bg).resize(1080,1080,{fit:"cover"}).composite([{input:overlay,top:0,left:0},{input:logo,top:36,left:780}]).jpeg({quality:94,mozjpeg:true}).toBuffer();
-  const key="social-agent/ai/"+Date.now()+"-"+crypto.randomBytes(6).toString("hex")+".jpg";
+  const final=await sharp(base).composite([{input:overlay,top:0,left:0},{input:logo,top:38,left:835}]).jpeg({quality:92,mozjpeg:true}).toBuffer();
+  const key="social-agent/fast/"+Date.now()+"-"+crypto.randomBytes(6).toString("hex")+".jpg";
   await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:key,Body:final,ContentType:"image/jpeg"}));
-  return key;
+  return{key,asset};
 }
 async function prepareArtworkForQueue(){
-  const db=await loadDb(),day=saoDate();db.meta.artGenerations=db.meta.artGenerations||{};
-  let used=Number(db.meta.artGenerations[day]||0),made=0;
-  const candidates=db.posts.filter(p=>["draft","approved","error"].includes(p.status)&&p.artStatus!=="ready").slice().reverse();
+  const db=await loadDb();let made=0;
+  const candidates=db.posts.filter(p=>["draft","approved","error"].includes(p.status)&&p.artStatus!=="ready").slice().reverse().slice(0,MAX_FAST_IMAGES_PER_RUN);
   for(const p of candidates){
-    if(used>=MAX_AI_IMAGES_PER_DAY)break;
     const project=db.projects.find(x=>x.id===p.projectId)||{id:"rovix",name:"ROVIX Automation"};
     try{
-      const key=await createPremiumArtwork(p,project);
-      p.imageKey=key;p.imageUrl="";p.artStatus="ready";p.visualPolicy=POSTING_POLICY.id;p.artGeneratedAt=new Date().toISOString();p.lastError="";
+      const art=await createFastArtwork(p,project);
+      p.imageKey=art.key;p.imageUrl="";p.artStatus="ready";p.visualPolicy=POSTING_POLICY.id;p.visualEngine=VISUAL_ENGINE;p.visualLevel="rapido";p.visualSource=art.asset.url;p.visualLicense=art.asset.license;p.artGeneratedAt=new Date().toISOString();p.lastError="";delete p.artError;
       if(p.status==="error")p.status=db.settings.approvalMode==="auto"?"approved":"draft";
-      used++;made++;
-    }catch(e){p.artStatus="error";p.artError=e.message;console.error("[Social Agent] Falha na arte",p.id,e.message);break}
+      made++;
+    }catch(e){p.artStatus="error";p.artError=e.message;console.error("[Social Agent] Falha na arte",p.id,e.message)}
   }
-  db.meta.artGenerations[day]=used;if(made)await saveDb(db);return{made,used,limit:MAX_AI_IMAGES_PER_DAY}
+  if(candidates.length)await saveDb(db);return{made,engine:VISUAL_ENGINE,level:"rapido"}
 }
 function buildCaption(project,topic,i){const variants=[
   topic+" não precisa ser complicado. A "+project.name+" foi pensada para transformar tarefas do dia a dia em um fluxo mais organizado, rastreável e eficiente.",
@@ -207,7 +216,7 @@ async function ensureDailyContent(force=false){
     const status=s.approvalMode==="auto"?"approved":s.approvalMode==="hybrid"&&i===0?"approved":"draft";
     let scheduledAt=scheduleFor(day,i,target,s);
     if(force&&new Date(scheduledAt)<=new Date())scheduledAt=new Date(Date.now()+(created+1)*2*60*1000).toISOString();
-    db.posts.unshift({id:id("agent"),projectId:p.id,projectName:p.name,title:topic,caption:buildCaption(p,topic,i),imageUrl:SOCIAL_PUBLIC_BASE+"/brand.png",scheduledAt,status,createdAt:new Date().toISOString(),generatedBy:"agent",generatedDate:day,forcedBatch:force,visualPolicy:POSTING_POLICY.id,artStatus:"placeholder"});
+    db.posts.unshift({id:id("agent"),projectId:p.id,projectName:p.name,title:topic,caption:buildCaption(p,topic,i),imageUrl:SOCIAL_PUBLIC_BASE+"/brand.png",scheduledAt,status,createdAt:new Date().toISOString(),generatedBy:"agent",generatedDate:day,forcedBatch:force,visualPolicy:POSTING_POLICY.id,visualEngine:VISUAL_ENGINE,visualLevel:"rapido",artStatus:"placeholder"});
     created++;
   }
   db.meta.topicCursor=Number(db.meta.topicCursor||0)+created;
@@ -230,7 +239,7 @@ async function api(req,res,u){
   if(!authed(req))return json(res,401,{error:"Autenticação obrigatória"});
 
   const db=await loadDb();
-  if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"0.4.0",online:true,metaConfigured:metaConfigured(),imageGenerationConfigured:!!OPENAI_API_KEY,storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings});
+  if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"0.5.0",online:true,metaConfigured:metaConfigured(),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings});
   if(req.method==="GET"&&u.pathname==="/social-api/meta/test"){if(!metaConfigured())return json(res,200,{connected:false,error:"Credenciais Meta ainda não configuradas"});try{return json(res,200,await testMeta())}catch(e){return json(res,200,{connected:false,error:e.message})}}
   if(req.method==="GET"&&u.pathname==="/social-api/projects")return json(res,200,db.projects);
   if(req.method==="GET"&&u.pathname==="/social-api/posts")return json(res,200,db.posts);
