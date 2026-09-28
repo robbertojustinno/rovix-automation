@@ -78,22 +78,24 @@ function s3(){if(!R2_ENDPOINT||!R2_ACCESS_KEY_ID||!R2_SECRET_ACCESS_KEY)throw ne
 async function readStream(stream){return await stream.transformToString()}
 async function saveDb(db){await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:DB_KEY,Body:JSON.stringify(db,null,2),ContentType:"application/json"}))}
 async function loadDb(){
-  let db;
+  let db,changed=false;
   try{const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:DB_KEY}));db=JSON.parse(await readStream(r.Body))}
-  catch(e){if(e?.name==="NoSuchKey"||e?.$metadata?.httpStatusCode===404)db={projects:[],posts:[]};else throw e}
+  catch(e){if(e?.name==="NoSuchKey"||e?.$metadata?.httpStatusCode===404){db={projects:[],posts:[]};changed=true}else throw e}
   db.projects=db.projects||[];db.posts=db.posts||[];db.settings={...DEFAULT_SETTINGS,...(db.settings||{})};db.meta=db.meta||{};
-  if(!db.meta.rateLimitRecovery20260928&&db.posts.some(p=>p.status==="error"&&/User is performing too many actions/i.test(p.lastError||""))){db.meta.publishCooldownUntil=new Date(Date.now()+60*60*1000).toISOString();db.meta.rateLimitRecovery20260928=true}
+  if(!db.meta.rateLimitRecovery20260928&&db.posts.some(p=>p.status==="error"&&/User is performing too many actions/i.test(p.lastError||""))){db.meta.publishCooldownUntil=new Date(Date.now()+60*60*1000).toISOString();db.meta.rateLimitRecovery20260928=true;changed=true}
   if(!db.meta.purgedUnpublished20260927){
     const before=db.posts.length;
     db.posts=db.posts.filter(p=>p.status==="published");
     db.meta.purgedUnpublished20260927={at:new Date().toISOString(),removed:before-db.posts.length};
+    changed=true;
   }
-  for(const p of BASE_PROJECTS)if(!db.projects.some(x=>x.id===p.id))db.projects.push(p);
+  for(const p of BASE_PROJECTS)if(!db.projects.some(x=>x.id===p.id)){db.projects.push(p);changed=true}
   if(!db.meta.seededInstitutionalPost){
     db.posts.unshift({id:"seed-institucional-001",projectId:"rovix",projectName:"ROVIX Automation",title:"Tecnologia aplicada ao mundo real",caption:"A ROVIX une automação, software e inovação para transformar processos em soluções práticas.\n\nDo chão de fábrica ao ambiente digital, seguimos desenvolvendo ferramentas para organizar, conectar e automatizar operações.\n\nAcompanhe os próximos projetos e lançamentos da ROVIX.\n\n#ROVIX #AutomacaoIndustrial #Tecnologia #Industria40 #Software #Inovacao",imageUrl:SOCIAL_PUBLIC_BASE+"/brand.png",scheduledAt:"",status:"draft",createdAt:new Date().toISOString(),generatedBy:"agent"});
     db.meta.seededInstitutionalPost=true;
+    changed=true;
   }
-  await saveDb(db);return db;
+  if(changed)await saveDb(db);return db;
 }
 function json(res,status,data,extra={}){res.writeHead(status,{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff",...extra});res.end(JSON.stringify(data))}
 function text(res,status,data,type="text/plain; charset=utf-8"){res.writeHead(status,{"Content-Type":type,"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"});res.end(data)}
@@ -196,8 +198,8 @@ async function ensureDailyContent(force=false){
   if(!s.enabled&&!force)return{created:0,target:0,day:saoDate(),reason:"disabled"};
   const day=saoDate(),target=Math.max(1,Math.min(12,Number(s.postsPerDay)||3));
   const existing=db.posts.filter(p=>p.generatedDate===day&&p.generatedBy==="agent").length;
-  if(!force&&existing>=target)return{created:0,target,day,existing,reason:"daily_target_already_met"};
-  const startIndex=force?0:existing;
+  if(existing>=target)return{created:0,target,day,existing,reason:"daily_target_already_met"};
+  const startIndex=existing;
   let created=0;
   for(let i=startIndex;i<target;i++){
     const active=db.projects.filter(p=>p.active);if(!active.length)break;
@@ -214,11 +216,19 @@ async function ensureDailyContent(force=false){
   return{created,target,day,existing,forced:force}
 }
 async function publishDue(){
+  if(publishingBusy)return [];
+  publishingBusy=true;
+  try{return await publishDueLocked()}finally{publishingBusy=false}
+}
+let publishingBusy=false;
+async function publishDueLocked(){
   const db=await loadDb();
   if(activeCooldown(db))return [];
   const now=new Date(),due=db.posts.filter(p=>p.status==="approved"&&p.scheduledAt&&new Date(p.scheduledAt)<=now&&(!p.nextRetryAt||new Date(p.nextRetryAt)<=now)).slice(0,10),results=[];
   if(due.length)console.log("[Social Agent] Publicações vencidas:",due.length,now.toISOString());
   for(const p of due){
+    p.status="publishing";p.publishStartedAt=new Date().toISOString();
+    await saveDb(db);
     try{
       const r=await publish(p);
       p.status="published";p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError="";
@@ -270,10 +280,10 @@ async function api(req,res,u){
   if(req.method==="GET"&&u.pathname==="/social-api/settings")return json(res,200,db.settings);
   if(req.method==="GET"&&u.pathname==="/social-api/policies")return json(res,200,POSTING_POLICY);
   if(req.method==="PUT"&&u.pathname==="/social-api/settings"){const d=await body(req);const postsPerDay=Math.max(1,Math.min(12,Number(d.postsPerDay)||3));const incomingTimes=Array.isArray(d.postTimes)?d.postTimes.map(x=>String(x)).filter(x=>/^([01]\d|2[0-3]):([0-5]\d)$/.test(x)).slice(0,postsPerDay):[];db.settings={...db.settings,enabled:Boolean(d.enabled),postsPerDay,approvalMode:["manual","auto","hybrid"].includes(d.approvalMode)?d.approvalMode:"manual",scheduleMode:["interval","exact"].includes(d.scheduleMode)?d.scheduleMode:"interval",startHour:Math.max(0,Math.min(23,Number(d.startHour)||9)),endHour:Math.max(0,Math.min(23,Number(d.endHour)||19)),postTimes:incomingTimes};await saveDb(db);return json(res,200,db.settings)}
-  if(req.method==="POST"&&u.pathname==="/social-api/agent/run"){const a=await ensureDailyContent(true),art=await prepareArtworkForQueue(),r=await publishDue();return json(res,200,{...a,art,published:r})}
+  if(req.method==="POST"&&u.pathname==="/social-api/agent/run"){const a=await ensureDailyContent(true),art=await prepareArtworkForQueue();return json(res,200,{...a,art})}
   if(req.method==="POST"&&u.pathname==="/social-api/uploads"){try{return json(res,201,{imageKey:await uploadImage(await body(req))})}catch(e){return json(res,400,{error:e.message})}}
   if(req.method==="POST"&&u.pathname==="/social-api/posts"){const d=await body(req),pr=db.projects.find(x=>x.id===d.projectId);if(!pr)return json(res,400,{error:"Projeto inválido"});const p={id:id("post"),projectId:pr.id,projectName:pr.name,title:String(d.title||"Novo post"),caption:String(d.caption||""),imageKey:String(d.imageKey||""),imageUrl:String(d.imageUrl||SOCIAL_PUBLIC_BASE+"/brand.png"),scheduledAt:String(d.scheduledAt||""),status:"draft",createdAt:new Date().toISOString()};db.posts.unshift(p);await saveDb(db);return json(res,201,p)}
-  const m=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/(approve|reject|publish)$/);if(req.method==="POST"&&m){const p=db.posts.find(x=>x.id===m[1]);if(!p)return json(res,404,{error:"Post não encontrado"});if(m[2]==="approve"){p.status="approved";p.lastError=""}else if(m[2]==="reject")p.status="rejected";else{const until=activeCooldown(db);if(until)return json(res,429,{error:cooldownMessage(until),retryAt:until});try{const r=await publish(p);p.status="published";p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError="";delete p.nextRetryAt}catch(e){p.status="error";if(isMetaActionLimit(e)){db.meta.publishCooldownUntil=cooldownDate(e);p.lastError=cooldownMessage(db.meta.publishCooldownUntil)}else p.lastError=e.message;await saveDb(db);return json(res,isMetaActionLimit(e)?429:400,{error:p.lastError,retryAt:activeCooldown(db)})}}await saveDb(db);return json(res,200,p)}
+  const m=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/(approve|reject|publish)$/);if(req.method==="POST"&&m){const p=db.posts.find(x=>x.id===m[1]);if(!p)return json(res,404,{error:"Post não encontrado"});if(p.status==="publishing"||p.status==="published")return json(res,409,{error:"Publicação já iniciada ou concluída; confira o Instagram antes de tentar novamente"});if(m[2]==="approve"){p.status="approved";p.lastError=""}else if(m[2]==="reject")p.status="rejected";else{if(publishingBusy)return json(res,409,{error:"Há outra publicação em andamento. Tente novamente em instantes"});const until=activeCooldown(db);if(until)return json(res,429,{error:cooldownMessage(until),retryAt:until});publishingBusy=true;try{p.status="publishing";p.publishStartedAt=new Date().toISOString();await saveDb(db);const r=await publish(p);p.status="published";p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError="";delete p.nextRetryAt}catch(e){if(p.status==="publishing"){p.status="error";if(isMetaActionLimit(e)){db.meta.publishCooldownUntil=cooldownDate(e);p.lastError=cooldownMessage(db.meta.publishCooldownUntil)}else p.lastError=e.message;await saveDb(db)}return json(res,isMetaActionLimit(e)?429:400,{error:p.lastError||e.message,retryAt:activeCooldown(db)})}finally{publishingBusy=false}}await saveDb(db);return json(res,200,p)}
   return json(res,404,{error:"Rota social não encontrada"});
 }
 
