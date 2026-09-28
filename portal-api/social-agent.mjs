@@ -272,7 +272,7 @@ async function api(req,res,u){
   if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"0.7.1",online:true,metaConfigured:metaConfigured(),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"3D animado com artes temáticas",storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
   if(req.method==="GET"&&u.pathname==="/social-api/meta/test"){if(!metaConfigured())return json(res,200,{connected:false,error:"Credenciais Meta ainda não configuradas"});try{return json(res,200,await testMeta())}catch(e){return json(res,200,{connected:false,error:e.message})}}
   if(req.method==="GET"&&u.pathname==="/social-api/projects")return json(res,200,db.projects);
-  if(req.method==="GET"&&u.pathname==="/social-api/posts")return json(res,200,db.posts);
+  if(req.method==="GET"&&u.pathname==="/social-api/posts")return json(res,200,db.posts.filter(p=>p.status!=="deleted"));
   const imgUrlMatch=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/image-url$/);
   if(req.method==="GET"&&imgUrlMatch){const p=db.posts.find(x=>x.id===imgUrlMatch[1]);if(!p)return json(res,404,{error:"Post não encontrado"});try{return json(res,200,{url:await mediaUrl(p)})}catch(e){return json(res,400,{error:e.message})}}
   const imgMatch=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/image$/);
@@ -283,6 +283,22 @@ async function api(req,res,u){
   if(req.method==="POST"&&u.pathname==="/social-api/agent/run"){const a=await ensureDailyContent(true),art=await prepareArtworkForQueue();return json(res,200,{...a,art})}
   if(req.method==="POST"&&u.pathname==="/social-api/uploads"){try{return json(res,201,{imageKey:await uploadImage(await body(req))})}catch(e){return json(res,400,{error:e.message})}}
   if(req.method==="POST"&&u.pathname==="/social-api/posts"){const d=await body(req),pr=db.projects.find(x=>x.id===d.projectId);if(!pr)return json(res,400,{error:"Projeto inválido"});const p={id:id("post"),projectId:pr.id,projectName:pr.name,title:String(d.title||"Novo post"),caption:String(d.caption||""),imageKey:String(d.imageKey||""),imageUrl:String(d.imageUrl||SOCIAL_PUBLIC_BASE+"/brand.png"),scheduledAt:String(d.scheduledAt||""),status:"draft",createdAt:new Date().toISOString()};db.posts.unshift(p);await saveDb(db);return json(res,201,p)}
+  const edit=u.pathname.match(/^\/social-api\/posts\/([^/]+)$/);
+  if(edit&&(req.method==="PUT"||req.method==="DELETE")){
+    const p=db.posts.find(x=>x.id===edit[1]&&x.status!=="deleted");if(!p)return json(res,404,{error:"Post não encontrado"});
+    if(p.status==="publishing"||publishingBusy)return json(res,409,{error:"Aguarde a publicação em andamento"});
+    if(req.method==="DELETE"){p.status="deleted";p.deletedAt=new Date().toISOString();await saveDb(db);return json(res,200,{ok:true,instagramUnchanged:Boolean(p.metaMediaId)})}
+    if(p.status==="published")return json(res,409,{error:"Uma postagem já publicada não pode ser editada por aqui"});
+    const d=await body(req),pr=db.projects.find(x=>x.id===d.projectId);
+    if(!pr)return json(res,400,{error:"Projeto inválido"});
+    const title=String(d.title||"").trim(),caption=String(d.caption||"").trim();
+    if(!title||!caption)return json(res,400,{error:"Informe título e legenda"});
+    if(d.scheduledAt&&isNaN(new Date(d.scheduledAt).getTime()))return json(res,400,{error:"Data de agendamento inválida"});
+    Object.assign(p,{projectId:pr.id,projectName:pr.name,title,caption,scheduledAt:String(d.scheduledAt||""),updatedAt:new Date().toISOString()});
+    if(d.imageKey){p.imageKey=String(d.imageKey);p.imageUrl="";p.artStatus="uploaded"}
+    else if(d.imageUrl){p.imageKey="";p.imageUrl=String(d.imageUrl);p.artStatus="uploaded"}
+    await saveDb(db);return json(res,200,p);
+  }
   const m=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/(approve|reject|publish)$/);if(req.method==="POST"&&m){const p=db.posts.find(x=>x.id===m[1]);if(!p)return json(res,404,{error:"Post não encontrado"});if(p.status==="publishing"||p.status==="published")return json(res,409,{error:"Publicação já iniciada ou concluída; confira o Instagram antes de tentar novamente"});if(m[2]==="approve"){p.status="approved";p.lastError=""}else if(m[2]==="reject")p.status="rejected";else{if(publishingBusy)return json(res,409,{error:"Há outra publicação em andamento. Tente novamente em instantes"});const until=activeCooldown(db);if(until)return json(res,429,{error:cooldownMessage(until),retryAt:until});publishingBusy=true;try{p.status="publishing";p.publishStartedAt=new Date().toISOString();await saveDb(db);const r=await publish(p);p.status="published";p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError="";delete p.nextRetryAt}catch(e){if(p.status==="publishing"){p.status="error";if(isMetaActionLimit(e)){db.meta.publishCooldownUntil=cooldownDate(e);p.lastError=cooldownMessage(db.meta.publishCooldownUntil)}else p.lastError=e.message;await saveDb(db)}return json(res,isMetaActionLimit(e)?429:400,{error:p.lastError||e.message,retryAt:activeCooldown(db)})}finally{publishingBusy=false}}await saveDb(db);return json(res,200,p)}
   return json(res,404,{error:"Rota social não encontrada"});
 }
