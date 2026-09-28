@@ -82,6 +82,7 @@ async function loadDb(){
   try{const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:DB_KEY}));db=JSON.parse(await readStream(r.Body))}
   catch(e){if(e?.name==="NoSuchKey"||e?.$metadata?.httpStatusCode===404)db={projects:[],posts:[]};else throw e}
   db.projects=db.projects||[];db.posts=db.posts||[];db.settings={...DEFAULT_SETTINGS,...(db.settings||{})};db.meta=db.meta||{};
+  if(!db.meta.rateLimitRecovery20260928&&db.posts.some(p=>p.status==="error"&&/User is performing too many actions/i.test(p.lastError||""))){db.meta.publishCooldownUntil=new Date(Date.now()+60*60*1000).toISOString();db.meta.rateLimitRecovery20260928=true}
   if(!db.meta.purgedUnpublished20260927){
     const before=db.posts.length;
     db.posts=db.posts.filter(p=>p.status==="published");
@@ -106,7 +107,11 @@ function authed(req){const bearer=String(req.headers.authorization||"").startsWi
 function sessionCookie(token,maxAge=43200){return "rovix_social_session="+token+"; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age="+maxAge}
 function metaCfg(){return{token:process.env.META_ACCESS_TOKEN||"",ig:process.env.META_IG_USER_ID||"",version:process.env.META_GRAPH_VERSION||"v26.0",host:process.env.META_API_HOST||"graph.instagram.com"}}
 function metaConfigured(){const c=metaCfg();return!!(c.token&&c.ig&&c.version&&c.host)}
-async function metaFetch(route,{method="GET",params={}}={}){const c=metaCfg();if(!metaConfigured())throw new Error("Instagram não configurado no servidor");const u=new URL("https://"+c.host+"/"+encodeURIComponent(c.version)+"/"+String(route).replace(/^\//,""));const headers={Authorization:"Bearer "+c.token,"User-Agent":"ROVIX-Social-Agent/0.3"};const init={method,headers};if(method==="GET")Object.entries(params).forEach(([k,v])=>v!==""&&v!=null&&u.searchParams.set(k,String(v)));else{headers["Content-Type"]="application/x-www-form-urlencoded";init.body=new URLSearchParams(Object.entries(params).filter(([,v])=>v!==""&&v!=null)).toString()}const r=await fetch(u,init),raw=await r.text();let d;try{d=JSON.parse(raw)}catch{d={raw}};if(!r.ok||d.error)throw new Error(d?.error?.message||("Erro HTTP "+r.status));return d}
+async function metaFetch(route,{method="GET",params={}}={}){const c=metaCfg();if(!metaConfigured())throw new Error("Instagram não configurado no servidor");const u=new URL("https://"+c.host+"/"+encodeURIComponent(c.version)+"/"+String(route).replace(/^\//,""));const headers={Authorization:"Bearer "+c.token,"User-Agent":"ROVIX-Social-Agent/0.3"};const init={method,headers};if(method==="GET")Object.entries(params).forEach(([k,v])=>v!==""&&v!=null&&u.searchParams.set(k,String(v)));else{headers["Content-Type"]="application/x-www-form-urlencoded";init.body=new URLSearchParams(Object.entries(params).filter(([,v])=>v!==""&&v!=null)).toString()}const r=await fetch(u,init),raw=await r.text();let d;try{d=JSON.parse(raw)}catch{d={raw}};if(!r.ok||d.error){const e=new Error(d?.error?.message||("Erro HTTP "+r.status));e.metaCode=d?.error?.code;e.metaSubcode=d?.error?.error_subcode;e.httpStatus=r.status;e.retryAfter=r.headers.get("retry-after");throw e}return d}
+export function isMetaActionLimit(e){return [4,9,17,32,613].includes(Number(e?.metaCode))||/too many actions|rate limit|request limit|limite de (ações|requisições)/i.test(e?.message||"")}
+function cooldownDate(e){const retry=Number(e?.retryAfter),minutes=Number.isFinite(retry)&&retry>0?Math.max(60,Math.ceil(retry/60)):60;return new Date(Date.now()+Math.min(minutes,24*60)*60*1000).toISOString()}
+function cooldownMessage(until){return "A Meta limitou temporariamente as ações desta conta. Publicações pausadas até "+new Date(until).toLocaleString("pt-BR",{timeZone:"America/Sao_Paulo"})+". Tente novamente após esse horário."}
+function activeCooldown(db){return db.meta?.publishCooldownUntil&&new Date(db.meta.publishCooldownUntil).getTime()>Date.now()?db.meta.publishCooldownUntil:null}
 async function testMeta(){const c=metaCfg(),d=await metaFetch(c.ig,{params:{fields:"id,username,account_type"}});return{connected:true,id:d.id||c.ig,username:d.username||null,accountType:d.account_type||null,apiHost:c.host,apiVersion:c.version}}
 async function mediaUrl(post){if(post.imageKey)return await getSignedUrl(s3(),new GetObjectCommand({Bucket:R2_BUCKET,Key:post.imageKey}),{expiresIn:900});if(/\/logo\.jpg(?:$|\?)/i.test(post.imageUrl||""))return SOCIAL_PUBLIC_BASE+"/brand.png";if(/^https:\/\//i.test(post.imageUrl||""))return post.imageUrl;return SOCIAL_PUBLIC_BASE+"/brand.png"}
 async function waitContainer(id){for(let i=0;i<12;i++){const d=await metaFetch(id,{params:{fields:"status_code,status"}}),s=String(d.status_code||"").toUpperCase();if(!s||s==="FINISHED")return;if(s==="ERROR"||s==="EXPIRED")throw new Error(d.status||("Container "+s));await new Promise(r=>setTimeout(r,1800))}throw new Error("A mídia ainda não ficou pronta para publicação")}
@@ -208,7 +213,37 @@ async function ensureDailyContent(force=false){
   if(created)await saveDb(db);
   return{created,target,day,existing,forced:force}
 }
-async function publishDue(){const db=await loadDb(),now=new Date(),due=db.posts.filter(p=>p.status==="approved"&&p.scheduledAt&&new Date(p.scheduledAt)<=now&&(!p.nextRetryAt||new Date(p.nextRetryAt)<=now)).slice(0,10),results=[];if(due.length)console.log("[Social Agent] Publicações vencidas:",due.length,now.toISOString());for(const p of due){try{const r=await publish(p);p.status="published";p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError="";p.publishAttempts=Number(p.publishAttempts||0)+1;delete p.nextRetryAt;results.push({id:p.id,ok:true});console.log("[Social Agent] Publicado:",p.id,r.id)}catch(e){p.publishAttempts=Number(p.publishAttempts||0)+1;p.lastError=e.message;const transient=/Media ID is not available|temporar|try again|timeout|rate/i.test(e.message||"");if(transient&&p.publishAttempts<4){p.status="approved";p.nextRetryAt=new Date(Date.now()+2*60*1000).toISOString()}else p.status="error";results.push({id:p.id,ok:false,error:e.message,retry:!!p.nextRetryAt});console.error("[Social Agent] Falha ao publicar",p.id,e.message)}}if(due.length)await saveDb(db);return results}
+async function publishDue(){
+  const db=await loadDb();
+  if(activeCooldown(db))return [];
+  const now=new Date(),due=db.posts.filter(p=>p.status==="approved"&&p.scheduledAt&&new Date(p.scheduledAt)<=now&&(!p.nextRetryAt||new Date(p.nextRetryAt)<=now)).slice(0,10),results=[];
+  if(due.length)console.log("[Social Agent] Publicações vencidas:",due.length,now.toISOString());
+  for(const p of due){
+    try{
+      const r=await publish(p);
+      p.status="published";p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError="";
+      p.publishAttempts=Number(p.publishAttempts||0)+1;delete p.nextRetryAt;
+      results.push({id:p.id,ok:true});console.log("[Social Agent] Publicado:",p.id,r.id);
+    }catch(e){
+      p.publishAttempts=Number(p.publishAttempts||0)+1;
+      if(isMetaActionLimit(e)){
+        db.meta.publishCooldownUntil=cooldownDate(e);
+        p.status="error";p.lastError=cooldownMessage(db.meta.publishCooldownUntil);delete p.nextRetryAt;
+        results.push({id:p.id,ok:false,error:p.lastError});
+        console.error("[Social Agent] Conta Meta em pausa:",p.id,e.metaCode||"",e.message);
+        break;
+      }
+      p.lastError=e.message;
+      const transient=/Media ID is not available|temporar|try again|timeout/i.test(e.message||"");
+      if(transient&&p.publishAttempts<4){p.status="approved";p.nextRetryAt=new Date(Date.now()+Math.min(30,2**p.publishAttempts)*60*1000).toISOString()}
+      else{p.status="error";delete p.nextRetryAt}
+      results.push({id:p.id,ok:false,error:e.message,retry:!!p.nextRetryAt});
+      console.error("[Social Agent] Falha ao publicar",p.id,e.message);
+    }
+  }
+  if(due.length)await saveDb(db);
+  return results;
+}
 let busy=false;async function automationTick(){if(busy)return;busy=true;try{await ensureDailyContent(false);await prepareArtworkForQueue();await publishDue()}catch(e){console.error("Social Agent:",e.message)}finally{busy=false}}
 setTimeout(()=>automationTick(),5000);setInterval(()=>automationTick(),60*1000);
 
@@ -224,7 +259,7 @@ async function api(req,res,u){
   if(!authed(req))return json(res,401,{error:"Autenticação obrigatória"});
 
   const db=await loadDb();
-  if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"0.7.0",online:true,metaConfigured:metaConfigured(),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"3D animado com artes temáticas",storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings});
+  if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"0.7.1",online:true,metaConfigured:metaConfigured(),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"3D animado com artes temáticas",storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
   if(req.method==="GET"&&u.pathname==="/social-api/meta/test"){if(!metaConfigured())return json(res,200,{connected:false,error:"Credenciais Meta ainda não configuradas"});try{return json(res,200,await testMeta())}catch(e){return json(res,200,{connected:false,error:e.message})}}
   if(req.method==="GET"&&u.pathname==="/social-api/projects")return json(res,200,db.projects);
   if(req.method==="GET"&&u.pathname==="/social-api/posts")return json(res,200,db.posts);
@@ -238,7 +273,7 @@ async function api(req,res,u){
   if(req.method==="POST"&&u.pathname==="/social-api/agent/run"){const a=await ensureDailyContent(true),art=await prepareArtworkForQueue(),r=await publishDue();return json(res,200,{...a,art,published:r})}
   if(req.method==="POST"&&u.pathname==="/social-api/uploads"){try{return json(res,201,{imageKey:await uploadImage(await body(req))})}catch(e){return json(res,400,{error:e.message})}}
   if(req.method==="POST"&&u.pathname==="/social-api/posts"){const d=await body(req),pr=db.projects.find(x=>x.id===d.projectId);if(!pr)return json(res,400,{error:"Projeto inválido"});const p={id:id("post"),projectId:pr.id,projectName:pr.name,title:String(d.title||"Novo post"),caption:String(d.caption||""),imageKey:String(d.imageKey||""),imageUrl:String(d.imageUrl||SOCIAL_PUBLIC_BASE+"/brand.png"),scheduledAt:String(d.scheduledAt||""),status:"draft",createdAt:new Date().toISOString()};db.posts.unshift(p);await saveDb(db);return json(res,201,p)}
-  const m=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/(approve|reject|publish)$/);if(req.method==="POST"&&m){const p=db.posts.find(x=>x.id===m[1]);if(!p)return json(res,404,{error:"Post não encontrado"});if(m[2]==="approve"){p.status="approved";p.lastError=""}else if(m[2]==="reject")p.status="rejected";else{try{const r=await publish(p);p.status="published";p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError=""}catch(e){p.status="error";p.lastError=e.message;await saveDb(db);return json(res,400,{error:e.message})}}await saveDb(db);return json(res,200,p)}
+  const m=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/(approve|reject|publish)$/);if(req.method==="POST"&&m){const p=db.posts.find(x=>x.id===m[1]);if(!p)return json(res,404,{error:"Post não encontrado"});if(m[2]==="approve"){p.status="approved";p.lastError=""}else if(m[2]==="reject")p.status="rejected";else{const until=activeCooldown(db);if(until)return json(res,429,{error:cooldownMessage(until),retryAt:until});try{const r=await publish(p);p.status="published";p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError="";delete p.nextRetryAt}catch(e){p.status="error";if(isMetaActionLimit(e)){db.meta.publishCooldownUntil=cooldownDate(e);p.lastError=cooldownMessage(db.meta.publishCooldownUntil)}else p.lastError=e.message;await saveDb(db);return json(res,isMetaActionLimit(e)?429:400,{error:p.lastError,retryAt:activeCooldown(db)})}}await saveDb(db);return json(res,200,p)}
   return json(res,404,{error:"Rota social não encontrada"});
 }
 
