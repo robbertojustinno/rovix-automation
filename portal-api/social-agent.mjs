@@ -194,10 +194,10 @@ function buildCaption(project,topic,i){const variants=[
   "Mais controle, menos improviso. "+topic+" faz parte da proposta da "+project.name+": aplicar tecnologia de forma prática onde ela realmente gera valor.",
   "A evolução industrial também passa por ferramentas simples de usar e fáceis de integrar. Hoje o destaque é: "+topic+"."
 ];return variants[i%variants.length]+"\n\n"+project.cta+".\n\n#ROVIX #Automacao #Tecnologia #Industria40 #Inovacao"}
-async function ensureDailyContent(force=false){
+async function ensureDailyContent(force=false,requestedDate=""){
   const db=await loadDb(),s=db.settings;
   if(!s.enabled&&!force)return{created:0,target:0,day:saoDate(),reason:"disabled"};
-  const day=saoDate(),target=Math.max(1,Math.min(12,Number(s.postsPerDay)||3));
+  const day=requestedDate||saoDate(),target=Math.max(1,Math.min(12,Number(s.postsPerDay)||3));
   const existing=db.posts.filter(p=>p.generatedDate===day&&p.generatedBy==="agent").length;
   if(existing>=target)return{created:0,target,day,existing,reason:"daily_target_already_met"};
   const startIndex=existing;
@@ -282,7 +282,7 @@ async function api(req,res,u){
   if(req.method==="GET"&&u.pathname==="/social-api/settings")return json(res,200,db.settings);
   if(req.method==="GET"&&u.pathname==="/social-api/policies")return json(res,200,POSTING_POLICY);
   if(req.method==="PUT"&&u.pathname==="/social-api/settings"){const d=await body(req);const postsPerDay=Math.max(1,Math.min(12,Number(d.postsPerDay)||3));const incomingTimes=Array.isArray(d.postTimes)?d.postTimes.map(x=>String(x)).filter(x=>/^([01]\d|2[0-3]):([0-5]\d)$/.test(x)).slice(0,postsPerDay):[];db.settings={...db.settings,enabled:Boolean(d.enabled),postsPerDay,approvalMode:["manual","auto","hybrid"].includes(d.approvalMode)?d.approvalMode:"manual",scheduleMode:["interval","exact"].includes(d.scheduleMode)?d.scheduleMode:"interval",startHour:Math.max(0,Math.min(23,Number(d.startHour)||9)),endHour:Math.max(0,Math.min(23,Number(d.endHour)||19)),postTimes:incomingTimes};await saveDb(db);return json(res,200,db.settings)}
-  if(req.method==="POST"&&u.pathname==="/social-api/agent/run"){const a=await ensureDailyContent(true),art=await prepareArtworkForQueue();return json(res,200,{...a,art})}
+  if(req.method==="POST"&&u.pathname==="/social-api/agent/run"){const d=await body(req),day=String(d.date||saoDate());if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||!Number.isFinite(Date.parse(day+"T00:00:00Z"))||new Date(day+"T00:00:00Z").toISOString().slice(0,10)!==day||day<saoDate())return json(res,400,{error:"Selecione uma data válida, a partir de hoje"});const a=await ensureDailyContent(true,day),art=await prepareArtworkForQueue();return json(res,200,{...a,art})}
   if(req.method==="POST"&&u.pathname==="/social-api/uploads"){try{return json(res,201,{imageKey:await uploadImage(await body(req))})}catch(e){return json(res,400,{error:e.message})}}
   if(req.method==="POST"&&u.pathname==="/social-api/posts"){const d=await body(req),pr=db.projects.find(x=>x.id===d.projectId);if(!pr)return json(res,400,{error:"Projeto inválido"});const p={id:id("post"),projectId:pr.id,projectName:pr.name,title:String(d.title||"Novo post"),caption:String(d.caption||""),imageKey:String(d.imageKey||""),imageUrl:String(d.imageUrl||SOCIAL_PUBLIC_BASE+"/brand.png"),scheduledAt:String(d.scheduledAt||""),status:"draft",createdAt:new Date().toISOString()};db.posts.unshift(p);await saveDb(db);return json(res,201,p)}
   const edit=u.pathname.match(/^\/social-api\/posts\/([^/]+)$/);
