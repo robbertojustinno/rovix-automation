@@ -1,0 +1,12 @@
+import Link from"next/link";
+const projects=[
+  {name:"UAP Studio",image:"/intranet/public/cards/uap-studio.svg",desc:"Ferramentas de comunicação, diagnóstico e automação industrial.",badge:"Em desenvolvimento",href:"/apps",cta:"Ver catálogo"},
+  {name:"ROVIX Machine Watch",image:"/intranet/public/cards/rovix-machine-watch.svg",desc:"Diagnóstico e monitoramento técnico para Windows, USB, hardkeys e eventos.",badge:"Projeto ROVIX",href:"/produtos",cta:"Ver produtos"},
+  {name:"TAGCheck",image:"/intranet/public/cards/tagcheck.svg",desc:"Gestão, identificação e rastreabilidade de equipamentos e ativos.",badge:"Plataforma SaaS",href:"/tagcheck",cta:"Conhecer"},
+  {name:"ROVIX Drive",image:"/intranet/public/cards/rovix-drive.svg",desc:"Armazenamento privado administrativo e repositório dos arquivos dos produtos.",badge:"Acesso restrito",href:"/login",cta:"Entrar"},
+  {name:"AmigoPet",image:"/intranet/public/cards/amigopet.svg",desc:"Plataforma para serviços e gestão de cuidados com animais.",badge:"Produção",href:"/amigopet",cta:"Conhecer"},
+  {name:"COSMOS",image:"/intranet/public/cards/cosmos.svg",desc:"Inteligência artificial, áudio e automações locais em uma experiência multitela.",badge:"Em desenvolvimento",href:"/apps/cosmos",cta:"Ver detalhes"},
+  {name:"ROVIX Market",image:"/intranet/public/cards/rovix-market.svg",desc:"Listas inteligentes, orçamento e histórico para compras mais simples.",badge:"Em desenvolvimento",href:"/apps/market",cta:"Ver detalhes"},
+  {name:"ROVIX Guardian",image:"/intranet/public/cards/rovix-guardian.svg",desc:"Monitoramento, processamento de informações e automação com inteligência local.",badge:"Em desenvolvimento",href:"/apps/guardian",cta:"Ver detalhes"}
+];
+export default function Projetos(){return <><section className="portalHero"><span className="kicker">ROVIX Projects</span><h1>Projetos, ferramentas e soluções próprias.</h1><p>Todo projeto ROVIX é apresentado com identidade visual, descrição, status e ação principal.</p></section><section className="projectVisualGrid">{projects.map(p=><article className="projectVisualCard" key={p.name}><img src={p.image} alt={p.name}/><div className="projectVisualBody"><span className="portalBadge">{p.badge}</span><h2>{p.name}</h2><p>{p.desc}</p><Link className="button secondary" href={p.href}>{p.cta}</Link></div></article>)}</section></>}

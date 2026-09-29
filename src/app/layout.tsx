@@ -1,4 +1,4 @@
-import type {Metadata,Viewport} from "next";import {Inter,Space_Grotesk} from "next/font/google";import {SiteFooter,SiteHeader} from "@/components/site-shell";import "./globals.css";
+import type {Metadata,Viewport} from "next";import {Inter,Space_Grotesk} from "next/font/google";import {SiteFooter,SiteHeader} from "@/components/site-shell";import "./globals.css";import "./portal.css";
 const inter=Inter({subsets:["latin"],variable:"--font-body",display:"swap"});const display=Space_Grotesk({subsets:["latin"],variable:"--font-display",display:"swap"});
 const url=process.env.NEXT_PUBLIC_SITE_URL??"https://www.rovixautomation.com.br";
 export const metadata:Metadata={metadataBase:new URL(url),title:{default:"ROVIX Automation | Tecnologia, automação e inovação",template:"%s | ROVIX Automation"},description:"Soluções digitais, aplicativos e automações desenvolvidos pela ROVIX Automation.",applicationName:"ROVIX Automation",manifest:"/manifest.webmanifest",icons:{icon:"/favicon.png",apple:"/favicon.png"},openGraph:{type:"website",locale:"pt_BR",siteName:"ROVIX Automation"},twitter:{card:"summary_large_image"}};
