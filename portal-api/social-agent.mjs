@@ -115,6 +115,36 @@ export function isMetaActionLimit(e){return [4,9,17,32,613].includes(Number(e?.m
 function cooldownDate(e){const retry=Number(e?.retryAfter),minutes=Number.isFinite(retry)&&retry>0?Math.max(60,Math.ceil(retry/60)):60;return new Date(Date.now()+Math.min(minutes,24*60)*60*1000).toISOString()}
 function cooldownMessage(until){return "A Meta limitou temporariamente as ações desta conta. Publicações pausadas até "+new Date(until).toLocaleString("pt-BR",{timeZone:"America/Sao_Paulo"})+". Tente novamente após esse horário."}
 function activeCooldown(db){return db.meta?.publishCooldownUntil&&new Date(db.meta.publishCooldownUntil).getTime()>Date.now()?db.meta.publishCooldownUntil:null}
+const analyticsCache=new Map();
+async function accountAnalytics(days=7){
+  const cached=analyticsCache.get(days);
+  if(cached&&Date.now()-cached.at<300000)return cached.promise;
+  const promise=(async()=>{
+    const c=metaCfg(),until=Math.floor(Date.now()/1000),since=until-days*86400;
+    const result={days,since:new Date(since*1000).toISOString(),until:new Date(until*1000).toISOString(),updatedAt:new Date().toISOString(),followers:null,publications:null,views:null,reach:null,interactions:null,errors:[]};
+    if(!metaConfigured()){result.errors.push("Instagram ainda não configurado");return result}
+    const [profile,insights]=await Promise.allSettled([
+      metaFetch(c.ig,{params:{fields:"id,username,followers_count,media_count"}}),
+      metaFetch(c.ig+"/insights",{params:{metric:"views,reach,total_interactions",period:"day",metric_type:"total_value",since,until}})
+    ]);
+    const number=v=>typeof v==="number"&&Number.isFinite(v)?v:null;
+    if(profile.status==="fulfilled"){
+      result.username=profile.value.username||null;
+      result.followers=number(profile.value.followers_count);
+      result.publications=number(profile.value.media_count);
+    }else result.errors.push("Dados do perfil: "+profile.reason.message);
+    if(insights.status==="fulfilled"){
+      for(const metric of insights.value.data||[]){
+        const key={views:"views",reach:"reach",total_interactions:"interactions"}[metric.name];
+        if(key)result[key]=number(metric.total_value?.value);
+      }
+      if(["views","reach","interactions"].some(k=>result[k]===null))result.errors.push("A Meta não retornou todas as métricas para este período.");
+    }else result.errors.push("Estatísticas: "+insights.reason.message+". Verifique a permissão de leitura de insights na conexão do Instagram.");
+    return result;
+  })();
+  analyticsCache.set(days,{at:Date.now(),promise});
+  return promise;
+}
 async function testMeta(){const c=metaCfg(),d=await metaFetch(c.ig,{params:{fields:"id,username,account_type"}});return{connected:true,id:d.id||c.ig,username:d.username||null,accountType:d.account_type||null,apiHost:c.host,apiVersion:c.version}}
 async function mediaUrl(post){if(post.imageKey)return await getSignedUrl(s3(),new GetObjectCommand({Bucket:R2_BUCKET,Key:post.imageKey}),{expiresIn:900});if(/\/logo\.jpg(?:$|\?)/i.test(post.imageUrl||""))return SOCIAL_PUBLIC_BASE+"/brand.png";if(/^https:\/\//i.test(post.imageUrl||""))return post.imageUrl;return SOCIAL_PUBLIC_BASE+"/brand.png"}
 async function waitContainer(id){for(let i=0;i<12;i++){const d=await metaFetch(id,{params:{fields:"status_code,status"}}),s=String(d.status_code||"").toUpperCase();if(!s||s==="FINISHED")return;if(s==="ERROR"||s==="EXPIRED")throw new Error(d.status||("Container "+s));await new Promise(r=>setTimeout(r,1800))}throw new Error("A mídia ainda não ficou pronta para publicação")}
@@ -273,6 +303,7 @@ async function api(req,res,u){
   const db=await loadDb();
   if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"0.7.1",online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"3D animado com artes temáticas",storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
   if(req.method==="GET"&&u.pathname==="/social-api/meta/test"){if(!metaConfigured())return json(res,200,{connected:false,error:"Credenciais Meta ainda não configuradas"});try{const result=await testMeta();if(db.meta.apiAccessBlocked){delete db.meta.apiAccessBlocked;await saveDb(db)}return json(res,200,result)}catch(e){console.error("[Social Agent] Teste Meta:",e.httpStatus||"",e.metaCode||"",e.metaSubcode||"",e.message);if(/API access blocked/i.test(e.message||"")&&!db.meta.apiAccessBlocked){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:e.metaCode||null};await saveDb(db)}return json(res,200,{connected:false,error:e.message,httpStatus:e.httpStatus||null,metaCode:e.metaCode||null,metaSubcode:e.metaSubcode||null})}}
+  if(req.method==="GET"&&u.pathname==="/social-api/meta/analytics"){const days=Number(u.searchParams.get("days")||7);if(![7,30].includes(days))return json(res,400,{error:"Período inválido"});return json(res,200,await accountAnalytics(days))}
   if(req.method==="GET"&&u.pathname==="/social-api/projects")return json(res,200,db.projects);
   if(req.method==="GET"&&u.pathname==="/social-api/posts")return json(res,200,db.posts.filter(p=>p.status!=="deleted"));
   const imgUrlMatch=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/image-url$/);
