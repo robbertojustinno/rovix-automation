@@ -82,6 +82,7 @@ async function loadDb(){
   try{const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:DB_KEY}));db=JSON.parse(await readStream(r.Body))}
   catch(e){if(e?.name==="NoSuchKey"||e?.$metadata?.httpStatusCode===404){db={projects:[],posts:[]};changed=true}else throw e}
   db.projects=db.projects||[];db.posts=db.posts||[];db.settings={...DEFAULT_SETTINGS,...(db.settings||{})};db.meta=db.meta||{};
+  if(!db.meta.apiBlockMigration20260929){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:200};db.meta.apiBlockMigration20260929=true;changed=true}
   if(!db.meta.rateLimitRecovery20260928&&db.posts.some(p=>p.status==="error"&&/User is performing too many actions/i.test(p.lastError||""))){db.meta.publishCooldownUntil=new Date(Date.now()+60*60*1000).toISOString();db.meta.rateLimitRecovery20260928=true;changed=true}
   if(!db.meta.purgedUnpublished20260927){
     const before=db.posts.length;
