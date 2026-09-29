@@ -237,8 +237,9 @@ async function ensureDailyContent(force=false,requestedDate=""){
   const db=await loadDb(),s=db.settings;
   if(!s.enabled&&!force)return{created:0,target:0,day:saoDate(),reason:"disabled"};
   const day=requestedDate||saoDate(),target=Math.max(1,Math.min(12,Number(s.postsPerDay)||3));
-  const existing=db.posts.filter(p=>p.generatedDate===day&&p.generatedBy==="agent").length;
-  if(existing>=target)return{created:0,target,day,existing,reason:"daily_target_already_met"};
+  const existingPosts=db.posts.filter(p=>p.generatedDate===day&&p.generatedBy==="agent"&&!["deleted","rejected"].includes(p.status));
+  const existing=existingPosts.length;
+  if(existing>=target)return{created:0,target,day,existing,reason:"daily_target_already_met",existingPosts:existingPosts.map(p=>({id:p.id,title:p.title,status:p.status,scheduledAt:p.scheduledAt}))};
   const startIndex=existing;
   let created=0;
   for(let i=startIndex;i<target;i++){
