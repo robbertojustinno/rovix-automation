@@ -383,7 +383,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "ORPHEUS Social Agent",
-          "image": "/intranet/public/cards/orpheus.svg",
+          "image": "/intranet/public/cards/orpheus-social-agent.png",
           "description": "Agente independente de mídia do universo CIPHER / ORPHEUS, dedicado à criação, aprovação, agendamento e publicação de conteúdo no Instagram @protocolorpheus.",
           "status": "PRODUÇÃO",
           "type": "IA / Marketing / Social",
