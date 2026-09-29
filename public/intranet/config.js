@@ -390,7 +390,7 @@ window.ROVIX_HUB_CONFIG = {
           "links": [
             {
               "label": "Abrir ORPHEUS Social Agent",
-              "url": "https://orpheus-social-agent.onrender.com/orpheus-agent/"
+              "url": "https://www.rovixautomation.com.br/orpheus-social-agent/"
             }
           ]
         }
