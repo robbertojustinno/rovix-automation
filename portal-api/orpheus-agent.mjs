@@ -19,6 +19,7 @@ const ADMIN_PASSWORD_HASH=process.env.ORPHEUS_ADMIN_PASSWORD_HASH||"";
 const SESSION_SECRET=process.env.ORPHEUS_SESSION_SECRET||"";
 const ORPHEUS_PUBLIC_BASE=(process.env.ORPHEUS_PUBLIC_BASE||"https://rovix-drive-api.onrender.com/orpheus-agent").replace(/\/$/,"");
 const TARGET_INSTAGRAM="@Protocoloorpheus";
+const ALLOWED_UNIVERSE_PROJECTS=new Set(["cipher","orpheus"]);
 const VISUAL_ENGINE="orpheus-v1-classified-art";
 const MAX_FAST_IMAGES_PER_RUN=12;
 const EMBLEM_PNG=fs.readFileSync(path.join(__dirname,"..","public","intranet","public","cards","orpheus.svg"));
@@ -50,6 +51,9 @@ const POSTING_POLICY=Object.freeze({
     "Personagens / trechos / pistas"
   ],
   publication:{
+    universe:"CIPHER",
+    automaticPostingScope:["cipher","orpheus"],
+    blockOutsideUniverse:true,
     defaultPostsPerDay:3,
     requiresFinalArtwork:true,
     allowPlaceholderPublish:false,
@@ -205,7 +209,7 @@ async function createFastArtwork(post,project){
 }
 async function prepareArtworkForQueue(){
   const db=await loadDb();let made=0;
-  const candidates=db.posts.filter(p=>p.generatedBy==="agent"&&["draft","approved","error"].includes(p.status)&&(p.artStatus!=="ready"||p.visualEngine!==VISUAL_ENGINE)).sort((a,b)=>Number(b.status==="approved")-Number(a.status==="approved")||new Date(b.createdAt)-new Date(a.createdAt)).slice(0,MAX_FAST_IMAGES_PER_RUN);
+  const candidates=db.posts.filter(p=>ALLOWED_UNIVERSE_PROJECTS.has(p.projectId)&&p.generatedBy==="agent"&&["draft","approved","error"].includes(p.status)&&(p.artStatus!=="ready"||p.visualEngine!==VISUAL_ENGINE)).sort((a,b)=>Number(b.status==="approved")-Number(a.status==="approved")||new Date(b.createdAt)-new Date(a.createdAt)).slice(0,MAX_FAST_IMAGES_PER_RUN);
   for(const p of candidates){
     const project=db.projects.find(x=>x.id===p.projectId)||{id:"rovix",name:"ROVIX Automation"};
     try{
@@ -237,7 +241,7 @@ async function ensureDailyContent(force=false,requestedDate=""){
   const startIndex=existing;
   let created=0;
   for(let i=startIndex;i<target;i++){
-    const active=db.projects.filter(p=>p.active);if(!active.length)break;
+    const active=db.projects.filter(p=>p.active&&ALLOWED_UNIVERSE_PROJECTS.has(p.id));if(!active.length)break;
     const p=active[(Number(db.meta.topicCursor||0)+i)%active.length],topics=p.topics||TOPICS[p.id]||TOPICS.rovix;
     const topic=topics[(Number(db.meta.topicCursor||0)+i)%topics.length];
     const status=s.approvalMode==="auto"?"approved":s.approvalMode==="hybrid"&&i===0?"approved":"draft";
@@ -305,7 +309,7 @@ async function api(req,res,u){
   if(!authed(req))return json(res,401,{error:"Autenticação obrigatória"});
 
   const db=await loadDb();
-  if(req.method==="GET"&&u.pathname==="/orpheus-api/status")return json(res,200,{app:"ORPHEUS Social Agent",targetInstagram:TARGET_INSTAGRAM,version:"0.7.1",online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"3D animado com artes temáticas",storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
+  if(req.method==="GET"&&u.pathname==="/orpheus-api/status")return json(res,200,{app:"ORPHEUS Social Agent",targetInstagram:TARGET_INSTAGRAM,universe:"CIPHER",automaticScope:["cipher","orpheus"],version:"0.7.1",online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"3D animado com artes temáticas",storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
   if(req.method==="GET"&&u.pathname==="/orpheus-api/meta/test"){if(!metaConfigured())return json(res,200,{connected:false,error:"Credenciais Meta ainda não configuradas"});try{const result=await testMeta();if(db.meta.apiAccessBlocked){delete db.meta.apiAccessBlocked;await saveDb(db)}return json(res,200,result)}catch(e){console.error("[ORPHEUS Agent] Teste Meta:",e.httpStatus||"",e.metaCode||"",e.metaSubcode||"",e.message);if(/API access blocked/i.test(e.message||"")&&!db.meta.apiAccessBlocked){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:e.metaCode||null};await saveDb(db)}return json(res,200,{connected:false,error:e.message,httpStatus:e.httpStatus||null,metaCode:e.metaCode||null,metaSubcode:e.metaSubcode||null})}}
   if(req.method==="GET"&&u.pathname==="/orpheus-api/meta/analytics"){const days=Number(u.searchParams.get("days")||7);if(![7,30].includes(days))return json(res,400,{error:"Período inválido"});return json(res,200,await accountAnalytics(days))}
   if(req.method==="GET"&&u.pathname==="/orpheus-api/projects")return json(res,200,db.projects);
