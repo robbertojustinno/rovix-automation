@@ -380,6 +380,19 @@ window.ROVIX_HUB_CONFIG = {
               "url": "https://github.com/robbertojustinno/orpheus-cipher"
             }
           ]
+        },
+        {
+          "name": "ORPHEUS Social Agent",
+          "image": "/intranet/public/cards/orpheus.svg",
+          "description": "Agente independente de mídia do universo CIPHER / ORPHEUS, dedicado à criação, aprovação, agendamento e publicação de conteúdo no Instagram @protocolorpheus.",
+          "status": "PRODUÇÃO",
+          "type": "IA / Marketing / Social",
+          "links": [
+            {
+              "label": "Abrir ORPHEUS Social Agent",
+              "url": "https://orpheus-social-agent.onrender.com/orpheus-agent/"
+            }
+          ]
         }
       ]
     },
