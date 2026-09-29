@@ -12,6 +12,7 @@ const API=process.env.NEXT_PUBLIC_ROVIX_DRIVE_API||"";
 export default function Cloud(){
   const router=useRouter();
   const inputRef=useRef<HTMLInputElement>(null);
+  const folderInputRef=useRef<HTMLInputElement>(null);
   const[items,setItems]=useState<Item[]>([]);
   const[usage,setUsage]=useState<Usage>({used_bytes:0,max_bytes:10*1024*1024*1024,remaining_bytes:10*1024*1024*1024});
   const[loading,setLoading]=useState(true);
@@ -74,9 +75,14 @@ export default function Cloud(){
     finally{setBusy(false)}
   }
 
-  async function uploadOne(file:File){
+  async function createFolderAt(name:string,parentId:string|null){
+    const r=await api("/folders",{method:"POST",body:JSON.stringify({name,parent_id:parentId})});
+    return r.item as Item;
+  }
+
+  async function uploadOne(file:File,parentId:string|null=currentFolder){
     const u=await api("/upload-url",{method:"POST",body:JSON.stringify({
-      name:file.name,size:file.size,mime_type:file.type||"application/octet-stream",parent_id:currentFolder
+      name:file.name,size:file.size,mime_type:file.type||"application/octet-stream",parent_id:parentId
     })});
     const put=await fetch(u.upload_url,{
       method:"PUT",
@@ -86,7 +92,7 @@ export default function Cloud(){
     if(!put.ok)throw new Error('Falha ao enviar "'+file.name+'" para o armazenamento.');
     await api("/complete-upload",{method:"POST",body:JSON.stringify({
       name:file.name,size:file.size,mime_type:file.type||"application/octet-stream",
-      parent_id:currentFolder,object_key:u.object_key
+      parent_id:parentId,object_key:u.object_key
     })});
   }
 
@@ -118,6 +124,63 @@ export default function Cloud(){
     finally{setBusy(false);if(inputRef.current)inputRef.current.value=""}
   }
 
+  async function uploadFolder(files:FileList){
+    const selected=Array.from(files);
+    if(!selected.length)return;
+    setBusy(true);setMsg("");
+    const folderCache=new Map<string,string|null>();
+    folderCache.set("",currentFolder);
+    let sent=0;
+    const failed:string[]=[];
+    try{
+      for(let i=0;i<selected.length;i++){
+        const file=selected[i] as File & {webkitRelativePath?:string};
+        const rel=file.webkitRelativePath||file.name;
+        const parts=rel.split("/").filter(Boolean);
+        const fileName=parts.pop()||file.name;
+        let path="";
+        let parentId=currentFolder;
+        for(const part of parts){
+          const nextPath=path?path+"/"+part:part;
+          if(folderCache.has(nextPath)){
+            parentId=folderCache.get(nextPath)??currentFolder;
+          }else{
+            const folder=await createFolderAt(part,parentId);
+            parentId=folder.id;
+            folderCache.set(nextPath,parentId);
+          }
+          path=nextPath;
+        }
+        setMsg("Enviando pasta: "+(i+1)+" de "+selected.length+" — "+rel);
+        try{
+          const renamed=new File([file],fileName,{type:file.type,lastModified:file.lastModified});
+          await uploadOne(renamed,parentId);
+          sent++;
+        }catch{failed.push(rel);}
+      }
+      setMsg(failed.length?sent+" arquivos enviados; "+failed.length+" falharam.":"Pasta enviada com sucesso: "+sent+" arquivos.");
+      await load();
+    }catch(e){setMsg(e instanceof Error?e.message:"Falha ao enviar a pasta.")}
+    finally{setBusy(false);if(folderInputRef.current)folderInputRef.current.value=""}
+  }
+
+  async function chooseTarget(item:Item,mode:"move"|"copy"){
+    setBusy(true);setMsg("");
+    try{
+      const folders=await authRest("rovix_files?kind=eq.folder&select=id,name,parent_id&order=name.asc") as Item[];
+      const filtered=folders.filter(f=>f.id!==item.id);
+      const options=["0 - Raiz",...filtered.map((f,i)=>(i+1)+" - "+f.name)];
+      const answer=window.prompt((mode==="move"?"Mover":"Copiar")+" \""+item.name+"\" para:\n\n"+options.join("\n")+"\n\nDigite o número do destino:","0");
+      if(answer===null)return;
+      const n=Number(answer);
+      if(!Number.isInteger(n)||n<0||n>filtered.length)throw new Error("Destino inválido.");
+      const target=n===0?null:filtered[n-1].id;
+      await api(mode==="move"?"/move":"/copy",{method:"POST",body:JSON.stringify({item_id:item.id,target_parent_id:target})});
+      setMsg(mode==="move"?"Item movido.":"Cópia criada.");
+      await load();
+    }catch(e){setMsg(e instanceof Error?e.message:"Operação não concluída.")}
+    finally{setBusy(false)}
+  }
   async function download(item:Item){
     setBusy(true);setMsg("");
     try{
@@ -167,6 +230,8 @@ export default function Cloud(){
     if(item.kind==="folder"){
       return <div className="fileActions">
         <button onClick={()=>setCurrentFolder(item.id)}>Abrir</button>
+        <button onClick={()=>chooseTarget(item,"copy")}>Copiar</button>
+        <button onClick={()=>chooseTarget(item,"move")}>Mover</button>
         <button onClick={()=>rename(item)}>Renomear</button>
         <button onClick={()=>remove(item)}>Excluir</button>
       </div>
@@ -174,6 +239,8 @@ export default function Cloud(){
     return <div className="fileActions">
       <button onClick={()=>download(item)}><Download size={16}/> Baixar</button>
       <button onClick={()=>{setShareItem(item);setShareHours(24);setShareUrl("")}}><Share2 size={16}/> Compartilhar</button>
+      <button onClick={()=>chooseTarget(item,"copy")}>Copiar</button>
+      <button onClick={()=>chooseTarget(item,"move")}>Mover</button>
       <button onClick={()=>rename(item)}>Renomear</button>
       <button onClick={()=>remove(item)}>Excluir</button>
     </div>
@@ -182,7 +249,9 @@ export default function Cloud(){
   return <><section className="portalHero"><span className="kicker">ROVIX Drive</span><h1>Seus arquivos na nuvem.</h1><p>Área privada para documentos, manuais, projetos, backups e arquivos pessoais — sem precisar deixar um computador ligado.</p></section>
   <div className="portalToolbar">
     <input ref={inputRef} type="file" multiple hidden onChange={e=>{if(e.target.files?.length)uploadFiles(e.target.files)}}/>
+    <input ref={el=>{folderInputRef.current=el;if(el)el.setAttribute("webkitdirectory","")}} type="file" multiple hidden onChange={e=>{if(e.target.files?.length)uploadFolder(e.target.files)}}/>
     <button className="button" type="button" disabled={busy||!API} onClick={()=>inputRef.current?.click()}><Upload/> Enviar arquivos</button>
+    <button className="button secondary" type="button" disabled={busy||!API} onClick={()=>folderInputRef.current?.click()}><Upload/> Enviar pasta</button>
     <button className="button secondary" type="button" disabled={busy||!API} onClick={createFolder}>Nova pasta</button>
     {currentFolder&&<button className="button secondary" type="button" onClick={()=>setCurrentFolder(null)}>Voltar à raiz</button>}
     <span className="portalBadge"><HardDrive/> {usedGb.toFixed(2)} GB de 10 GB</span>
