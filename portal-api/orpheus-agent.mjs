@@ -14,6 +14,7 @@ const R2_ACCESS_KEY_ID=process.env.R2_ACCESS_KEY_ID||"";
 const R2_SECRET_ACCESS_KEY=process.env.R2_SECRET_ACCESS_KEY||"";
 const R2_BUCKET=process.env.R2_BUCKET||"rovix-drive";
 const DB_KEY="orpheus-agent/db.json";
+const OFFICIAL_LOGIN_ART_KEY="c926b386-69e0-4fbb-be99-6aa1a7872d86/a847b178-f23d-4c1f-a657-82fb34df624c/Imagem do ChatGPT 25 de set. de 2026, 18_43_13-4.png";
 const ADMIN_USER=process.env.ORPHEUS_ADMIN_USER||"admin";
 const ADMIN_PASSWORD_HASH=process.env.ORPHEUS_ADMIN_PASSWORD_HASH||"";
 const SESSION_SECRET=process.env.ORPHEUS_SESSION_SECRET||"";
@@ -347,6 +348,7 @@ async function api(req,res,u){
 export async function handleOrpheusAgent(req,res){
   const u=new URL(req.url,"http://localhost");
   if(u.pathname.startsWith("/orpheus-api/")){await api(req,res,u);return true}
+  if(u.pathname==="/orpheus-agent/login-art.png"){try{const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:OFFICIAL_LOGIN_ART_KEY}));const b=Buffer.from(await r.Body.transformToByteArray());res.writeHead(200,{"Content-Type":"image/png","Cache-Control":"public, max-age=3600"});res.end(b)}catch(e){console.error("[ORPHEUS Agent] Falha ao carregar arte oficial",e.message);res.writeHead(302,{Location:"/orpheus-agent/emblem.png"});res.end()}return true}
   if(u.pathname==="/orpheus-agent/emblem.png"){res.writeHead(200,{"Content-Type":"image/svg+xml","Cache-Control":"public, max-age=86400"});res.end(EMBLEM_PNG);return true}
   if(u.pathname==="/orpheus-agent/brand.png"){res.writeHead(200,{"Content-Type":"image/png","Cache-Control":"public, max-age=86400"});res.end(brandPng());return true}
   if(u.pathname==="/orpheus-agent"){res.writeHead(302,{Location:"/orpheus-agent/"});res.end();return true}
