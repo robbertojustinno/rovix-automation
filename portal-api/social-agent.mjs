@@ -270,7 +270,7 @@ async function api(req,res,u){
 
   const db=await loadDb();
   if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"0.7.1",online:true,metaConfigured:metaConfigured(),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"3D animado com artes temáticas",storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
-  if(req.method==="GET"&&u.pathname==="/social-api/meta/test"){if(!metaConfigured())return json(res,200,{connected:false,error:"Credenciais Meta ainda não configuradas"});try{return json(res,200,await testMeta())}catch(e){return json(res,200,{connected:false,error:e.message})}}
+  if(req.method==="GET"&&u.pathname==="/social-api/meta/test"){if(!metaConfigured())return json(res,200,{connected:false,error:"Credenciais Meta ainda não configuradas"});try{return json(res,200,await testMeta())}catch(e){console.error("[Social Agent] Teste Meta:",e.httpStatus||"",e.metaCode||"",e.metaSubcode||"",e.message);return json(res,200,{connected:false,error:e.message,httpStatus:e.httpStatus||null,metaCode:e.metaCode||null,metaSubcode:e.metaSubcode||null})}}
   if(req.method==="GET"&&u.pathname==="/social-api/projects")return json(res,200,db.projects);
   if(req.method==="GET"&&u.pathname==="/social-api/posts")return json(res,200,db.posts.filter(p=>p.status!=="deleted"));
   const imgUrlMatch=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/image-url$/);
