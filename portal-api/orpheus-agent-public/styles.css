@@ -52,3 +52,19 @@ body.logged-in #shell{display:block!important}
 #analyticsCards .muted{font-size:11px;margin-top:3px}
 @media(max-width:680px){#analyticsCards{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:440px){#analyticsCards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+
+/* ORPHEUS login — official CIPHER artwork from ROVIX Drive */
+.login-card .login-art{
+  width:min(310px,88%)!important;
+  aspect-ratio:1/1!important;
+  height:auto!important;
+  max-height:none!important;
+  object-fit:cover!important;
+  object-position:center 48%!important;
+  border-radius:18px!important;
+  border:1px solid #25354b!important;
+  box-shadow:0 16px 38px #000a!important;
+  background:#050b13!important;
+  padding:0!important;
+}
