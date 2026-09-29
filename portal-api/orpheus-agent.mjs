@@ -15,13 +15,21 @@ const R2_SECRET_ACCESS_KEY=process.env.R2_SECRET_ACCESS_KEY||"";
 const R2_BUCKET=process.env.R2_BUCKET||"rovix-drive";
 const DB_KEY="orpheus-agent/db.json";
 const OFFICIAL_LOGIN_ART_KEY="c926b386-69e0-4fbb-be99-6aa1a7872d86/a847b178-f23d-4c1f-a657-82fb34df624c/Imagem do ChatGPT 25 de set. de 2026, 18_43_13-4.png";
+const OFFICIAL_CIPHER_ASSETS=Object.freeze({
+  general:OFFICIAL_LOGIN_ART_KEY,
+  blake:"c926b386-69e0-4fbb-be99-6aa1a7872d86/a307a8b8-431e-457c-a0c5-67777ae73ac6/blake.png",
+  lara:"c926b386-69e0-4fbb-be99-6aa1a7872d86/fb4914b3-3c7a-4147-8064-33e1a59c5c46/Lara.png",
+  evelyn:"c926b386-69e0-4fbb-be99-6aa1a7872d86/df658c63-0c14-4134-b3bd-23e20ff38080/Evelyn Cross.png",
+  gordon:"c926b386-69e0-4fbb-be99-6aa1a7872d86/8a82ef1a-61a9-4ed8-8d0b-437c68320fbd/Gordon Sullivan.png",
+  badge:"c926b386-69e0-4fbb-be99-6aa1a7872d86/76c52bd0-44cb-4601-bd9c-8b8c05cd23d4/distintivo_cipher_operador_validado.png"
+});
 const ADMIN_USER=process.env.ORPHEUS_ADMIN_USER||"admin";
 const ADMIN_PASSWORD_HASH=process.env.ORPHEUS_ADMIN_PASSWORD_HASH||"";
 const SESSION_SECRET=process.env.ORPHEUS_SESSION_SECRET||"";
 const ORPHEUS_PUBLIC_BASE=(process.env.ORPHEUS_PUBLIC_BASE||"https://rovix-drive-api.onrender.com/orpheus-agent").replace(/\/$/,"");
 const TARGET_INSTAGRAM="@Protocoloorpheus";
 const ALLOWED_UNIVERSE_PROJECTS=new Set(["cipher","orpheus"]);
-const VISUAL_ENGINE="orpheus-v1-classified-art";
+const VISUAL_ENGINE="orpheus-v2-official-cipher-library";
 const MAX_FAST_IMAGES_PER_RUN=12;
 const EMBLEM_PNG=fs.readFileSync(path.join(__dirname,"..","public","intranet","public","cards","orpheus.svg"));
 const DEFAULT_SETTINGS={enabled:true,postsPerDay:3,approvalMode:"manual",scheduleMode:"interval",startHour:9,endHour:19,postTimes:["09:00","14:00","19:00"],timezone:"America/Sao_Paulo"};
@@ -32,14 +40,14 @@ const POSTING_POLICY=Object.freeze({
     minWidth:1080,
     minHeight:1080,
     preferredFormats:["1080x1080","1080x1350"],
-    style:["3d-animado","premium","industrial","tecnologico","padrao-rapido"],
+    style:["thriller-de-espionagem","cinematografico","classificado","noturno","CIPHER"],
     palette:["azul-escuro","vermelho","prata","grafite","preto"],
     requirements:[
       "marca ORPHEUS/CIPHER integrada sem distorcao",
-      "composicao publicitaria profissional",
+      "composicao cinematografica coerente com CIPHER",
       "tipografia forte e legivel",
       "coerencia visual com o produto",
-      "variacao suficiente para evitar repeticao",
+      "usar somente artes oficiais do Livro CIPHER ou derivacoes coerentes com elas",
       "sem placeholder em publicacao final"
     ]
   },
@@ -82,6 +90,37 @@ async function loadDb(){
   try{const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:DB_KEY}));db=JSON.parse(await readStream(r.Body))}
   catch(e){if(e?.name==="NoSuchKey"||e?.$metadata?.httpStatusCode===404){db={projects:[],posts:[]};changed=true}else throw e}
   db.projects=db.projects||[];db.posts=db.posts||[];db.settings={...DEFAULT_SETTINGS,...(db.settings||{})};db.meta=db.meta||{};
+  if(!db.meta.officialCipherLibraryMigration20260929){
+    let removed=0;
+    for(const p of db.posts){
+      if(p.generatedBy==="agent"&&p.status!=="published"){
+        p.status="deleted";p.deletedAt=new Date().toISOString();p.lastError="Fila antiga removida antes do teste oficial CIPHER.";removed++;
+      }
+    }
+    db.meta.officialCipherLibraryMigration20260929={at:new Date().toISOString(),removed};
+    changed=true;
+  }
+  if(!db.meta.singleTestPost20260929){
+    db.posts.unshift({
+      id:"orpheus-test-20260929-2105",
+      projectId:"orpheus",
+      projectName:"ORPHEUS",
+      title:"PROTOCOLO ORPHEUS",
+      caption:"ARQUIVO 05 // PROTOCOLO ORPHEUS\n\nAlgumas operações deveriam permanecer enterradas. Mas o passado não desaparece quando uma pasta é fechada.\n\nAcesso restrito ao universo CIPHER.\n\n#CIPHER #ProtocoloOrpheus #ORPHEUS #Thriller #Espionagem #Suspense",
+      imageUrl:ORPHEUS_PUBLIC_BASE+"/brand.png",
+      scheduledAt:"2026-09-29T21:05:00-03:00",
+      status:"approved",
+      createdAt:new Date().toISOString(),
+      generatedBy:"agent",
+      generatedDate:"2026-09-29",
+      visualPolicy:POSTING_POLICY.id,
+      visualEngine:VISUAL_ENGINE,
+      visualLevel:"oficial",
+      artStatus:"placeholder"
+    });
+    db.meta.singleTestPost20260929={at:new Date().toISOString(),scheduledAt:"2026-09-29T21:05:00-03:00"};
+    changed=true;
+  }
   if(!db.meta.apiBlockMigration20260929){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:200};db.meta.apiBlockMigration20260929=true;changed=true}
   if(!db.meta.rateLimitRecovery20260928&&db.posts.some(p=>p.status==="error"&&/User is performing too many actions/i.test(p.lastError||""))){db.meta.publishCooldownUntil=new Date(Date.now()+60*60*1000).toISOString();db.meta.rateLimitRecovery20260928=true;changed=true}
   if(!db.meta.purgedUnpublished20260927){
@@ -168,45 +207,49 @@ function scheduleFor(date,index,count,settings){
       return new Date(date+"T"+String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":00-03:00").toISOString()
     }
 function escapeXml(s=""){return String(s).replace(/[<>&'"]/g,m=>({"<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"}[m]))}
-const ART_ASSETS=Object.freeze({
-  robot:"robot.jpg",inspection:"inspection.jpg",servers:"drive.jpg",network:"network.jpg",cyber:"cyber.jpg"
-});
-function sceneType(project){if(project.id==="rovix-drive")return"servers";if(project.id==="cipher")return"cyber";if(project.id==="tagcheck")return"inspection";if(project.id==="uap-studio")return"network";return"robot"}
+function officialAssetName(post,project){
+  const t=(String(post?.title||"")+" "+String(post?.caption||"")+" "+String(project?.name||"")).toLowerCase();
+  if(t.includes("blake"))return"blake";
+  if(t.includes("lara"))return"lara";
+  if(t.includes("evelyn"))return"evelyn";
+  if(t.includes("gordon"))return"gordon";
+  if(t.includes("operador")||t.includes("distintivo"))return"badge";
+  return"general";
+}
+async function officialAssetBuffer(post,project){
+  const name=officialAssetName(post,project),key=OFFICIAL_CIPHER_ASSETS[name]||OFFICIAL_CIPHER_ASSETS.general;
+  const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:key}));
+  return{name,key,buffer:Buffer.from(await r.Body.transformToByteArray())};
+}
 function titleLines(value){
-  const words=String(value||"ROVIX Automation").trim().split(/\s+/),lines=[""];
+  const words=String(value||"ORPHEUS").trim().split(/\s+/),lines=[""];
   for(const word of words){
     const index=lines.length-1;
-    if((lines[index]+" "+word).trim().length>25&&lines[index]&&lines.length<2)lines.push(word);
+    if((lines[index]+" "+word).trim().length>24&&lines[index]&&lines.length<2)lines.push(word);
     else lines[index]=(lines[index]+" "+word).trim();
   }
-  if(lines[1]?.length>28)lines[1]=lines[1].slice(0,27).trimEnd()+"…";
+  if(lines[1]?.length>27)lines[1]=lines[1].slice(0,26).trimEnd()+"…";
   return lines;
 }
 export async function renderArtworkBuffer(post,project){
-  const type=sceneType(project),asset=ART_ASSETS[type];
-  const bg=fs.readFileSync(path.join(__dirname,"social-agent-assets",asset));
+  const official=await officialAssetBuffer(post,project);
   const lines=titleLines(post.title||project.name);
-  const titleSize=lines.some(x=>x.length>23)?53:60;
-  const heading=lines.map((line,i)=>`<text x="82" y="${818+i*69}" font-family="Arial,Helvetica,sans-serif" font-size="${titleSize}" font-weight="800" fill="#ffffff">${escapeXml(line)}</text>`).join("");
-  const subtitleY=lines.length===2?959:890;
+  const heading=lines.map((line,i)=>`<text x="66" y="${880+i*60}" font-family="Arial,Helvetica,sans-serif" font-size="48" font-weight="800" fill="#ffffff">${escapeXml(line)}</text>`).join("");
   const overlay=Buffer.from(`<svg width="1080" height="1080" xmlns="http://www.w3.org/2000/svg">
-    <defs><linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="53%" stop-color="#020714" stop-opacity="0"/><stop offset="77%" stop-color="#020714" stop-opacity=".65"/><stop offset="100%" stop-color="#020714" stop-opacity=".96"/></linearGradient></defs>
+    <defs><linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="55%" stop-color="#020714" stop-opacity="0"/><stop offset="82%" stop-color="#020714" stop-opacity=".64"/><stop offset="100%" stop-color="#020714" stop-opacity=".95"/></linearGradient></defs>
     <rect width="1080" height="1080" fill="url(#shade)"/>
-    <rect x="80" y="736" width="94" height="8" rx="4" fill="#f3263c"/>
+    <rect x="64" y="824" width="88" height="6" rx="3" fill="#c41021"/>
     ${heading}
-    <text x="84" y="${subtitleY}" font-family="Arial,Helvetica,sans-serif" font-size="29" font-weight="700" fill="#c5daf0">${escapeXml(project.name.slice(0,40))}</text>
-    <rect x="82" y="1010" width="916" height="2" fill="#5d7596" fill-opacity=".65"/>
-    <text x="84" y="1045" font-family="Arial,Helvetica,sans-serif" font-size="22" font-weight="700" letter-spacing="3" fill="#e1e7ef">ORPHEUS // CIPHER</text>
+    <text x="68" y="1032" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="700" letter-spacing="3" fill="#dbe3ec">CIPHER // PROTOCOLO ORPHEUS</text>
   </svg>`);
-  const badge=await sharp(EMBLEM_PNG).resize(196,196,{fit:"contain"}).png().toBuffer();
-  return sharp(bg).resize(1080,1080).composite([{input:overlay,left:0,top:0},{input:badge,left:846,top:32}]).jpeg({quality:93,mozjpeg:true}).toBuffer();
+  return sharp(official.buffer).resize(1080,1080,{fit:"cover",position:"attention"}).composite([{input:overlay,left:0,top:0}]).jpeg({quality:94,mozjpeg:true}).toBuffer();
 }
 async function createFastArtwork(post,project){
+  const officialName=officialAssetName(post,project);
   const final=await renderArtworkBuffer(post,project);
-  const asset=ART_ASSETS[sceneType(project)];
-  const key="orpheus-agent/v4/"+Date.now()+"-"+crypto.randomBytes(6).toString("hex")+".jpg";
+  const key="orpheus-agent/v5/"+Date.now()+"-"+crypto.randomBytes(6).toString("hex")+".jpg";
   await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:key,Body:final,ContentType:"image/jpeg"}));
-  return{key,asset:{url:"art-library://orpheus/"+asset,license:"ORPHEUS classified artwork"}};
+  return{key,asset:{url:"rovix-drive://Livro CIPHER/"+officialName,license:"Biblioteca oficial CIPHER"}};
 }
 async function prepareArtworkForQueue(){
   const db=await loadDb();let made=0;
@@ -223,16 +266,19 @@ async function prepareArtworkForQueue(){
   if(candidates.length)await saveDb(db);return{made,engine:VISUAL_ENGINE,level:"rapido"}
 }
 function buildCaption(project,topic,i){
-  if(project.description){
-    const stage=project.projectStatus==="PRODUÇÃO"?"":project.projectStatus==="PREVIEW"?"\n\nProjeto em prévia: acompanhe a evolução.":"\n\nProjeto em evolução: acompanhe as novidades e a disponibilidade.";
-    return topic+"\n\n"+project.description+stage+"\n\n"+project.cta+".\n\n#ROVIX #Tecnologia #Inovacao";
-  }
-  const variants=[
-  topic+" não precisa ser complicado. A "+project.name+" foi pensada para transformar tarefas do dia a dia em um fluxo mais organizado, rastreável e eficiente.",
-  "Quando tecnologia e operação trabalham juntas, o resultado aparece no processo. "+topic+" é um dos pontos em que a "+project.name+" busca reduzir retrabalho e dar mais visibilidade ao que acontece.",
-  "Mais controle, menos improviso. "+topic+" faz parte da proposta da "+project.name+": aplicar tecnologia de forma prática onde ela realmente gera valor.",
-  "A evolução industrial também passa por ferramentas simples de usar e fáceis de integrar. Hoje o destaque é: "+topic+"."
-];return variants[i%variants.length]+"\n\n"+project.cta+".\n\n#ROVIX #Automacao #Tecnologia #Industria40 #Inovacao"}
+  const cipher=[
+    topic+" faz parte do universo CIPHER — Protocolo Orpheus. Arquivos, pistas e personagens se cruzam em uma história de espionagem, vigilância e segredos.",
+    "ARQUIVO EM ANÁLISE // "+topic+"\n\nNo universo CIPHER, nenhuma informação aparece por acaso. Cada detalhe pode ser uma pista — ou uma armadilha.",
+    topic+"\n\nO Protocolo Orpheus continua ativo. Dossiês, operações clandestinas e sinais do passado começam a convergir."
+  ];
+  const orpheus=[
+    topic+"\n\nAcesso restrito ao universo CIPHER. O terminal ORPHEUS reúne dossiês, enigmas, missões e fragmentos ligados ao Protocolo.",
+    "ORPHEUS // "+topic+"\n\nNem todos os arquivos deveriam ser abertos. Nem todas as operações deveriam ter sobrevivido.",
+    topic+"\n\nConteúdo classificado do universo CIPHER. Observe os detalhes. Algumas respostas aparecem apenas para quem sabe onde procurar."
+  ];
+  const base=(project.id==="cipher"?cipher:orpheus)[i%3];
+  return base+"\n\n"+project.cta+".\n\n#CIPHER #ProtocoloOrpheus #ORPHEUS #Thriller #Espionagem #Suspense";
+}
 async function ensureDailyContent(force=false,requestedDate=""){
   const db=await loadDb(),s=db.settings;
   if(!s.enabled&&!force)return{created:0,target:0,day:saoDate(),reason:"disabled"};
@@ -248,7 +294,7 @@ async function ensureDailyContent(force=false,requestedDate=""){
     const topic=topics[(Number(db.meta.topicCursor||0)+i)%topics.length];
     const status=s.approvalMode==="auto"?"approved":s.approvalMode==="hybrid"&&i===0?"approved":"draft";
     let scheduledAt=scheduleFor(day,i,target,s);
-    if(force&&new Date(scheduledAt)<=new Date())scheduledAt=new Date(Date.now()+(created+1)*2*60*1000).toISOString();
+    if(new Date(scheduledAt)<=new Date())scheduledAt=new Date(Date.now()+(created+1)*60*60*1000).toISOString();
     db.posts.unshift({id:id("agent"),projectId:p.id,projectName:p.name,title:topic,caption:buildCaption(p,topic,i),imageUrl:ORPHEUS_PUBLIC_BASE+"/brand.png",scheduledAt,status,createdAt:new Date().toISOString(),generatedBy:"agent",generatedDate:day,forcedBatch:force,visualPolicy:POSTING_POLICY.id,visualEngine:VISUAL_ENGINE,visualLevel:"rapido",artStatus:"placeholder"});
     created++;
   }
@@ -311,7 +357,7 @@ async function api(req,res,u){
   if(!authed(req))return json(res,401,{error:"Autenticação obrigatória"});
 
   const db=await loadDb();
-  if(req.method==="GET"&&u.pathname==="/orpheus-api/status")return json(res,200,{app:"ORPHEUS Social Agent",targetInstagram:TARGET_INSTAGRAM,universe:"CIPHER",automaticScope:["cipher","orpheus"],version:"0.7.1",online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"3D animado com artes temáticas",storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
+  if(req.method==="GET"&&u.pathname==="/orpheus-api/status")return json(res,200,{app:"ORPHEUS Social Agent",targetInstagram:TARGET_INSTAGRAM,universe:"CIPHER",automaticScope:["cipher","orpheus"],version:"0.7.1",online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"Biblioteca oficial CIPHER / thriller de espionagem",storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
   if(req.method==="GET"&&u.pathname==="/orpheus-api/meta/test"){if(!metaConfigured())return json(res,200,{connected:false,error:"Credenciais Meta ainda não configuradas"});try{const result=await testMeta();if(db.meta.apiAccessBlocked){delete db.meta.apiAccessBlocked;await saveDb(db)}return json(res,200,result)}catch(e){console.error("[ORPHEUS Agent] Teste Meta:",e.httpStatus||"",e.metaCode||"",e.metaSubcode||"",e.message);if(/API access blocked/i.test(e.message||"")&&!db.meta.apiAccessBlocked){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:e.metaCode||null};await saveDb(db)}return json(res,200,{connected:false,error:e.message,httpStatus:e.httpStatus||null,metaCode:e.metaCode||null,metaSubcode:e.metaSubcode||null})}}
   if(req.method==="GET"&&u.pathname==="/orpheus-api/meta/analytics"){const days=Number(u.searchParams.get("days")||7);if(![7,30].includes(days))return json(res,400,{error:"Período inválido"});return json(res,200,await accountAnalytics(days))}
   if(req.method==="GET"&&u.pathname==="/orpheus-api/projects")return json(res,200,db.projects);
