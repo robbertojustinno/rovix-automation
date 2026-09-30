@@ -13,3 +13,23 @@ body:has(.cipherPortal) > main#conteudo{max-width:none;padding:0;margin:0}
 @media(max-width:760px){.cipherPortal .hero-grid {min-height:calc(100svh - 130px)}.cipherPortal .hero-copy {padding:52px 0 85px}.cipherPortal .hero h1 {font-size:clamp(52px,15vw,78px)}.cipherPortal .book-section, .cipherPortal .person-grid, .cipherPortal .orpheus-grid {grid-template-columns:1fr}.cipherPortal .book-section {min-height:0;gap:60px}.cipherPortal .book-art {width:min(75%,340px)}.cipherPortal .person-art {width:min(83%,390px)}.cipherPortal .person-section.reverse .person-art, .cipherPortal .person-section.reverse .person-copy {grid-column:auto;grid-row:auto}.cipherPortal .person-grid {gap:48px}.cipherPortal .person-copy h2 {font-size:clamp(46px,12vw,68px)}.cipherPortal .file-rule {margin-top:36px}.cipherPortal .hero-footer span:last-child {display:none}.cipherPortal .section {padding-block:76px}
 }
 @media(max-width:380px){.cipherPortal .wordmark {font-size:15px}.cipherPortal .hero h1 {font-size:50px}.cipherPortal .hero-actions {gap:20px}}
+/* CIPHER commerce layer */
+.cipherPortal .buy-section{position:relative;overflow:hidden;border-top:1px solid var(--line);background:radial-gradient(circle at 82% 18%,rgba(142,240,210,.10),transparent 28%),radial-gradient(circle at 10% 90%,rgba(202,162,106,.08),transparent 30%),#06090a}
+.cipherPortal .buy-section:before{content:"CIPHER // PURCHASE ACCESS";position:absolute;right:-35px;top:100px;transform:rotate(90deg);color:rgba(142,240,210,.12);font:700 9px/1 monospace;letter-spacing:.32em}
+.cipherPortal .buy-heading{display:grid;grid-template-columns:1.1fr .9fr;gap:70px;align-items:end;margin-bottom:58px}
+.cipherPortal .buy-heading h2{margin-top:20px}
+.cipherPortal .buy-heading>p{max-width:500px;margin:0;color:#8e9b97;font:18px/1.7 Georgia,serif}
+.cipherPortal .edition-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.cipherPortal .edition-card{min-height:380px;padding:34px;position:relative;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,.11);background:linear-gradient(145deg,rgba(255,255,255,.035),rgba(255,255,255,.008));transition:.3s ease}
+.cipherPortal .edition-card:after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(120deg,transparent 55%,rgba(142,240,210,.04))}
+.cipherPortal .edition-card:hover{transform:translateY(-5px);border-color:rgba(142,240,210,.38);box-shadow:0 28px 80px rgba(0,0,0,.42)}
+.cipherPortal .edition-card.featured{border-color:rgba(202,162,106,.34)}
+.cipherPortal .edition-code{color:var(--signal);font:700 10px/1 monospace;letter-spacing:.2em}
+.cipherPortal .edition-card.featured .edition-code{color:var(--amber)}
+.cipherPortal .edition-card h3{margin:58px 0 2px;font:400 clamp(48px,6vw,76px)/.95 Georgia,serif;letter-spacing:-.04em}
+.cipherPortal .edition-subtitle{margin:0;color:#aab4b0;font:italic 20px/1.4 Georgia,serif}
+.cipherPortal .edition-meta{display:flex;gap:10px;margin-top:28px}
+.cipherPortal .edition-meta span{padding:7px 9px;border:1px solid var(--line);color:#75817d;font:700 9px/1 monospace;letter-spacing:.1em}
+.cipherPortal .edition-buy{margin-top:auto;display:flex;align-items:center;justify-content:space-between;padding:18px 0 4px;border-top:1px solid rgba(142,240,210,.28);color:var(--signal);font:700 12px/1.3 Arial,sans-serif;letter-spacing:.06em}
+.cipherPortal .buy-footnote{margin:28px 0 0;color:#4e5a57;font:700 8px/1 monospace;letter-spacing:.22em;text-align:right}
+@media(max-width:760px){.cipherPortal .buy-heading,.cipherPortal .edition-grid{grid-template-columns:1fr}.cipherPortal .buy-heading{gap:24px;margin-bottom:38px}.cipherPortal .edition-card{min-height:330px;padding:26px}.cipherPortal .edition-card h3{margin-top:45px}.cipherPortal .buy-footnote{text-align:left;line-height:1.7}}
