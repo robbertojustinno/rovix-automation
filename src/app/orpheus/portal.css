@@ -33,3 +33,10 @@ body:has(.cipherPortal) > main#conteudo{max-width:none;padding:0;margin:0}
 .cipherPortal .edition-buy{margin-top:auto;display:flex;align-items:center;justify-content:space-between;padding:18px 0 4px;border-top:1px solid rgba(142,240,210,.28);color:var(--signal);font:700 12px/1.3 Arial,sans-serif;letter-spacing:.06em}
 .cipherPortal .buy-footnote{margin:28px 0 0;color:#4e5a57;font:700 8px/1 monospace;letter-spacing:.22em;text-align:right}
 @media(max-width:760px){.cipherPortal .buy-heading,.cipherPortal .edition-grid{grid-template-columns:1fr}.cipherPortal .buy-heading{gap:24px;margin-bottom:38px}.cipherPortal .edition-card{min-height:330px;padding:26px}.cipherPortal .edition-card h3{margin-top:45px}.cipherPortal .buy-footnote{text-align:left;line-height:1.7}}
+
+.cipherPortal .language-edition{margin-top:28px}
+.cipherPortal .language-edition+.language-edition{margin-top:58px;padding-top:42px;border-top:1px solid var(--line)}
+.cipherPortal .edition-language-title{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:18px;color:#7b8985;font:700 10px/1.4 monospace;letter-spacing:.16em}
+.cipherPortal .edition-language-title span{color:var(--signal)}
+.cipherPortal .edition-language-title b{font:inherit;color:#56635f}
+@media(max-width:760px){.cipherPortal .edition-language-title{align-items:flex-start;flex-direction:column;gap:7px}.cipherPortal .language-edition+.language-edition{margin-top:42px;padding-top:32px}}
