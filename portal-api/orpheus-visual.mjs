@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import sharp from 'sharp';
 
-export const ENGINE = 'orpheus-v3.2-original-scenes-free';
+export const ENGINE = 'orpheus-v3.3-original-scenes-free';
 export const DIMENSIONS = ['character','setting','action','framing','composition'];
 export const RECENT_WINDOW = 30;
 const scenes = [
@@ -98,7 +98,7 @@ export function sceneSvg(c){
   const flip=c.variant%2?`translate(1080 0) scale(-1 1)`:'';
   const zoom=c.variant>=4?`translate(-54 -35) scale(1.1)`:`translate(${c.variant*3} 0)`;
   const flipped=flip+' '+zoom+` translate(${offset} 0)`;
-  if(c.variant%2)s=s.replace(/<text x="([0-9.]+)"/g,(_,x)=>`<text transform="translate(${Number(x)*2} 0) scale(-1 1)" x="${x}"`);
+  if(c.variant%2)s=s.replace(/<text x="([0-9.]+)"/g,(_,x)=>`<text text-anchor="end" transform="translate(${Number(x)*2} 0) scale(-1 1)" x="${x}"`);
   // Each publication gets independently placed ambient light, texture and clues, not a recycled bitmap.
   s+=Array.from({length:18},(_,i)=>{const x=(randomBytes[i%32]*13+i*37)%1080,y=210+(randomBytes[(i+7)%32]*7)%560;return `<circle cx="${x}" cy="${y}" r="${1+randomBytes[(i+9)%32]%3}" fill="${light}" opacity=".18"/>`;}).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080"><defs><radialGradient id="glow"><stop stop-color="${accent}"/><stop offset="1" stop-color="${bg}"/></radialGradient><linearGradient id="shade" x2="0" y2="1"><stop stop-color="${bg}" stop-opacity="0"/><stop offset="1" stop-color="${bg}"/></linearGradient></defs>${rect(0,0,1080,1080,'url(#glow)')}<g transform="${flipped}">${s}</g>${rect(0,720,1080,360,'url(#shade)')}<text x="64" y="105" font-family="sans-serif" font-size="24" letter-spacing="6" fill="${light}">CIPHER / VISÃO DO UNIVERSO</text><text x="64" y="915" font-family="sans-serif" font-size="48" font-weight="bold" fill="#fff">${esc(c.label)}</text><text x="64" y="964" font-family="sans-serif" font-size="25" fill="${light}">${esc(c.hook)}</text><text x="64" y="1030" font-family="sans-serif" font-size="20" letter-spacing="4" fill="#fff">PROTOCOLO ORPHEUS • ROBERTO JUSTINO</text></svg>`;
