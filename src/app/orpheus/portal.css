@@ -67,3 +67,11 @@ body:has(.cipherPortal) > main#conteudo{max-width:none;padding:0;margin:0}
 @media(max-width:760px){.cipherPortal .d00Grid,.cipherPortal .d00Cards{grid-template-columns:1fr}.cipherPortal .d00Hero{min-height:65vh}.cipherPortal .d00End .hero-actions{align-items:center}}
 
 .cipherPortal .reward-access{margin-top:14px;display:flex;align-items:center;justify-content:center;gap:9px;width:100%;padding:15px;background:#07100e;color:var(--signal);font:800 11px/1 Arial,sans-serif;letter-spacing:.08em}
+
+.cipherPortal .orpheus-offer{margin:28px 0 20px;padding:22px;border:1px solid rgba(142,240,210,.24);background:rgba(142,240,210,.035)}
+.cipherPortal .offer-label{display:block;margin-bottom:10px;color:var(--signal);font:700 9px/1.4 monospace;letter-spacing:.16em}
+.cipherPortal .offer-price{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.cipherPortal .offer-price strong{color:#f0f2ec;font:400 clamp(32px,4vw,48px)/1 Georgia,serif}
+.cipherPortal .offer-price span{color:#77837f;font:11px/1.4 monospace;text-decoration:line-through}
+.cipherPortal .orpheus-offer p,.cipherPortal .purchase-note{margin:12px 0 0;color:#83908c;font:10px/1.6 monospace;letter-spacing:.04em}
+.cipherPortal .purchase-note{max-width:520px;margin-top:14px}
