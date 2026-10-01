@@ -222,7 +222,7 @@ async function prepareArtworkForQueue(){
       await saveDb(db);
     }catch(e){p.artStatus="error";p.artError=e.message;console.error("[ORPHEUS Agent] Falha na arte",p.id,e.message)}
   }
-  const repair=db.meta.visualDiversityRepair20261001;
+  const repair=db.meta.visualDiversityRepair20261001Revision2;
   if(repair&&!repair.complete&&repair.repaired.every(pid=>db.posts.find(x=>x.id===pid)?.artStatus==="ready")){
     repair.complete=true;repair.completedAt=new Date().toISOString();
     console.log('[ORPHEUS Queue] Reparo concluido',JSON.stringify({count:repair.repaired.length,enabled:db.settings.enabled,unique:new Set(db.posts.filter(p=>repair.repaired.includes(p.id)).map(p=>p.artHash)).size}));

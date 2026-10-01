@@ -11,17 +11,17 @@ test('120 consecutive concepts respect the recent window and adjacent subject gu
     assert(!posts.slice(-5).some(p=>['character','setting','action'].every(k=>p.visualConcept[k]===c[k])));
     posts.push({visualConcept:c});
   }
-  assert.equal(new Set(posts.map(p=>p.visualConcept.scene)).size,12);
+  assert.equal(new Set(posts.map(p=>p.visualConcept.scene)).size,24);
 });
-test('15 queue artworks have different actual JPEG bytes and scenes',async()=>{
+test('20 queue artworks have different actual JPEG bytes and scenes',async()=>{
   const posts=[],hashes=new Set();
-  for(let i=0;i<15;i++){
+  for(let i=0;i<20;i++){
     const c=selectConcept(posts,'queue-'+i),bytes=await renderScene(c);
     hashes.add(crypto.createHash('sha256').update(bytes).digest('hex'));
     posts.push({visualConcept:c});
   }
-  assert.equal(hashes.size,15);
-  assert(new Set(posts.map(p=>p.visualConcept.scene)).size>=10);
+  assert.equal(hashes.size,20);
+  assert(new Set(posts.map(p=>p.visualConcept.scene)).size===20);
 });
 test('repair replaces queue, restores editorial cancellations and stays idempotent',()=>{
   const db={projects:[{id:'cipher',active:true,name:'CIPHER'},{id:'orpheus',active:true,name:'ORPHEUS'}],posts:[

@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import sharp from 'sharp';
 
-export const ENGINE = 'orpheus-v3-original-scenes-free';
+export const ENGINE = 'orpheus-v3.1-original-scenes-free';
 export const DIMENSIONS = ['character','setting','action','framing','composition'];
 export const RECENT_WINDOW = 30;
 const scenes = [
@@ -17,6 +17,18 @@ const scenes = [
   ['none','evidence-board','connecting-clues','frontal','network','CONEXÕES','Nenhuma informação aparece por acaso','board'],
   ['gordon','harbor','reconnaissance','establishing','horizon-low','ZONA DE SILÊNCIO','O silêncio também é uma pista','harbor'],
   ['none','locked-vault','discovery','detail','concentric','PASTA CLASSIFICADA','Alguns arquivos deveriam permanecer fechados','vault'],
+  ['blake','forest','tracking','wide-angle','depth-layers','SEM TESTEMUNHAS','Uma trilha pode esconder uma resposta','forest'],
+  ['evelyn','bridge','crossing','profile','steel-diagonals','ENTRE DOIS LADOS','Toda escolha deixa um rastro','bridge'],
+  ['none','tunnel','searching','deep-focus','dark-center','PONTO CEGO','O que está fora do campo de visão?','tunnel'],
+  ['none','laboratory','examining-evidence','detail-shot','glass-reflections','EVIDÊNCIA','A verdade também deixa marcas','lab'],
+  ['gordon','elevator','waiting','medium-profile','vertical-panels','ÚLTIMO ANDAR','Uma porta pode mudar tudo','elevator'],
+  ['none','travel-case','inspection','top-view','nested-objects','BAGAGEM OCULTA','Nem tudo atravessa a fronteira à vista','case'],
+  ['lara','cafe','observing-message','window-view','table-foreground','MENSAGEM','Uma conversa pode conter mais de uma verdade','cafe'],
+  ['none','radio-desk','interception','side-close-up','frequency-lines','FREQUÊNCIA','Alguns sinais não deveriam ser ouvidos','radio'],
+  ['none','microfilm-reader','retrieving-record','angled-detail','projection-cone','FRAGMENTO','O arquivo inteiro começa por um fragmento','film'],
+  ['none','strategy-table','planning','birds-eye','board-pattern','MOVIMENTO','Observe a posição de cada peça','chess'],
+  ['evelyn','empty-office','looking-for-traces','doorway-view','negative-space','SALA VAZIA','A ausência também pode ser evidência','office'],
+  ['blake','night-road','following-trail','rear-wide','road-perspective','SEM RETORNO','O caminho continua depois da última pista','road'],
 ];
 const palettes=[['#081828','#2e718e','#edb86a'],['#191523','#70506a','#e68f67'],['#061e20','#3b8278','#a4cfbf'],['#171c30','#53618f','#e8a8a5']];
 export function fingerprint(c){return DIMENSIONS.map(k=>c[k]).join('|');}
@@ -69,6 +81,18 @@ export function sceneSvg(c){
     case 'alley':s=`<path d="M0 190 L430 430 L430 820 L0 820 Z" fill="#203442"/><path d="M1080 190 L620 430 L620 820 L1080 820 Z" fill="#28303f"/><path d="M430 430 L620 430 L800 820 L270 820 Z" fill="#43505a"/>`+Array.from({length:7},(_,i)=>line(0,250+i*78,430,440+i*40,accent,3)).join('')+figure(510,440,1.3,c.character)+figure(670,440,.6,'blake');break;
     case 'board':s=rect(60,200,960,580,'#544a40',`stroke="${accent}" stroke-width="15"`)+Array.from({length:8},(_,i)=>{const x=110+i%4*230,y=250+Math.floor(i/4)*280;return line(x+75,y+70,500,500,'#c9494f',4)+rect(x,y,150,200,'#b3b4ac')+rect(x+20,y+20,110,80,'#2f4752')+Array.from({length:3},(_,j)=>rect(x+16,y+120+j*18,117,5,'#5c6261')).join('');}).join('');break;
     case 'harbor':s=buildings()+rect(0,640,1080,180,'#254752')+`<path d="M80 510 L710 510 L640 640 L155 640 Z" fill="#101f2d"/>`+rect(270,350,220,160,'#344652')+line(570,220,570,510,light,7)+line(570,225,850,430,light,5)+figure(875,450,1.3,c.character);break;
+    case 'forest':s=Array.from({length:15},(_,i)=>{const x=i*85-30,y=170+(i*17)%80;return `<path d="M${x} ${y} L${x-85} 630 L${x+90} 630 Z" fill="${i%2?'#152e35':'#264751'}"/>`+rect(x-8,530,16,270,'#243137');}).join('')+`<path d="M450 560 L630 560 L840 820 L150 820 Z" fill="#394c51"/>`+figure(550,495,1.05,c.character);break;
+    case 'bridge':s=rect(0,640,1080,170,'#172b3b')+rect(0,565,1080,50,'#61717a')+Array.from({length:6},(_,i)=>line(i*215,210,i*215,620,accent,22)+line(i*215,215,(i+1)*215,550,light,8)+line(i*215,550,(i+1)*215,215,light,8)).join('')+figure(765,425,1.3,c.character);break;
+    case 'tunnel':s=Array.from({length:7},(_,i)=>`<path d="M${40+i*55} 810 V${450-i*12} Q540 ${50+i*62} ${1040-i*55} ${450-i*12} V810" fill="none" stroke="${i%2?accent:'#283c49'}" stroke-width="28"/>`).join('')+`<path d="M130 810 L495 600 L585 600 L950 810 Z" fill="#384b56"/>`+line(190,810,510,600,light,3)+line(890,810,570,600,light,3);break;
+    case 'lab':s=rect(0,200,1080,490,'#263a47')+Array.from({length:4},(_,i)=>rect(i*280+30,240,210,200,'#58868f',`stroke="${light}" stroke-width="5"`)).join('')+rect(80,680,930,45,'#99adb2')+`<path d="M325 370 L480 440 L400 570 L285 510 Z" fill="#172330" stroke="${light}" stroke-width="8"/><path d="M395 530 Q590 500 565 670 L260 670" fill="none" stroke="${light}" stroke-width="22"/>`+rect(200,650,350,20,'#c9cbbe')+Array.from({length:3},(_,i)=>`<path d="M${710+i*90} 420 V600 Q${735+i*90} 650 ${760+i*90} 600 V420" fill="${accent}" stroke="${light}" stroke-width="6"/>`).join('');break;
+    case 'elevator':s=rect(60,210,960,600,'#263341',`stroke="${accent}" stroke-width="16"`)+rect(110,260,375,550,'#5e6c76')+rect(495,260,375,550,'#3f5361')+line(490,260,490,810,light,5)+rect(915,420,60,150,'#131d28')+`<circle cx="945" cy="460" r="12" fill="${light}"/><circle cx="945" cy="510" r="12" fill="${accent}"/>`+figure(350,450,1.35,c.character);break;
+    case 'case':s=rect(90,260,900,490,'#11202f',`rx="45" stroke="${accent}" stroke-width="18"`)+rect(445,215,190,40,'#6d7981')+rect(145,300,410,395,'#334652')+paper(170,325,8)+rect(625,310,290,160,'#9eab9e')+`<text x="650" y="365" fill="#213142" font-family="sans-serif" font-size="27">PASSAPORTE</text>`+rect(620,540,295,105,'#13212e',`rx="18" stroke="${light}" stroke-width="7"`)+Array.from({length:5},(_,i)=>rect(655+i*47,570,22,44,accent)).join('');break;
+    case 'cafe':s=rect(35,195,1010,500,'#315160',`stroke="${light}" stroke-width="8"`)+line(370,195,370,695,light,10)+line(710,195,710,695,light,10)+buildings()+figure(850,460,1.1,c.character)+`<ellipse cx="500" cy="690" rx="380" ry="75" fill="#775e4e"/>`+rect(395,530,100,130,'#ddcbb3',`rx="15"`)+`<path d="M493 553 Q550 535 550 590 Q550 637 493 615" fill="none" stroke="#ddcbb3" stroke-width="14"/>`+rect(580,610,180,60,'#a9b2af');break;
+    case 'radio':s=rect(90,370,900,370,'#374854',`rx="25" stroke="${light}" stroke-width="7"`)+rect(145,420,480,115,'#9eb8b1')+Array.from({length:24},(_,i)=>line(160+i*19,465,160+i*19,485+(i%3)*12,'#233946',2)).join('')+`<circle cx="795" cy="565" r="110" fill="#142736" stroke="${accent}" stroke-width="12"/><circle cx="795" cy="565" r="65" fill="#73858c"/>`+Array.from({length:6},(_,i)=>rect(150+i*75,595,40,55,'#101e2a')).join('')+line(150,370,360,190,light,6);break;
+    case 'film':s=rect(100,230,800,480,'#243642',`stroke="${accent}" stroke-width="18"`)+rect(180,275,640,360,'#b8c4b9')+`<path d="M230 545 L360 340 L540 545 L670 380 L780 575" fill="none" stroke="#567880" stroke-width="12"/>`+rect(195,720,600,50,'#52636e')+`<circle cx="835" cy="710" r="72" fill="#131f2c" stroke="${light}" stroke-width="12"/><circle cx="835" cy="710" r="30" fill="${accent}"/>`+line(530,650,530,720,light,14);break;
+    case 'chess':s=Array.from({length:64},(_,i)=>rect(180+i%8*85,210+Math.floor(i/8)*70,85,70,i%2===Math.floor(i/8)%2?'#b6b8ab':'#2d4653')).join('')+Array.from({length:7},(_,i)=>{const x=260+(i*153)%580,y=280+(i*107)%410;return `<path d="M${x-25} ${y+70} L${x+25} ${y+70} L${x+15} ${y+15} L${x-15} ${y+15} Z" fill="${i%2?'#d5d3bc':'#142333'}" stroke="${accent}" stroke-width="3"/><circle cx="${x}" cy="${y}" r="20" fill="${i%2?'#d5d3bc':'#142333'}"/>`;}).join('');break;
+    case 'office':s=rect(150,210,770,540,'#203746',`stroke="${light}" stroke-width="18"`)+rect(225,270,350,280,'#7b999f')+line(400,270,400,550,light,8)+rect(280,610,470,45,'#645a52')+rect(450,535,155,75,'#102430',`stroke="${accent}" stroke-width="6"`)+figure(850,435,1.2,c.character)+rect(0,170,90,650,'#101923')+rect(1000,170,80,650,'#101923');break;
+    case 'road':s=buildings()+`<path d="M470 470 L610 470 L1060 820 L20 820 Z" fill="#33434f"/>`+line(520,550,300,815,light,8)+line(560,550,780,815,light,8)+`<path d="M390 570 L690 570 L740 690 L340 690 Z" fill="#111e2e" stroke="${accent}" stroke-width="8"/>`+rect(360,650,65,20,'#bc4251')+rect(660,650,65,20,'#bc4251')+figure(890,470,1.2,c.character);break;
     case 'vault':s=rect(90,180,900,630,'#36404a',`stroke="${accent}" stroke-width="18"`)+`<circle cx="720" cy="480" r="205" fill="#1b2835" stroke="${light}" stroke-width="12"/><circle cx="720" cy="480" r="115" fill="#303c48" stroke="${accent}" stroke-width="16"/>`+Array.from({length:6},(_,i)=>line(720,480,720+170*Math.cos(i*Math.PI/3),480+170*Math.sin(i*Math.PI/3),light,12)).join('')+paper(150,400,-10);break;
   }
   const flip=c.variant%2?`translate(1080 0) scale(-1 1)`:'';
@@ -80,7 +104,7 @@ export function sceneSvg(c){
 }
 export async function renderScene(c){return sharp(Buffer.from(sceneSvg(c))).jpeg({quality:94,mozjpeg:true}).toBuffer();}
 export function repairQueue(db,{today,now=new Date(),schedule,makeId}){
-  if(db.meta.visualDiversityRepair20261001)return {changed:false};
+  if(db.meta.visualDiversityRepair20261001Revision2)return {changed:false};
   delete db.meta.pauseGenerationUntil;
   db.settings.enabled=true;
   const repaired=[];
@@ -105,6 +129,6 @@ export function repairQueue(db,{today,now=new Date(),schedule,makeId}){
       db.posts.push(p);repaired.push(p.id);
     }
   }
-  db.meta.visualDiversityRepair20261001={at:now.toISOString(),through:'2026-10-05',repaired,complete:false};
+  db.meta.visualDiversityRepair20261001Revision2={at:now.toISOString(),through:'2026-10-05',repaired,complete:false};
   return {changed:true,repaired};
 }
