@@ -172,7 +172,7 @@ window.ROVIX_HUB_CONFIG = {
           "links": [
             {
               "label": "Abrir O67",
-              "url": "http://127.0.0.1:6767/dashboard"
+              "url": "https://rovixautomation.com.br/067/"
             }
           ]
         }
