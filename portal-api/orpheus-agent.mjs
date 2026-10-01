@@ -227,6 +227,11 @@ async function prepareArtworkForQueue(){
     repair.complete=true;repair.completedAt=new Date().toISOString();
     console.log('[ORPHEUS Queue] Reparo concluido',JSON.stringify({count:repair.repaired.length,enabled:db.settings.enabled,unique:new Set(db.posts.filter(p=>repair.repaired.includes(p.id)).map(p=>p.artHash)).size}));
   }
+  if(db.meta.visualAuditEngine!==VISUAL_ENGINE&&!db.posts.some(p=>repair?.repaired.includes(p.id)&&p.visualEngine!==VISUAL_ENGINE)){
+    const queue=db.posts.filter(p=>repair?.repaired.includes(p.id));
+    console.log('[ORPHEUS Audit]',JSON.stringify({engine:VISUAL_ENGINE,count:queue.length,uniqueArts:new Set(queue.map(p=>p.artHash)).size,uniqueScenes:new Set(queue.map(p=>p.visualConcept?.scene)).size,enabled:db.settings.enabled,approvalMode:db.settings.approvalMode,days:queue.reduce((acc,p)=>{acc[p.generatedDate]=(acc[p.generatedDate]||0)+1;return acc},{})}));
+    db.meta.visualAuditEngine=VISUAL_ENGINE;await saveDb(db);
+  }
   if(candidates.length)await saveDb(db);return{made,engine:VISUAL_ENGINE,level:"rapido"}
 }
 function buildCaption(project,topic,i){
