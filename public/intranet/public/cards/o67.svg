@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07131d"/>
+      <stop offset="1" stop-color="#0b2231"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#17e6c5"/>
+      <stop offset="1" stop-color="#4fb3ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" rx="34" fill="url(#bg)"/>
+  <rect x="34" y="34" width="1132" height="607" rx="28" fill="none" stroke="#1d3a4b" stroke-width="2"/>
+  <rect x="74" y="82" width="118" height="118" rx="26" fill="#092531" stroke="#15d9bd" stroke-width="3"/>
+  <text x="133" y="154" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="40" font-weight="700" fill="#19e6c7">O67</text>
+  <text x="230" y="126" font-family="Segoe UI,Arial,sans-serif" font-size="24" letter-spacing="4" fill="#1ee6c6">ROVIX / AUTONOMOUS OPPORTUNITY RADAR</text>
+  <text x="230" y="186" font-family="Segoe UI,Arial,sans-serif" font-size="56" font-weight="700" fill="#ffffff">Opportunity OS</text>
+  <text x="78" y="270" font-family="Segoe UI,Arial,sans-serif" font-size="28" fill="#9fc8df">Detecta sinais. Cruza evidências. Acompanha lifecycle.</text>
+  <text x="78" y="316" font-family="Segoe UI,Arial,sans-serif" font-size="28" fill="#9fc8df">Transforma problemas recorrentes em oportunidades investigáveis.</text>
+  <g transform="translate(78,390)">
+    <rect width="1044" height="150" rx="22" fill="#0d1f2d" stroke="#19384a"/>
+    <text x="34" y="44" font-family="Segoe UI,Arial,sans-serif" font-size="18" letter-spacing="3" fill="#1ee6c6">CORE</text>
+    <text x="34" y="86" font-family="Segoe UI,Arial,sans-serif" font-size="26" font-weight="600" fill="#ffffff">Evidence First  •  Adversarial Analysis  •  Measured Autonomy</text>
+    <rect x="34" y="112" width="744" height="8" rx="4" fill="#143244"/>
+    <rect x="34" y="112" width="602" height="8" rx="4" fill="url(#accent)"/>
+  </g>
+  <text x="78" y="603" font-family="Segoe UI,Arial,sans-serif" font-size="18" fill="#6fa1bb">ROVIX AUTOMATION • O67</text>
+</svg>
