@@ -20,6 +20,9 @@ const SESSION_SECRET=process.env.SOCIAL_SESSION_SECRET||"";
 const SOCIAL_PUBLIC_BASE=(process.env.SOCIAL_PUBLIC_BASE||"https://rovix-drive-api.onrender.com/social-agent").replace(/\/$/,"");
 const VISUAL_ENGINE="rovix-v4-animated-art";
 const MAX_FAST_IMAGES_PER_RUN=12;
+const PAUSE_THROUGH="2026-10-05";
+const PAUSE_UNTIL=Date.parse("2026-10-06T00:00:00-03:00");
+const DIVERSITY_POLICY="unique-art-v1";
 const EMBLEM_PNG=fs.readFileSync(path.join(__dirname,"social-agent-assets","rovix-emblem.png"));
 const DEFAULT_SETTINGS={enabled:true,postsPerDay:3,approvalMode:"manual",scheduleMode:"interval",startHour:9,endHour:19,postTimes:["09:00","14:00","19:00"],timezone:"America/Sao_Paulo"};
 const POSTING_POLICY=Object.freeze({
@@ -37,6 +40,9 @@ const POSTING_POLICY=Object.freeze({
       "tipografia forte e legivel",
       "coerencia visual com o produto",
       "variacao suficiente para evitar repeticao",
+      "bloquear fundo reutilizado mesmo com texto, cor ou corte diferentes",
+      "comparar imagens com o historico antes de aprovar e publicar",
+      "se nao houver arte original, aguardar nova imagem sem repetir um modelo",
       "sem placeholder em publicacao final"
     ]
   },
@@ -110,6 +116,16 @@ async function loadDb(){
   try{const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:DB_KEY}));db=JSON.parse(await readStream(r.Body))}
   catch(e){if(e?.name==="NoSuchKey"||e?.$metadata?.httpStatusCode===404){db={projects:[],posts:[]};changed=true}else throw e}
   db.projects=db.projects||[];db.posts=db.posts||[];db.settings={...DEFAULT_SETTINGS,...(db.settings||{})};db.meta=db.meta||{};
+  if(!db.meta.cancelScheduledThrough20261005){
+    const cancelled=[];
+    for(const p of db.posts){
+      if(p.scheduledAt&&Number.isFinite(Date.parse(p.scheduledAt))&&Date.parse(p.scheduledAt)<PAUSE_UNTIL&&["draft","approved","error"].includes(p.status)&&!p.metaMediaId){
+        p.status="cancelled";p.cancelledAt=new Date().toISOString();p.cancelReason="Cancelado a pedido do usuario ate 05/10/2026 inclusive";delete p.nextRetryAt;cancelled.push(p.id);
+      }
+    }
+    db.meta.cancelScheduledThrough20261005={at:new Date().toISOString(),count:cancelled.length,ids:cancelled,through:PAUSE_THROUGH};changed=true;
+    console.log("[Social Agent] Agendamentos cancelados ate 05/10/2026:",cancelled.length);
+  }
   if(!db.meta.apiBlockMigration20260929){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:200};db.meta.apiBlockMigration20260929=true;changed=true}
   if(!db.meta.rateLimitRecovery20260928&&db.posts.some(p=>p.status==="error"&&/User is performing too many actions/i.test(p.lastError||""))){db.meta.publishCooldownUntil=new Date(Date.now()+60*60*1000).toISOString();db.meta.rateLimitRecovery20260928=true;changed=true}
   if(!db.meta.purgedUnpublished20260927){
@@ -180,7 +196,48 @@ async function accountAnalytics(days=7){
 async function testMeta(){const c=metaCfg(),d=await metaFetch(c.ig,{params:{fields:"id,username,account_type"}});return{connected:true,id:d.id||c.ig,username:d.username||null,accountType:d.account_type||null,apiHost:c.host,apiVersion:c.version}}
 async function mediaUrl(post){if(post.imageKey)return await getSignedUrl(s3(),new GetObjectCommand({Bucket:R2_BUCKET,Key:post.imageKey}),{expiresIn:900});if(/\/logo\.jpg(?:$|\?)/i.test(post.imageUrl||""))return SOCIAL_PUBLIC_BASE+"/brand.png";if(/^https:\/\//i.test(post.imageUrl||""))return post.imageUrl;return SOCIAL_PUBLIC_BASE+"/brand.png"}
 async function waitContainer(id){for(let i=0;i<12;i++){const d=await metaFetch(id,{params:{fields:"status_code,status"}}),s=String(d.status_code||"").toUpperCase();if(!s||s==="FINISHED")return;if(s==="ERROR"||s==="EXPIRED")throw new Error(d.status||("Container "+s));await new Promise(r=>setTimeout(r,1800))}throw new Error("A mídia ainda não ficou pronta para publicação")}
-async function publish(post){if(post.artStatus&&post.artStatus!=="ready")throw new Error("Arte final ainda não está pronta");const c=metaCfg(),url=await mediaUrl(post);const created=await metaFetch(c.ig+"/media",{method:"POST",params:{image_url:url,caption:post.caption||""}});if(!created.id)throw new Error("A Meta não retornou o ID do container");await waitContainer(created.id);const pub=await metaFetch(c.ig+"/media_publish",{method:"POST",params:{creation_id:created.id}});if(!pub.id)throw new Error("A Meta não retornou o ID da publicação");return{...pub,containerId:created.id}}
+export function visuallySimilar(a,b){
+  if(a.sha===b.sha)return true;
+  let bits=0;for(let i=0;i<a.dhash.length;i++){let n=parseInt(a.dhash[i],16)^parseInt(b.dhash[i],16);while(n){bits+=n&1;n>>=1}}
+  const mae=a.tone.reduce((sum,n,i)=>sum+Math.abs(n-b.tone[i]),0)/a.tone.length;
+  return bits<=8||mae<=12;
+}
+async function imageFingerprint(buffer){
+  const normalized=await sharp(buffer).rotate().resize(1080,1080,{fit:"cover"}).png().toBuffer();
+  // Compare the illustration, excluding the title/footer and fixed logo.
+  const scene=sharp(normalized).extract({left:0,top:0,width:820,height:700});
+  const pixels=await scene.clone().resize(9,8,{fit:"fill"}).greyscale().raw().toBuffer();
+  let hash=0n;for(let y=0;y<8;y++)for(let x=0;x<8;x++)hash=(hash<<1n)|BigInt(pixels[y*9+x]>pixels[y*9+x+1]);
+  const tone=[...await scene.clone().resize(16,16,{fit:"fill"}).greyscale().raw().toBuffer()];
+  return{sha:crypto.createHash("sha256").update(normalized).digest("hex"),dhash:hash.toString(16).padStart(16,"0"),tone};
+}
+async function artworkBytes(post){
+  if(post.imageKey){const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:post.imageKey}));return Buffer.from(await r.Body.transformToByteArray())}
+  if(!post.imageUrl||/\/(brand\.png|logo\.jpg)(?:$|\?)/i.test(post.imageUrl))throw new Error("Uma arte original e obrigatoria; logo ou placeholder nao pode ser publicado.");
+  const r=await fetch(post.imageUrl,{signal:AbortSignal.timeout(15000)});if(!r.ok)throw new Error("Nao foi possivel validar a imagem");
+  return Buffer.from(await r.arrayBuffer());
+}
+async function assertUniqueArtwork(post,db){
+  const fingerprint=post.visualFingerprint||await imageFingerprint(await artworkBytes(post));
+  for(const other of db.posts){
+    if(other.id===post.id||(!other.imageKey&&!other.imageUrl)||/\/(brand\.png|logo\.jpg)(?:$|\?)/i.test(other.imageUrl||""))continue;
+    if(post.visualSource&&post.visualSource===other.visualSource)throw new Error("Imagem bloqueada: fundo ja utilizado em outra postagem.");
+    // Keep published and previously generated artwork in the history, including cancelled posts.
+    if(!other.imageKey&&other.status!=="published")continue;
+    try{other.visualFingerprint=other.visualFingerprint||await imageFingerprint(await artworkBytes(other))}
+    catch{throw new Error("Historico visual indisponivel; publicacao bloqueada ate validar as imagens anteriores.")}
+    if(visuallySimilar(fingerprint,other.visualFingerprint))throw new Error("Imagem bloqueada: igual ou visualmente semelhante a outra postagem. Crie uma cena original.");
+  }
+  post.visualFingerprint=fingerprint;post.diversityPolicy=DIVERSITY_POLICY;
+  return fingerprint;
+}
+async function publish(post){
+  if(Date.now()<PAUSE_UNTIL)throw new Error("Publicacoes pausadas ate 05/10/2026 inclusive");
+  if(["cancelled","deleted","rejected"].includes(post.status))throw new Error("Postagem cancelada ou rejeitada");
+  if(post.artStatus&&!["ready","uploaded"].includes(post.artStatus))throw new Error("Arte final ainda não está pronta");
+  const db=await loadDb();await assertUniqueArtwork(post,db);await saveDb(db);
+  const c=metaCfg(),url=await mediaUrl(post);const created=await metaFetch(c.ig+"/media",{method:"POST",params:{image_url:url,caption:post.caption||""}});if(!created.id)throw new Error("A Meta não retornou o ID do container");await waitContainer(created.id);const pub=await metaFetch(c.ig+"/media_publish",{method:"POST",params:{creation_id:created.id}});if(!pub.id)throw new Error("A Meta não retornou o ID da publicação");return{...pub,containerId:created.id}
+}
 async function uploadImage(data){const m=String(data.dataUrl||"").match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);if(!m)throw new Error("Imagem inválida. Use JPG, PNG ou WEBP");const b=Buffer.from(m[2],"base64");if(b.length>8*1024*1024)throw new Error("Imagem maior que 8 MB");const ext=m[1]==="image/jpeg"?"jpg":m[1].split("/")[1],key="social-agent/media/"+Date.now()+"-"+crypto.randomBytes(6).toString("hex")+"."+ext;await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:key,Body:b,ContentType:m[1]}));return key}
 function id(p="id"){return p+"-"+Date.now()+"-"+crypto.randomBytes(3).toString("hex")}
 function saoDate(){return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date())}
@@ -229,24 +286,29 @@ export async function renderArtworkBuffer(post,project){
   const badge=await sharp(EMBLEM_PNG).resize(196,196,{fit:"contain"}).png().toBuffer();
   return sharp(bg).resize(1080,1080).composite([{input:overlay,left:0,top:0},{input:badge,left:846,top:32}]).jpeg({quality:93,mozjpeg:true}).toBuffer();
 }
-async function createFastArtwork(post,project){
+async function createFastArtwork(post,project,db){
+  const source="art-library://rovix/"+ART_ASSETS[sceneType(project)];
+  if(db.posts.some(p=>p.id!==post.id&&p.imageKey&&p.visualSource===source))throw new Error("Fundo ja utilizado. Aguarda arte original: mudar o titulo nao cria uma imagem diferente.");
   const final=await renderArtworkBuffer(post,project);
+  const fingerprint=await imageFingerprint(final);
+  await assertUniqueArtwork({...post,visualSource:source,visualFingerprint:fingerprint},db);
   const asset=ART_ASSETS[sceneType(project)];
   const key="social-agent/v4/"+Date.now()+"-"+crypto.randomBytes(6).toString("hex")+".jpg";
   await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:key,Body:final,ContentType:"image/jpeg"}));
-  return{key,asset:{url:"art-library://rovix/"+asset,license:"ROVIX Automation artwork"}};
+  return{key,fingerprint,asset:{url:"art-library://rovix/"+asset,license:"ROVIX Automation artwork"}};
 }
 async function prepareArtworkForQueue(){
-  const db=await loadDb();let made=0;
+  const db=await loadDb();let made=0;if(Date.now()<PAUSE_UNTIL)return{made:0,pausedThrough:PAUSE_THROUGH};
   const candidates=db.posts.filter(p=>p.generatedBy==="agent"&&["draft","approved","error"].includes(p.status)&&(p.artStatus!=="ready"||p.visualEngine!==VISUAL_ENGINE)).sort((a,b)=>Number(b.status==="approved")-Number(a.status==="approved")||new Date(b.createdAt)-new Date(a.createdAt)).slice(0,MAX_FAST_IMAGES_PER_RUN);
   for(const p of candidates){
     const project=db.projects.find(x=>x.id===p.projectId)||{id:"rovix",name:"ROVIX Automation"};
     try{
-      const art=await createFastArtwork(p,project);
+      const art=await createFastArtwork(p,project,db);
+      p.visualFingerprint=art.fingerprint;p.diversityPolicy=DIVERSITY_POLICY;
       p.imageKey=art.key;p.imageUrl="";p.artStatus="ready";p.visualPolicy=POSTING_POLICY.id;p.visualEngine=VISUAL_ENGINE;p.visualLevel="rapido";p.visualSource=art.asset.url;p.visualLicense=art.asset.license;p.artGeneratedAt=new Date().toISOString();p.lastError="";delete p.artError;
       if(p.status==="error")p.status=db.settings.approvalMode==="auto"?"approved":"draft";
       made++;
-    }catch(e){p.artStatus="error";p.artError=e.message;console.error("[Social Agent] Falha na arte",p.id,e.message)}
+    }catch(e){p.artStatus="blocked";p.status="draft";p.artError=e.message;p.lastError=e.message;console.error("[Social Agent] Arte bloqueada",p.id,e.message)}
   }
   if(candidates.length)await saveDb(db);return{made,engine:VISUAL_ENGINE,level:"rapido"}
 }
@@ -263,6 +325,7 @@ function buildCaption(project,topic,i){
 ];return variants[i%variants.length]+"\n\n"+project.cta+".\n\n#ROVIX #Automacao #Tecnologia #Industria40 #Inovacao"}
 async function ensureDailyContent(force=false,requestedDate=""){
   const db=await loadDb(),s=db.settings;
+  if((requestedDate||saoDate())<=PAUSE_THROUGH)return{created:0,target:0,day:requestedDate||saoDate(),reason:"paused_through_2026_10_05"};
   if(!s.enabled&&!force)return{created:0,target:0,day:saoDate(),reason:"disabled"};
   const day=requestedDate||saoDate(),target=Math.max(1,Math.min(12,Number(s.postsPerDay)||3));
   const existing=db.posts.filter(p=>p.generatedDate===day&&p.generatedBy==="agent").length;
@@ -291,6 +354,7 @@ async function publishDue(){
 let publishingBusy=false;
 async function publishDueLocked(){
   const db=await loadDb();
+  if(Date.now()<PAUSE_UNTIL)return [];
   if(activeCooldown(db)||db.meta.apiAccessBlocked)return [];
   const now=new Date(),due=db.posts.filter(p=>p.status==="approved"&&p.scheduledAt&&new Date(p.scheduledAt)<=now&&(!p.nextRetryAt||new Date(p.nextRetryAt)<=now)).slice(0,10),results=[];
   if(due.length)console.log("[Social Agent] Publicações vencidas:",due.length,now.toISOString());
@@ -338,7 +402,7 @@ async function api(req,res,u){
   if(!authed(req))return json(res,401,{error:"Autenticação obrigatória"});
 
   const db=await loadDb();
-  if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"0.7.1",online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"3D animado com artes temáticas",storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
+  if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"0.7.2",diversityPolicy:DIVERSITY_POLICY,pausedThrough:PAUSE_THROUGH,cancellation:db.meta.cancelScheduledThrough20261005,online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"3D animado com artes temáticas",storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
   if(req.method==="GET"&&u.pathname==="/social-api/meta/test"){if(!metaConfigured())return json(res,200,{connected:false,error:"Credenciais Meta ainda não configuradas"});try{const result=await testMeta();if(db.meta.apiAccessBlocked){delete db.meta.apiAccessBlocked;await saveDb(db)}return json(res,200,result)}catch(e){console.error("[Social Agent] Teste Meta:",e.httpStatus||"",e.metaCode||"",e.metaSubcode||"",e.message);if(/API access blocked/i.test(e.message||"")&&!db.meta.apiAccessBlocked){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:e.metaCode||null};await saveDb(db)}return json(res,200,{connected:false,error:e.message,httpStatus:e.httpStatus||null,metaCode:e.metaCode||null,metaSubcode:e.metaSubcode||null})}}
   if(req.method==="GET"&&u.pathname==="/social-api/meta/analytics"){const days=Number(u.searchParams.get("days")||7);if(![7,30].includes(days))return json(res,400,{error:"Período inválido"});return json(res,200,await accountAnalytics(days))}
   if(req.method==="GET"&&u.pathname==="/social-api/projects")return json(res,200,db.projects);
@@ -358,18 +422,18 @@ async function api(req,res,u){
     const p=db.posts.find(x=>x.id===edit[1]&&x.status!=="deleted");if(!p)return json(res,404,{error:"Post não encontrado"});
     if(p.status==="publishing"||publishingBusy)return json(res,409,{error:"Aguarde a publicação em andamento"});
     if(req.method==="DELETE"){p.status="deleted";p.deletedAt=new Date().toISOString();await saveDb(db);return json(res,200,{ok:true,instagramUnchanged:Boolean(p.metaMediaId)})}
-    if(p.status==="published")return json(res,409,{error:"Uma postagem já publicada não pode ser editada por aqui"});
+    if(["published","cancelled"].includes(p.status))return json(res,409,{error:"Uma postagem já publicada não pode ser editada por aqui"});
     const d=await body(req),pr=db.projects.find(x=>x.id===d.projectId);
     if(!pr)return json(res,400,{error:"Projeto inválido"});
     const title=String(d.title||"").trim(),caption=String(d.caption||"").trim();
     if(!title||!caption)return json(res,400,{error:"Informe título e legenda"});
     if(d.scheduledAt&&isNaN(new Date(d.scheduledAt).getTime()))return json(res,400,{error:"Data de agendamento inválida"});
     Object.assign(p,{projectId:pr.id,projectName:pr.name,title,caption,scheduledAt:String(d.scheduledAt||""),updatedAt:new Date().toISOString()});
-    if(d.imageKey){p.imageKey=String(d.imageKey);p.imageUrl="";p.artStatus="uploaded"}
-    else if(d.imageUrl){p.imageKey="";p.imageUrl=String(d.imageUrl);p.artStatus="uploaded"}
+    if(d.imageKey){p.imageKey=String(d.imageKey);p.imageUrl="";p.artStatus="uploaded";delete p.visualFingerprint;delete p.visualSource;delete p.diversityPolicy;p.status="draft"}
+    else if(d.imageUrl){p.imageKey="";p.imageUrl=String(d.imageUrl);p.artStatus="uploaded";delete p.visualFingerprint;delete p.visualSource;delete p.diversityPolicy;p.status="draft"}
     await saveDb(db);return json(res,200,p);
   }
-  const m=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/(approve|reject|publish)$/);if(req.method==="POST"&&m){const p=db.posts.find(x=>x.id===m[1]);if(!p)return json(res,404,{error:"Post não encontrado"});if(p.status==="publishing"||p.status==="published")return json(res,409,{error:"Publicação já iniciada ou concluída; confira o Instagram antes de tentar novamente"});if(m[2]==="approve"){p.status="approved";p.lastError=""}else if(m[2]==="reject")p.status="rejected";else{if(db.meta.apiAccessBlocked)return json(res,429,{error:"Acesso à API da Meta bloqueado. Execute um teste de conexão depois que a Meta liberar o acesso."});if(publishingBusy)return json(res,409,{error:"Há outra publicação em andamento. Tente novamente em instantes"});const until=activeCooldown(db);if(until)return json(res,429,{error:cooldownMessage(until),retryAt:until});publishingBusy=true;try{p.status="publishing";p.publishStartedAt=new Date().toISOString();await saveDb(db);const r=await publish(p);p.status="published";p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError="";delete p.nextRetryAt}catch(e){if(p.status==="publishing"){p.status="error";if(isMetaActionLimit(e)){db.meta.publishCooldownUntil=cooldownDate(e);p.lastError=cooldownMessage(db.meta.publishCooldownUntil)}else if(/API access blocked/i.test(e.message||"")){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:e.metaCode||null};p.lastError="A Meta bloqueou o acesso à API. Publicações pausadas até um teste de conexão bem-sucedido."}else p.lastError=e.message;await saveDb(db)}return json(res,isMetaActionLimit(e)||db.meta.apiAccessBlocked?429:400,{error:p.lastError||e.message,retryAt:activeCooldown(db)})}finally{publishingBusy=false}}await saveDb(db);return json(res,200,p)}
+  const m=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/(approve|reject|publish)$/);if(req.method==="POST"&&m){const p=db.posts.find(x=>x.id===m[1]);if(!p)return json(res,404,{error:"Post não encontrado"});if(["publishing","published","cancelled","deleted"].includes(p.status))return json(res,409,{error:"Postagem publicada, em andamento ou cancelada; nao pode ser reaprovada"});if(m[2]==="approve"){if(p.scheduledAt&&Date.parse(p.scheduledAt)<PAUSE_UNTIL)return json(res,409,{error:"Agendamentos suspensos ate 05/10/2026 inclusive"});try{await assertUniqueArtwork(p,db)}catch(e){p.artError=e.message;p.lastError=e.message;await saveDb(db);return json(res,409,{error:e.message})}p.status="approved";p.lastError=""}else if(m[2]==="reject")p.status="rejected";else{if(Date.now()<PAUSE_UNTIL)return json(res,409,{error:"Publicacoes pausadas ate 05/10/2026 inclusive"});if(db.meta.apiAccessBlocked)return json(res,429,{error:"Acesso à API da Meta bloqueado. Execute um teste de conexão depois que a Meta liberar o acesso."});if(publishingBusy)return json(res,409,{error:"Há outra publicação em andamento. Tente novamente em instantes"});const until=activeCooldown(db);if(until)return json(res,429,{error:cooldownMessage(until),retryAt:until});publishingBusy=true;try{p.status="publishing";p.publishStartedAt=new Date().toISOString();await saveDb(db);const r=await publish(p);p.status="published";p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError="";delete p.nextRetryAt}catch(e){if(p.status==="publishing"){p.status="error";if(isMetaActionLimit(e)){db.meta.publishCooldownUntil=cooldownDate(e);p.lastError=cooldownMessage(db.meta.publishCooldownUntil)}else if(/API access blocked/i.test(e.message||"")){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:e.metaCode||null};p.lastError="A Meta bloqueou o acesso à API. Publicações pausadas até um teste de conexão bem-sucedido."}else p.lastError=e.message;await saveDb(db)}return json(res,isMetaActionLimit(e)||db.meta.apiAccessBlocked?429:400,{error:p.lastError||e.message,retryAt:activeCooldown(db)})}finally{publishingBusy=false}}await saveDb(db);return json(res,200,p)}
   return json(res,404,{error:"Rota social não encontrada"});
 }
 
