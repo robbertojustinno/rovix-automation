@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { CheckCircle2, LoaderCircle, LockKeyhole, Send } from "lucide-react";
+import { ArrowRight, CheckCircle2, LoaderCircle, LockKeyhole, Send } from "lucide-react";
 
 type FormState = "idle" | "loading" | "success" | "error";
 
@@ -33,7 +33,7 @@ export function WaitlistForm({ language = "pt" }: { language?: "pt" | "en" }) {
       <label htmlFor="email">{language === "pt" ? "Seu e-mail" : "Your email"}</label>
       <div className="input-row"><input id="email" name="email" type="email" inputMode="email" autoComplete="email" placeholder="email@example.com" required aria-describedby="privacy-note form-status" /><button type="submit" disabled={state === "loading"}>{state === "loading" ? <LoaderCircle className="spin" size={17} /> : <Send size={17} />}{language === "pt" ? "Confirmar acesso" : "Join the list"}</button></div>
       <p id="privacy-note" className="privacy-note"><LockKeyhole size={12} /> {language === "pt" ? "Usaremos seu e-mail apenas para comunicações sobre CIPHER e ORPHEUS." : "We will only use your email for CIPHER and ORPHEUS updates."}</p>
-      <div id="form-status" className={`form-status ${state}`} aria-live="polite">{state === "success" && <CheckCircle2 size={16} />}{message}</div>
+      <div id="form-status" className={`form-status ${state}`} aria-live="polite">{state === "success" && <CheckCircle2 size={16} />}{message}</div>{state === "success" && <a className="reward-access" href="/cipher/dossie-00">{language === "pt" ? "ABRIR DOSSIÊ 00" : "OPEN DOSSIER 00"} <ArrowRight size={16}/></a>}
     </form>
   );
 }
