@@ -40,3 +40,24 @@ body:has(.cipherPortal) > main#conteudo{max-width:none;padding:0;margin:0}
 .cipherPortal .edition-language-title span{color:var(--signal)}
 .cipherPortal .edition-language-title b{font:inherit;color:#56635f}
 @media(max-width:760px){.cipherPortal .edition-language-title{align-items:flex-start;flex-direction:column;gap:7px}.cipherPortal .language-edition+.language-edition{margin-top:42px;padding-top:32px}}
+
+/* CIPHER conversion funnel */
+.cipherPortal .funnel-trigger{border:0;cursor:pointer;font-family:inherit}
+.cipherPortal .hero-proof{margin:24px 0 0;color:#667572;font:700 9px/1.6 monospace;letter-spacing:.14em}
+.cipherPortal .intercept-section{position:relative;overflow:hidden;border-block:1px solid var(--line);background:linear-gradient(120deg,#070b0c,#0a1112)}
+.cipherPortal .intercept-section:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 76% 45%,rgba(142,240,210,.09),transparent 28%);pointer-events:none}
+.cipherPortal .intercept-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(50px,8vw,120px);align-items:center}
+.cipherPortal .intercept-grid h2{margin:20px 0 26px;max-width:700px}
+.cipherPortal .intercept-lede{max-width:640px;color:#c7d0cd;font:22px/1.6 Georgia,serif}
+.cipherPortal .intercept-question{max-width:620px;margin:28px 0 34px;padding-left:20px;border-left:1px solid var(--amber);color:#8e9996;font:italic 17px/1.7 Georgia,serif}
+.cipherPortal .intercept-terminal{min-height:330px;padding:34px;border:1px solid rgba(142,240,210,.22);background:repeating-linear-gradient(0deg,rgba(3,7,8,.94) 0 3px,rgba(142,240,210,.025) 4px);box-shadow:0 30px 80px rgba(0,0,0,.4);font:12px/1.9 monospace;color:#6c7b77}
+.cipherPortal .intercept-terminal span,.cipherPortal .intercept-terminal b{display:block;letter-spacing:.15em}
+.cipherPortal .intercept-terminal span{color:var(--signal);margin-bottom:40px}.cipherPortal .intercept-terminal b{color:var(--amber);margin-bottom:24px}.cipherPortal .intercept-terminal i{color:var(--signal)}
+.cipherPortal .intercept-section:not(.unlocked) .intercept-terminal{filter:saturate(.55);opacity:.8}
+.cipherPortal .conversion-banner{display:flex;justify-content:space-between;gap:24px;margin-bottom:42px;padding:17px 20px;border:1px solid rgba(202,162,106,.26);background:rgba(202,162,106,.035);font:700 10px/1.5 monospace;letter-spacing:.14em}
+.cipherPortal .conversion-banner span{color:var(--amber)}.cipherPortal .conversion-banner strong{color:#8c9995;font:inherit}
+.cipherPortal .bridge-section{padding:clamp(95px,12vw,170px) 0;text-align:center;border-top:1px solid var(--line);background:radial-gradient(circle at 50% 50%,rgba(142,240,210,.08),transparent 35%),#050708}
+.cipherPortal .bridge-copy{max-width:920px}.cipherPortal .bridge-copy h2{margin:24px auto 30px;font:400 clamp(46px,7vw,88px)/1 Georgia,serif;letter-spacing:-.045em}
+.cipherPortal .bridge-copy>p:not(.section-index){max-width:720px;margin:0 auto 34px;color:#9ba7a3;font:19px/1.75 Georgia,serif}
+.cipherPortal .bridge-copy .button-quiet{color:var(--signal);justify-content:center}
+@media(max-width:760px){.cipherPortal .intercept-grid{grid-template-columns:1fr;gap:45px}.cipherPortal .intercept-terminal{min-height:270px;padding:24px}.cipherPortal .conversion-banner{flex-direction:column}.cipherPortal .hero-proof{max-width:85%;line-height:1.8}}
