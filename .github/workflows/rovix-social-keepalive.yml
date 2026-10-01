@@ -1,0 +1,22 @@
+name: Keep ROVIX social queue online
+on:
+  schedule:
+    - cron: '2-57/5 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/rovix-social-keepalive.yml']
+permissions:
+  contents: read
+concurrency:
+  group: rovix-social-keepalive
+  cancel-in-progress: false
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check ROVIX service
+        run: |
+          curl --fail --silent --show-error --retry 3 --retry-delay 5 --max-time 90 \
+            https://rovix-drive-api.onrender.com/social-api/auth/status
