@@ -2,10 +2,10 @@ import http from "node:http";
 import {handleOrpheusAgent} from "./orpheus-agent.mjs";
 const PORT=Number(process.env.PORT||10000);
 const server=http.createServer(async(req,res)=>{
-  if(await handleOrpheusAgent(req,res))return;
+  try{if(await handleOrpheusAgent(req,res))return}catch(e){console.error("[ORPHEUS Request]",e.message);if(!res.headersSent){res.writeHead(500,{"Content-Type":"application/json"});res.end(JSON.stringify({error:"Falha temporária no servidor"}))}else res.end();return}
   if(req.url==="/health"){
     res.writeHead(200,{"Content-Type":"application/json; charset=utf-8"});
-    res.end(JSON.stringify({ok:true,service:"orpheus-social-agent"}));
+    res.end(JSON.stringify({ok:true,service:"orpheus-social-agent",version:"0.8.0",visualEngine:"orpheus-v3-original-scenes-free"}));
     return;
   }
   res.writeHead(404,{"Content-Type":"application/json; charset=utf-8"});

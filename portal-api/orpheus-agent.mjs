@@ -6,6 +6,7 @@ import {fileURLToPath} from "node:url";
 import {S3Client,PutObjectCommand,GetObjectCommand} from "@aws-sdk/client-s3";
 import {getSignedUrl} from "@aws-sdk/s3-request-presigner";
 import sharp from "sharp";
+import {ENGINE,selectConcept,renderScene,repairQueue} from "./orpheus-visual.mjs";
 
 const __dirname=path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC=path.join(__dirname,"orpheus-agent-public");
@@ -26,10 +27,10 @@ const OFFICIAL_CIPHER_ASSETS=Object.freeze({
 const ADMIN_USER=process.env.ORPHEUS_ADMIN_USER||"admin";
 const ADMIN_PASSWORD_HASH=process.env.ORPHEUS_ADMIN_PASSWORD_HASH||"";
 const SESSION_SECRET=process.env.ORPHEUS_SESSION_SECRET||"";
-const ORPHEUS_PUBLIC_BASE=(process.env.ORPHEUS_PUBLIC_BASE||"https://rovix-drive-api.onrender.com/orpheus-agent").replace(/\/$/,"");
+const ORPHEUS_PUBLIC_BASE=(process.env.ORPHEUS_PUBLIC_BASE||"https://orpheus-social-agent.onrender.com/orpheus-agent").replace(/\/$/,"");
 const TARGET_INSTAGRAM="@Protocoloorpheus";
 const ALLOWED_UNIVERSE_PROJECTS=new Set(["cipher","orpheus"]);
-const VISUAL_ENGINE="orpheus-v2-official-cipher-library";
+const VISUAL_ENGINE=ENGINE;
 const MAX_FAST_IMAGES_PER_RUN=12;
 const EMBLEM_PNG=fs.readFileSync(path.join(__dirname,"..","public","intranet","public","cards","orpheus.svg"));
 const DEFAULT_SETTINGS={enabled:true,postsPerDay:3,approvalMode:"manual",scheduleMode:"interval",startHour:9,endHour:19,postTimes:["09:00","14:00","19:00"],timezone:"America/Sao_Paulo"};
@@ -47,7 +48,8 @@ const POSTING_POLICY=Object.freeze({
       "composicao cinematografica coerente com CIPHER",
       "tipografia forte e legivel",
       "coerencia visual com o produto",
-      "usar somente artes oficiais do Livro CIPHER ou derivacoes coerentes com elas",
+      "criar cenas originais coerentes com CIPHER; artes oficiais sao referencias e fallback",
+      "bloquear repeticao recente de personagem, cenario, acao, enquadramento e composicao",
       "sem placeholder em publicacao final"
     ]
   },
@@ -90,66 +92,13 @@ async function loadDb(){
   try{const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:DB_KEY}));db=JSON.parse(await readStream(r.Body))}
   catch(e){if(e?.name==="NoSuchKey"||e?.$metadata?.httpStatusCode===404){db={projects:[],posts:[]};changed=true}else throw e}
   db.projects=db.projects||[];db.posts=db.posts||[];db.settings={...DEFAULT_SETTINGS,...(db.settings||{})};db.meta=db.meta||{};
-  if(!db.meta.officialCipherLibraryMigration20260929){
-    let removed=0;
-    for(const p of db.posts){
-      if(p.generatedBy==="agent"&&p.status!=="published"){
-        p.status="deleted";p.deletedAt=new Date().toISOString();p.lastError="Fila antiga removida antes do teste oficial CIPHER.";removed++;
-      }
-    }
-    db.meta.officialCipherLibraryMigration20260929={at:new Date().toISOString(),removed};
-    changed=true;
-  }
-  if(!db.meta.singleTestPost20260929){
-    db.posts.unshift({
-      id:"orpheus-test-20260929-2105",
-      projectId:"orpheus",
-      projectName:"ORPHEUS",
-      title:"PROTOCOLO ORPHEUS",
-      caption:"ARQUIVO 05 // PROTOCOLO ORPHEUS\n\nAlgumas operações deveriam permanecer enterradas. Mas o passado não desaparece quando uma pasta é fechada.\n\nAcesso restrito ao universo CIPHER.\n\n#CIPHER #ProtocoloOrpheus #ORPHEUS #Thriller #Espionagem #Suspense",
-      imageUrl:ORPHEUS_PUBLIC_BASE+"/brand.png",
-      scheduledAt:"2026-09-29T21:05:00-03:00",
-      status:"approved",
-      createdAt:new Date().toISOString(),
-      generatedBy:"agent",
-      generatedDate:"2026-09-29",
-      visualPolicy:POSTING_POLICY.id,
-      visualEngine:VISUAL_ENGINE,
-      visualLevel:"oficial",
-      artStatus:"placeholder"
-    });
-    db.meta.singleTestPost20260929={at:new Date().toISOString(),scheduledAt:"2026-09-29T21:05:00-03:00"};
-    changed=true;
-  }
-  if(!db.meta.apiBlockMigration20260929){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:200};db.meta.apiBlockMigration20260929=true;changed=true}
-  if(!db.meta.rateLimitRecovery20260928&&db.posts.some(p=>p.status==="error"&&/User is performing too many actions/i.test(p.lastError||""))){db.meta.publishCooldownUntil=new Date(Date.now()+60*60*1000).toISOString();db.meta.rateLimitRecovery20260928=true;changed=true}
-  if(!db.meta.cancelQueueThrough20261005){
-    let removed=0;
-    for(const p of db.posts){
-      const day=String(p.scheduledAt||"").slice(0,10);
-      if(day>="2026-10-01"&&day<="2026-10-05"&&!["published","deleted"].includes(p.status)){
-        p.status="deleted";p.deletedAt=new Date().toISOString();p.lastError="Agendamento cancelado por decisão editorial em 01/10/2026.";removed++;
-      }
-    }
-    db.meta.cancelQueueThrough20261005={at:new Date().toISOString(),removed};
-    changed=true;
-  }
-  if(!db.meta.purgedUnpublished20260927){
-    const before=db.posts.length;
-    db.posts=db.posts.filter(p=>p.status==="published");
-    db.meta.purgedUnpublished20260927={at:new Date().toISOString(),removed:before-db.posts.length};
-    changed=true;
-  }
   for(const p of BASE_PROJECTS){
     const existing=db.projects.find(x=>x.id===p.id);
     if(!existing){db.projects.push({...p});changed=true}
     else for(const key of ["description","projectStatus","category","topics"])if(p[key]!==undefined&&JSON.stringify(existing[key])!==JSON.stringify(p[key])){existing[key]=p[key];changed=true}
   }
-  if(!db.meta.seededInstitutionalPost){
-    db.posts.unshift({id:"seed-institucional-001",projectId:"rovix",projectName:"ROVIX Automation",title:"Tecnologia aplicada ao mundo real",caption:"A ROVIX une automação, software e inovação para transformar processos em soluções práticas.\n\nDo chão de fábrica ao ambiente digital, seguimos desenvolvendo ferramentas para organizar, conectar e automatizar operações.\n\nAcompanhe os próximos projetos e lançamentos da ROVIX.\n\n#ROVIX #AutomacaoIndustrial #Tecnologia #Industria40 #Software #Inovacao",imageUrl:ORPHEUS_PUBLIC_BASE+"/brand.png",scheduledAt:"",status:"draft",createdAt:new Date().toISOString(),generatedBy:"agent"});
-    db.meta.seededInstitutionalPost=true;
-    changed=true;
-  }
+  const repair=repairQueue(db,{today:saoDate(),schedule:scheduleFor,makeId:id});
+  if(repair.changed){changed=true;console.log('[ORPHEUS Queue] Reparo iniciado',JSON.stringify(repair))}
   if(changed)await saveDb(db);return db;
 }
 function json(res,status,data,extra={}){res.writeHead(status,{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff",...extra});res.end(JSON.stringify(data))}
@@ -243,36 +192,40 @@ function titleLines(value){
   return lines;
 }
 export async function renderArtworkBuffer(post,project){
-  const official=await officialAssetBuffer(post,project);
-  const lines=titleLines(post.title||project.name);
-  const heading=lines.map((line,i)=>`<text x="66" y="${880+i*60}" font-family="Arial,Helvetica,sans-serif" font-size="48" font-weight="800" fill="#ffffff">${escapeXml(line)}</text>`).join("");
-  const overlay=Buffer.from(`<svg width="1080" height="1080" xmlns="http://www.w3.org/2000/svg">
-    <defs><linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="55%" stop-color="#020714" stop-opacity="0"/><stop offset="82%" stop-color="#020714" stop-opacity=".64"/><stop offset="100%" stop-color="#020714" stop-opacity=".95"/></linearGradient></defs>
-    <rect width="1080" height="1080" fill="url(#shade)"/>
-    <rect x="64" y="824" width="88" height="6" rx="3" fill="#c41021"/>
-    ${heading}
-    <text x="68" y="1032" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="700" letter-spacing="3" fill="#dbe3ec">CIPHER // PROTOCOLO ORPHEUS</text>
-  </svg>`);
-  return sharp(official.buffer).resize(1080,1080,{fit:"cover",position:"attention"}).composite([{input:overlay,left:0,top:0}]).jpeg({quality:94,mozjpeg:true}).toBuffer();
+  if(!post.visualConcept)throw new Error("Conceito visual obrigatório");
+  return renderScene(post.visualConcept);
 }
 async function createFastArtwork(post,project){
-  const officialName=officialAssetName(post,project);
   const final=await renderArtworkBuffer(post,project);
-  const key="orpheus-agent/v5/"+Date.now()+"-"+crypto.randomBytes(6).toString("hex")+".jpg";
+  const hash=crypto.createHash("sha256").update(final).digest("hex");
+  const key="orpheus-agent/v6/"+hash+".jpg";
   await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:key,Body:final,ContentType:"image/jpeg"}));
-  return{key,asset:{url:"rovix-drive://Livro CIPHER/"+officialName,license:"Biblioteca oficial CIPHER"}};
+  return{key,hash,asset:{url:"local-procedural://"+post.visualConcept.fingerprint,license:"Arte original CIPHER / renderizacao local gratuita"}};
 }
 async function prepareArtworkForQueue(){
   const db=await loadDb();let made=0;
-  const candidates=db.posts.filter(p=>ALLOWED_UNIVERSE_PROJECTS.has(p.projectId)&&p.generatedBy==="agent"&&["draft","approved","error"].includes(p.status)&&(p.artStatus!=="ready"||p.visualEngine!==VISUAL_ENGINE)).sort((a,b)=>Number(b.status==="approved")-Number(a.status==="approved")||new Date(b.createdAt)-new Date(a.createdAt)).slice(0,MAX_FAST_IMAGES_PER_RUN);
+  const candidates=db.posts.filter(p=>ALLOWED_UNIVERSE_PROJECTS.has(p.projectId)&&p.generatedBy==="agent"&&["draft","approved","error"].includes(p.status)&&(p.artStatus!=="ready"||p.visualEngine!==VISUAL_ENGINE)).sort((a,b)=>Number(b.status==="approved")-Number(a.status==="approved")||new Date(a.scheduledAt)-new Date(b.scheduledAt)).slice(0,MAX_FAST_IMAGES_PER_RUN);
   for(const p of candidates){
     const project=db.projects.find(x=>x.id===p.projectId)||{id:"rovix",name:"ROVIX Automation"};
     try{
+      const recent=db.posts.filter(x=>x.id!==p.id&&x.visualConcept).sort((a,b)=>new Date(a.artGeneratedAt||a.createdAt)-new Date(b.artGeneratedAt||b.createdAt));
+      p.visualConcept=selectConcept(recent,p.id);
+      p.title=p.visualConcept.label;
+      p.caption=buildCaption(project,p.visualConcept.hook,made)+"\n\nCena ilustrativa do universo CIPHER.";
       const art=await createFastArtwork(p,project);
+      if(db.posts.some(x=>x.id!==p.id&&x.artHash===art.hash))throw new Error("Arte idêntica bloqueada");
+      p.artHash=art.hash;
+      console.log('[ORPHEUS Preview]',JSON.stringify({id:p.id,day:p.generatedDate,concept:p.visualConcept,preview:ORPHEUS_PUBLIC_BASE+"/preview/"+art.hash+".jpg"}));
       p.imageKey=art.key;p.imageUrl="";p.artStatus="ready";p.visualPolicy=POSTING_POLICY.id;p.visualEngine=VISUAL_ENGINE;p.visualLevel="rapido";p.visualSource=art.asset.url;p.visualLicense=art.asset.license;p.artGeneratedAt=new Date().toISOString();p.lastError="";delete p.artError;
       if(p.status==="error")p.status=db.settings.approvalMode==="auto"?"approved":"draft";
       made++;
+      await saveDb(db);
     }catch(e){p.artStatus="error";p.artError=e.message;console.error("[ORPHEUS Agent] Falha na arte",p.id,e.message)}
+  }
+  const repair=db.meta.visualDiversityRepair20261001;
+  if(repair&&!repair.complete&&repair.repaired.every(pid=>db.posts.find(x=>x.id===pid)?.artStatus==="ready")){
+    repair.complete=true;repair.completedAt=new Date().toISOString();
+    console.log('[ORPHEUS Queue] Reparo concluido',JSON.stringify({count:repair.repaired.length,enabled:db.settings.enabled,unique:new Set(db.posts.filter(p=>repair.repaired.includes(p.id)).map(p=>p.artHash)).size}));
   }
   if(candidates.length)await saveDb(db);return{made,engine:VISUAL_ENGINE,level:"rapido"}
 }
@@ -291,7 +244,10 @@ function buildCaption(project,topic,i){
   return base+"\n\n"+project.cta+".\n\n#CIPHER #ProtocoloOrpheus #ORPHEUS #Thriller #Espionagem #Suspense";
 }
 async function ensureDailyContent(force=false,requestedDate=""){
-  const db=await loadDb(),s=db.settings;\n  if(!s.enabled&&!force)return{created:0,target:0,day:saoDate(),reason:"disabled"};\n  const day=requestedDate||saoDate();\n  if(!force&&db.meta?.pauseGenerationUntil&&day<=db.meta.pauseGenerationUntil)return{created:0,target:0,day,reason:"editorial_pause",pauseUntil:db.meta.pauseGenerationUntil};\n  const target=Math.max(1,Math.min(12,Number(s.postsPerDay)||3));
+  const db=await loadDb(),s=db.settings;
+  if(!s.enabled&&!force)return{created:0,target:0,day:saoDate(),reason:"disabled"};
+  const day=requestedDate||saoDate();
+  const target=Math.max(1,Math.min(12,Number(s.postsPerDay)||3));
   const existingPosts=db.posts.filter(p=>p.generatedDate===day&&p.generatedBy==="agent"&&!["deleted","rejected"].includes(p.status));
   const existing=existingPosts.length;
   if(existing>=target)return{created:0,target,day,existing,reason:"daily_target_already_met",existingPosts:existingPosts.map(p=>({id:p.id,title:p.title,status:p.status,scheduledAt:p.scheduledAt}))};
@@ -319,8 +275,8 @@ async function publishDue(){
 let publishingBusy=false;
 async function publishDueLocked(){
   const db=await loadDb();
-  if(activeCooldown(db)||db.meta.apiAccessBlocked)return [];
-  const now=new Date(),due=db.posts.filter(p=>p.status==="approved"&&p.scheduledAt&&new Date(p.scheduledAt)<=now&&(!p.nextRetryAt||new Date(p.nextRetryAt)<=now)).slice(0,10),results=[];
+  if(!db.settings.enabled||activeCooldown(db)||db.meta.apiAccessBlocked)return [];
+  const now=new Date(),due=db.posts.filter(p=>p.status==="approved"&&p.artStatus==="ready"&&p.scheduledAt&&new Date(p.scheduledAt)<=now&&(!p.nextRetryAt||new Date(p.nextRetryAt)<=now)).slice(0,10),results=[];
   if(due.length)console.log("[ORPHEUS Agent] Publicações vencidas:",due.length,now.toISOString());
   for(const p of due){
     p.status="publishing";p.publishStartedAt=new Date().toISOString();
@@ -351,8 +307,20 @@ async function publishDueLocked(){
   if(due.length)await saveDb(db);
   return results;
 }
-let busy=false;async function automationTick(){if(busy)return;busy=true;try{await ensureDailyContent(false);await prepareArtworkForQueue();await publishDue()}catch(e){console.error("Social Agent:",e.message)}finally{busy=false}}
-setTimeout(()=>automationTick(),5000);setInterval(()=>automationTick(),60*1000);
+let operationTail=Promise.resolve();
+function serialOperation(fn){const result=operationTail.then(fn);operationTail=result.catch(()=>{});return result}
+let busy=false;
+async function automationTick(){if(busy)return;busy=true;try{await serialOperation(async()=>{await ensureDailyContent(false);await prepareArtworkForQueue();
+    const db=await loadDb();
+    if(!db.meta.connectionRecheck20261001&&metaConfigured()){
+      try{const result=await testMeta();delete db.meta.apiAccessBlocked;console.log('[ORPHEUS Meta] Conectado',result.username)}
+      catch(e){console.error('[ORPHEUS Meta] Conexao pendente',e.message)}
+      db.meta.connectionRecheck20261001=new Date().toISOString();await saveDb(db);
+    }
+    await publishDue()})}catch(e){console.error("Social Agent:",e.message)}finally{busy=false}}
+if(process.env.ORPHEUS_DISABLE_AUTOMATION!=="1"){
+  setTimeout(()=>automationTick(),5000);setInterval(()=>automationTick(),60*1000);
+}
 
 function crc32(buf){let c=0xffffffff;for(const b of buf){c^=b;for(let k=0;k<8;k++)c=(c>>>1)^((c&1)?0xedb88320:0)}return(c^0xffffffff)>>>0}
 function pngChunk(type,data){const t=Buffer.from(type),len=Buffer.alloc(4),crc=Buffer.alloc(4);len.writeUInt32BE(data.length);crc.writeUInt32BE(crc32(Buffer.concat([t,data])));return Buffer.concat([len,t,data,crc])}
@@ -366,7 +334,7 @@ async function api(req,res,u){
   if(!authed(req))return json(res,401,{error:"Autenticação obrigatória"});
 
   const db=await loadDb();
-  if(req.method==="GET"&&u.pathname==="/orpheus-api/status")return json(res,200,{app:"ORPHEUS Social Agent",targetInstagram:TARGET_INSTAGRAM,universe:"CIPHER",automaticScope:["cipher","orpheus"],version:"0.7.1",online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"Biblioteca oficial CIPHER / thriller de espionagem",storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
+  if(req.method==="GET"&&u.pathname==="/orpheus-api/status")return json(res,200,{app:"ORPHEUS Social Agent",targetInstagram:TARGET_INSTAGRAM,universe:"CIPHER",automaticScope:["cipher","orpheus"],version:"0.8.0",online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"Cenas originais ilustradas / thriller de espionagem",storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
   if(req.method==="GET"&&u.pathname==="/orpheus-api/meta/test"){if(!metaConfigured())return json(res,200,{connected:false,error:"Credenciais Meta ainda não configuradas"});try{const result=await testMeta();if(db.meta.apiAccessBlocked){delete db.meta.apiAccessBlocked;await saveDb(db)}return json(res,200,result)}catch(e){console.error("[ORPHEUS Agent] Teste Meta:",e.httpStatus||"",e.metaCode||"",e.metaSubcode||"",e.message);if(/API access blocked/i.test(e.message||"")&&!db.meta.apiAccessBlocked){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:e.metaCode||null};await saveDb(db)}return json(res,200,{connected:false,error:e.message,httpStatus:e.httpStatus||null,metaCode:e.metaCode||null,metaSubcode:e.metaSubcode||null})}}
   if(req.method==="GET"&&u.pathname==="/orpheus-api/meta/analytics"){const days=Number(u.searchParams.get("days")||7);if(![7,30].includes(days))return json(res,400,{error:"Período inválido"});return json(res,200,await accountAnalytics(days))}
   if(req.method==="GET"&&u.pathname==="/orpheus-api/projects")return json(res,200,db.projects);
@@ -380,7 +348,7 @@ async function api(req,res,u){
   if(req.method==="PUT"&&u.pathname==="/orpheus-api/settings"){const d=await body(req);const postsPerDay=Math.max(1,Math.min(12,Number(d.postsPerDay)||3));const incomingTimes=Array.isArray(d.postTimes)?d.postTimes.map(x=>String(x)).filter(x=>/^([01]\d|2[0-3]):([0-5]\d)$/.test(x)).slice(0,postsPerDay):[];db.settings={...db.settings,enabled:Boolean(d.enabled),postsPerDay,approvalMode:["manual","auto","hybrid"].includes(d.approvalMode)?d.approvalMode:"manual",scheduleMode:["interval","exact"].includes(d.scheduleMode)?d.scheduleMode:"interval",startHour:Math.max(0,Math.min(23,Number(d.startHour)||9)),endHour:Math.max(0,Math.min(23,Number(d.endHour)||19)),postTimes:incomingTimes};await saveDb(db);return json(res,200,db.settings)}
   if(req.method==="POST"&&u.pathname==="/orpheus-api/agent/run"){const d=await body(req),day=String(d.date||saoDate());if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||!Number.isFinite(Date.parse(day+"T00:00:00Z"))||new Date(day+"T00:00:00Z").toISOString().slice(0,10)!==day||day<saoDate())return json(res,400,{error:"Selecione uma data válida, a partir de hoje"});const a=await ensureDailyContent(true,day),art=await prepareArtworkForQueue();return json(res,200,{...a,art})}
   if(req.method==="POST"&&u.pathname==="/orpheus-api/uploads"){try{return json(res,201,{imageKey:await uploadImage(await body(req))})}catch(e){return json(res,400,{error:e.message})}}
-  if(req.method==="POST"&&u.pathname==="/orpheus-api/posts"){const d=await body(req),pr=db.projects.find(x=>x.id===d.projectId);if(!pr)return json(res,400,{error:"Projeto inválido"});const p={id:id("post"),projectId:pr.id,projectName:pr.name,title:String(d.title||"Novo post"),caption:String(d.caption||""),imageKey:String(d.imageKey||""),imageUrl:String(d.imageUrl||ORPHEUS_PUBLIC_BASE+"/brand.png"),scheduledAt:String(d.scheduledAt||""),status:"draft",createdAt:new Date().toISOString()};db.posts.unshift(p);await saveDb(db);return json(res,201,p)}
+  if(req.method==="POST"&&u.pathname==="/orpheus-api/posts"){const d=await body(req),pr=db.projects.find(x=>x.id===d.projectId);if(!pr)return json(res,400,{error:"Projeto inválido"});const p={id:id("post"),projectId:pr.id,projectName:pr.name,title:String(d.title||"Novo post"),caption:String(d.caption||""),imageKey:String(d.imageKey||""),imageUrl:String(d.imageUrl||ORPHEUS_PUBLIC_BASE+"/brand.png"),artStatus:d.imageKey||d.imageUrl?"ready":"placeholder",scheduledAt:String(d.scheduledAt||""),status:"draft",createdAt:new Date().toISOString()};db.posts.unshift(p);await saveDb(db);return json(res,201,p)}
   const edit=u.pathname.match(/^\/orpheus-api\/posts\/([^/]+)$/);
   if(edit&&(req.method==="PUT"||req.method==="DELETE")){
     const p=db.posts.find(x=>x.id===edit[1]&&x.status!=="deleted");if(!p)return json(res,404,{error:"Post não encontrado"});
@@ -393,17 +361,19 @@ async function api(req,res,u){
     if(!title||!caption)return json(res,400,{error:"Informe título e legenda"});
     if(d.scheduledAt&&isNaN(new Date(d.scheduledAt).getTime()))return json(res,400,{error:"Data de agendamento inválida"});
     Object.assign(p,{projectId:pr.id,projectName:pr.name,title,caption,scheduledAt:String(d.scheduledAt||""),updatedAt:new Date().toISOString()});
-    if(d.imageKey){p.imageKey=String(d.imageKey);p.imageUrl="";p.artStatus="uploaded"}
-    else if(d.imageUrl){p.imageKey="";p.imageUrl=String(d.imageUrl);p.artStatus="uploaded"}
+    if(d.imageKey){p.imageKey=String(d.imageKey);p.imageUrl="";p.artStatus="ready"}
+    else if(d.imageUrl){p.imageKey="";p.imageUrl=String(d.imageUrl);p.artStatus="ready"}
     await saveDb(db);return json(res,200,p);
   }
-  const m=u.pathname.match(/^\/orpheus-api\/posts\/([^/]+)\/(approve|reject|publish)$/);if(req.method==="POST"&&m){const p=db.posts.find(x=>x.id===m[1]);if(!p)return json(res,404,{error:"Post não encontrado"});if(p.status==="publishing"||p.status==="published")return json(res,409,{error:"Publicação já iniciada ou concluída; confira o Instagram antes de tentar novamente"});if(m[2]==="approve"){p.status="approved";p.lastError=""}else if(m[2]==="reject")p.status="rejected";else{if(db.meta.apiAccessBlocked)return json(res,429,{error:"Acesso à API da Meta bloqueado. Execute um teste de conexão depois que a Meta liberar o acesso."});if(publishingBusy)return json(res,409,{error:"Há outra publicação em andamento. Tente novamente em instantes"});const until=activeCooldown(db);if(until)return json(res,429,{error:cooldownMessage(until),retryAt:until});publishingBusy=true;try{p.status="publishing";p.publishStartedAt=new Date().toISOString();await saveDb(db);const r=await publish(p);p.status="published";p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError="";delete p.nextRetryAt}catch(e){if(p.status==="publishing"){p.status="error";if(isMetaActionLimit(e)){db.meta.publishCooldownUntil=cooldownDate(e);p.lastError=cooldownMessage(db.meta.publishCooldownUntil)}else if(/API access blocked/i.test(e.message||"")){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:e.metaCode||null};p.lastError="A Meta bloqueou o acesso à API. Publicações pausadas até um teste de conexão bem-sucedido."}else p.lastError=e.message;await saveDb(db)}return json(res,isMetaActionLimit(e)||db.meta.apiAccessBlocked?429:400,{error:p.lastError||e.message,retryAt:activeCooldown(db)})}finally{publishingBusy=false}}await saveDb(db);return json(res,200,p)}
+  const m=u.pathname.match(/^\/orpheus-api\/posts\/([^/]+)\/(approve|reject|publish)$/);if(req.method==="POST"&&m){const p=db.posts.find(x=>x.id===m[1]);if(!p)return json(res,404,{error:"Post não encontrado"});if(p.status==="publishing"||p.status==="published")return json(res,409,{error:"Publicação já iniciada ou concluída; confira o Instagram antes de tentar novamente"});if(m[2]==="approve"){if(p.artStatus!=="ready")return json(res,409,{error:"Confira a arte final antes de aprovar"});p.status="approved";p.lastError=""}else if(m[2]==="reject")p.status="rejected";else{if(db.meta.apiAccessBlocked)return json(res,429,{error:"Acesso à API da Meta bloqueado. Execute um teste de conexão depois que a Meta liberar o acesso."});if(publishingBusy)return json(res,409,{error:"Há outra publicação em andamento. Tente novamente em instantes"});const until=activeCooldown(db);if(until)return json(res,429,{error:cooldownMessage(until),retryAt:until});publishingBusy=true;try{p.status="publishing";p.publishStartedAt=new Date().toISOString();await saveDb(db);const r=await publish(p);p.status="published";p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError="";delete p.nextRetryAt}catch(e){if(p.status==="publishing"){p.status="error";if(isMetaActionLimit(e)){db.meta.publishCooldownUntil=cooldownDate(e);p.lastError=cooldownMessage(db.meta.publishCooldownUntil)}else if(/API access blocked/i.test(e.message||"")){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:e.metaCode||null};p.lastError="A Meta bloqueou o acesso à API. Publicações pausadas até um teste de conexão bem-sucedido."}else p.lastError=e.message;await saveDb(db)}return json(res,isMetaActionLimit(e)||db.meta.apiAccessBlocked?429:400,{error:p.lastError||e.message,retryAt:activeCooldown(db)})}finally{publishingBusy=false}}await saveDb(db);return json(res,200,p)}
   return json(res,404,{error:"Rota social não encontrada"});
 }
 
 export async function handleOrpheusAgent(req,res){
   const u=new URL(req.url,"http://localhost");
-  if(u.pathname.startsWith("/orpheus-api/")){await api(req,res,u);return true}
+  if(u.pathname.startsWith("/orpheus-api/")){await serialOperation(()=>api(req,res,u));return true}
+  const preview=u.pathname.match(/^\/orpheus-agent\/preview\/([a-f0-9]{64})\.jpg$/);
+  if(preview){try{const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:"orpheus-agent/v6/"+preview[1]+".jpg"}));res.writeHead(200,{"Content-Type":"image/jpeg","Cache-Control":"public, max-age=86400"});res.end(Buffer.from(await r.Body.transformToByteArray()))}catch{text(res,404,"Arte não encontrada")}return true}
   if(u.pathname==="/orpheus-agent/login-art.png"){try{const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:OFFICIAL_LOGIN_ART_KEY}));const b=Buffer.from(await r.Body.transformToByteArray());res.writeHead(200,{"Content-Type":"image/png","Cache-Control":"public, max-age=3600"});res.end(b)}catch(e){console.error("[ORPHEUS Agent] Falha ao carregar arte oficial",e.message);res.writeHead(302,{Location:"/orpheus-agent/emblem.png"});res.end()}return true}
   if(u.pathname==="/orpheus-agent/emblem.png"){res.writeHead(200,{"Content-Type":"image/svg+xml","Cache-Control":"public, max-age=86400"});res.end(EMBLEM_PNG);return true}
   if(u.pathname==="/orpheus-agent/brand.png"){res.writeHead(200,{"Content-Type":"image/png","Cache-Control":"public, max-age=86400"});res.end(brandPng());return true}
