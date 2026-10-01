@@ -123,6 +123,18 @@ async function loadDb(){
   }
   if(!db.meta.apiBlockMigration20260929){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:200};db.meta.apiBlockMigration20260929=true;changed=true}
   if(!db.meta.rateLimitRecovery20260928&&db.posts.some(p=>p.status==="error"&&/User is performing too many actions/i.test(p.lastError||""))){db.meta.publishCooldownUntil=new Date(Date.now()+60*60*1000).toISOString();db.meta.rateLimitRecovery20260928=true;changed=true}
+  if(!db.meta.cancelQueueThrough20261005){
+    let removed=0;
+    for(const p of db.posts){
+      const day=String(p.scheduledAt||"").slice(0,10);
+      if(day>="2026-10-01"&&day<="2026-10-05"&&!["published","deleted"].includes(p.status)){
+        p.status="deleted";p.deletedAt=new Date().toISOString();p.lastError="Agendamento cancelado por decisão editorial em 01/10/2026.";removed++;
+      }
+    }
+    db.meta.pauseGenerationUntil="2026-10-05";
+    db.meta.cancelQueueThrough20261005={at:new Date().toISOString(),removed};
+    changed=true;
+  }
   if(!db.meta.purgedUnpublished20260927){
     const before=db.posts.length;
     db.posts=db.posts.filter(p=>p.status==="published");
@@ -280,9 +292,7 @@ function buildCaption(project,topic,i){
   return base+"\n\n"+project.cta+".\n\n#CIPHER #ProtocoloOrpheus #ORPHEUS #Thriller #Espionagem #Suspense";
 }
 async function ensureDailyContent(force=false,requestedDate=""){
-  const db=await loadDb(),s=db.settings;
-  if(!s.enabled&&!force)return{created:0,target:0,day:saoDate(),reason:"disabled"};
-  const day=requestedDate||saoDate(),target=Math.max(1,Math.min(12,Number(s.postsPerDay)||3));
+  const db=await loadDb(),s=db.settings;\n  if(!s.enabled&&!force)return{created:0,target:0,day:saoDate(),reason:"disabled"};\n  const day=requestedDate||saoDate();\n  if(!force&&db.meta?.pauseGenerationUntil&&day<=db.meta.pauseGenerationUntil)return{created:0,target:0,day,reason:"editorial_pause",pauseUntil:db.meta.pauseGenerationUntil};\n  const target=Math.max(1,Math.min(12,Number(s.postsPerDay)||3));
   const existingPosts=db.posts.filter(p=>p.generatedDate===day&&p.generatedBy==="agent"&&!["deleted","rejected"].includes(p.status));
   const existing=existingPosts.length;
   if(existing>=target)return{created:0,target,day,existing,reason:"daily_target_already_met",existingPosts:existingPosts.map(p=>({id:p.id,title:p.title,status:p.status,scheduledAt:p.scheduledAt}))};
