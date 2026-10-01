@@ -131,7 +131,6 @@ async function loadDb(){
         p.status="deleted";p.deletedAt=new Date().toISOString();p.lastError="Agendamento cancelado por decisão editorial em 01/10/2026.";removed++;
       }
     }
-    db.meta.pauseGenerationUntil="2026-10-05";
     db.meta.cancelQueueThrough20261005={at:new Date().toISOString(),removed};
     changed=true;
   }
