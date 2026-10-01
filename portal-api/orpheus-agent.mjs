@@ -35,9 +35,12 @@ const MAX_FAST_IMAGES_PER_RUN=12;
 const EMBLEM_PNG=fs.readFileSync(path.join(__dirname,"..","public","intranet","public","cards","orpheus.svg"));
 const DEFAULT_SETTINGS={enabled:true,postsPerDay:3,approvalMode:"manual",scheduleMode:"interval",startHour:9,endHour:19,postTimes:["09:00","14:00","19:00"],timezone:"America/Sao_Paulo"};
 const POSTING_POLICY=Object.freeze({
-  id:"orpheus-v1-classified-art",
+  id:"orpheus-cinematic-photoreal-20261001",
   immutable:true,
   image:{
+    approvedStandard:"cinematic-photoreal-20261001",
+    promptTemplate:"Use case: ads-marketing. Create one premium cinematic espionage thriller Instagram promotional artwork for the novel CIPHER — Protocolo Orpheus by Roberto Justino. Scene/backdrop: {{setting}}. Subject and action: {{character}} / {{action}}. Composition/framing: {{framing}} / {{composition}}. Sophisticated contemporary film-poster art direction, photorealistic photography, physically convincing materials, textured surfaces, rich shadow detail, selective focus, dramatic practical lighting, exceptionally polished finish and narrative intrigue rather than generic sci-fi. Dark navy and muted silver with restrained red warning light, adapted naturally to the scene. Preserve official character identity using official references when a named character appears. Official Drive/R2 assets are reference and fallback only. Integrate only the exact supplied publication text in clean legible typography in the lower quarter, with the smaller footer 'CIPHER — PROTOCOLO ORPHEUS'. Vary character, environment, action, camera angle, composition, props and lighting between publications. Never copy the previous scene, merely recolor it or mirror it. No geometric cartoon figures, no flat vector illustration, no crude procedural drawings, no collages, no diagram, no stock watermarks. The image must tell a coherent espionage story.",
+    approvedExample:"No people: a tense, atmospheric clandestine intelligence archive at night, photorealistic macro foreground of a worn classified dossier partially open on a dark metal desk, a tiny encrypted USB device, a redacted document, an old photograph turned face-down, rain reflections from a Venetian-blind window, deep background glimpses of a secure server room and a subtly illuminated ORPHEUS terminal. Text: 'ALGUNS ARQUIVOS' / 'NUNCA DEVERIAM SER ABERTOS.' Footer: 'CIPHER — PROTOCOLO ORPHEUS'.",
     minWidth:1080,
     minHeight:1080,
     preferredFormats:["1080x1080","1080x1350"],
@@ -50,6 +53,8 @@ const POSTING_POLICY=Object.freeze({
       "coerencia visual com o produto",
       "criar cenas originais coerentes com CIPHER; artes oficiais sao referencias e fallback",
       "bloquear repeticao recente de personagem, cenario, acao, enquadramento e composicao",
+      "acabamento fotografico de poster cinematografico; materiais realistas e iluminacao dramatica",
+      "proibidos bonecos geometricos, vetores planos e desenhos procedurais simplificados",
       "sem placeholder em publicacao final"
     ]
   },
