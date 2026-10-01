@@ -505,6 +505,13 @@ async function api(req,res,u){
   if(req.method==="GET"&&u.pathname==="/social-api/posts")return json(res,200,db.posts.filter(p=>p.status!=="deleted"));
   const imgUrlMatch=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/image-url$/);
   if(req.method==="GET"&&imgUrlMatch){const p=db.posts.find(x=>x.id===imgUrlMatch[1]);if(!p)return json(res,404,{error:"Post não encontrado"});if(p.generatedBy==="agent"&&!["ready","uploaded"].includes(p.artStatus))return json(res,409,{error:"Imagem original em geracao; a previa aparecera automaticamente"});try{return json(res,200,{url:await mediaUrl(p)})}catch(e){return json(res,400,{error:e.message})}}
+  const imageDataMatch=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/image-data$/);
+  if(req.method==="GET"&&imageDataMatch){
+    const p=db.posts.find(x=>x.id===imageDataMatch[1]);
+    if(!p)return json(res,404,{error:"Post não encontrado"});
+    if(p.generatedBy==="agent"&&!["ready","uploaded"].includes(p.artStatus))return json(res,409,{error:"Imagem original em geração",artStatus:p.artStatus||"pending",queuePosition:p.artQueuePosition||null});
+    try{const bytes=await artworkBytes(p);res.writeHead(200,{"Content-Type":p.imageKey?.endsWith(".png")?"image/png":p.imageKey?.endsWith(".webp")?"image/webp":"image/jpeg","Content-Length":bytes.length,"Cache-Control":"private, no-store"});res.end(bytes);return}catch(e){return json(res,502,{error:"Não foi possível carregar a imagem. Tentaremos novamente automaticamente."})}
+  }
   const imgMatch=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/image$/);
   if(req.method==="GET"&&imgMatch){const p=db.posts.find(x=>x.id===imgMatch[1]);if(!p)return json(res,404,{error:"Post não encontrado"});if(p.generatedBy==="agent"&&!["ready","uploaded"].includes(p.artStatus))return json(res,409,{error:"Imagem original em geracao; a previa aparecera automaticamente"});try{const loc=await mediaUrl(p);res.writeHead(302,{Location:loc,"Cache-Control":"no-store"});res.end();return}catch(e){return json(res,400,{error:e.message})}}
   if(req.method==="GET"&&u.pathname==="/social-api/settings")return json(res,200,db.settings);
@@ -535,7 +542,7 @@ async function api(req,res,u){
 
 export async function handleSocialAgent(req,res){
   const u=new URL(req.url,"http://localhost");
-  if(u.pathname.startsWith("/social-api/")){await withSocialDbLock(()=>api(req,res,u));return true}
+  if(u.pathname.startsWith("/social-api/")){if(u.pathname==="/social-api/auth/status")await api(req,res,u);else await withSocialDbLock(()=>api(req,res,u));return true}
   if(u.pathname==="/social-agent/emblem.png"){res.writeHead(200,{"Content-Type":"image/png","Cache-Control":"public, max-age=86400"});res.end(EMBLEM_PNG);return true}
   if(u.pathname==="/social-agent/brand.png"){res.writeHead(200,{"Content-Type":"image/png","Cache-Control":"public, max-age=86400"});res.end(brandPng());return true}
   if(u.pathname==="/social-agent"){res.writeHead(302,{Location:"/social-agent/"});res.end();return true}
