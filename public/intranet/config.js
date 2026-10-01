@@ -162,6 +162,14 @@ window.ROVIX_HUB_CONFIG = {
           "status": "DESENVOLVIMENTO",
           "type": "IA / Web",
           "links": []
+        },
+        {
+          "name": "O67 — Opportunity OS",
+          "image": "/intranet/public/cards/o67.svg",
+          "description": "Radar autônomo de oportunidades da ROVIX: detecta sinais de mercado, cruza evidências, acompanha lifecycle, ranking, alertas e evolução histórica para transformar problemas recorrentes em oportunidades econômicas investigáveis.",
+          "status": "DESENVOLVIMENTO",
+          "type": "IA / Opportunity Intelligence",
+          "links": []
         }
       ]
     },
