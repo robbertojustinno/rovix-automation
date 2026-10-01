@@ -18,15 +18,16 @@ const ADMIN_USER=process.env.SOCIAL_ADMIN_USER||"admin";
 const ADMIN_PASSWORD_HASH=process.env.SOCIAL_ADMIN_PASSWORD_HASH||"";
 const SESSION_SECRET=process.env.SOCIAL_SESSION_SECRET||"";
 const SOCIAL_PUBLIC_BASE=(process.env.SOCIAL_PUBLIC_BASE||"https://rovix-drive-api.onrender.com/social-agent").replace(/\/$/,"");
-const VISUAL_ENGINE="rovix-v4-animated-art";
+const VISUAL_ENGINE="rovix-v5-ai-original-scenes";
 const MAX_FAST_IMAGES_PER_RUN=12;
-const PAUSE_THROUGH="2026-10-05";
-const PAUSE_UNTIL=Date.parse("2026-10-06T00:00:00-03:00");
 const DIVERSITY_POLICY="unique-art-v1";
+const HORDE_BASE="https://aihorde.net/api/v2";
+const HORDE_KEY=process.env.SOCIAL_HORDE_API_KEY||"0000000000";
+const MAX_IMAGE_JOBS=2;
 const EMBLEM_PNG=fs.readFileSync(path.join(__dirname,"social-agent-assets","rovix-emblem.png"));
 const DEFAULT_SETTINGS={enabled:true,postsPerDay:3,approvalMode:"manual",scheduleMode:"interval",startHour:9,endHour:19,postTimes:["09:00","14:00","19:00"],timezone:"America/Sao_Paulo"};
 const POSTING_POLICY=Object.freeze({
-  id:"rovix-v4-animated-art",
+  id:"rovix-v5-ai-original-scenes",
   immutable:true,
   image:{
     minWidth:1080,
@@ -42,7 +43,7 @@ const POSTING_POLICY=Object.freeze({
       "variacao suficiente para evitar repeticao",
       "bloquear fundo reutilizado mesmo com texto, cor ou corte diferentes",
       "comparar imagens com o historico antes de aprovar e publicar",
-      "se nao houver arte original, aguardar nova imagem sem repetir um modelo",
+      "se a imagem for semelhante, gerar outra cena automaticamente com nova composicao",
       "sem placeholder em publicacao final"
     ]
   },
@@ -60,7 +61,7 @@ const POSTING_POLICY=Object.freeze({
     allowPlaceholderPublish:false,
     keepBrandFamily:true,
     avoidRepeatedThemes:true,
-    visualEngine:"ROVIX V3 Animated Visual Engine (FREE)",
+    visualEngine:"ROVIX V5 Original AI Scenes (FREE)",
     defaultVisualLevel:"rapido"
   }
 });
@@ -110,22 +111,30 @@ const BASE_PROJECTS=[
 
 function s3(){if(!R2_ENDPOINT||!R2_ACCESS_KEY_ID||!R2_SECRET_ACCESS_KEY)throw new Error("R2_NOT_CONFIGURED");return new S3Client({region:"auto",endpoint:R2_ENDPOINT,credentials:{accessKeyId:R2_ACCESS_KEY_ID,secretAccessKey:R2_SECRET_ACCESS_KEY}})}
 async function readStream(stream){return await stream.transformToString()}
+export function rebuildCancelledPosts(db){
+  if(db.meta.rebuildRepeatedArt20261001)return false;
+  const replaced=[];
+  for(const oldId of db.meta.cancelScheduledThrough20261005?.ids||[]){
+    const old=db.posts.find(p=>p.id===oldId);
+    if(!old||old.status!=="cancelled"||old.metaMediaId)continue;
+    const replacementId="original-"+old.id;
+    if(db.posts.some(p=>p.id===replacementId))continue;
+    const p={...old,id:replacementId,replacesPostId:old.id,status:db.settings.approvalMode==="auto"?"approved":"draft",imageKey:"",imageUrl:"",artStatus:"pending",visualEngine:VISUAL_ENGINE,createdAt:new Date().toISOString(),lastError:""};
+    for(const key of ["cancelledAt","cancelReason","visualFingerprint","visualSource","artGeneratedAt","artError","nextRetryAt","publishStartedAt","publishAttempts","metaContainerId"])delete p[key];
+    // Future slots stay exactly as scheduled; past slots enter the normal queue.
+    const seed=db.meta.preparedOriginalJobs?.[replacementId];if(seed)Object.assign(p,seed);
+    db.posts.unshift(p);replaced.push({old:old.id,replacement:replacementId});
+  }
+  db.meta.rebuildRepeatedArt20261001={at:new Date().toISOString(),count:replaced.length,replacements:replaced};
+  console.log("[Social Agent] Posts recriados com novas cenas:",replaced.length);
+  return true;
+}
 async function saveDb(db){await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:DB_KEY,Body:JSON.stringify(db,null,2),ContentType:"application/json"}))}
 async function loadDb(){
   let db,changed=false;
   try{const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:DB_KEY}));db=JSON.parse(await readStream(r.Body))}
   catch(e){if(e?.name==="NoSuchKey"||e?.$metadata?.httpStatusCode===404){db={projects:[],posts:[]};changed=true}else throw e}
   db.projects=db.projects||[];db.posts=db.posts||[];db.settings={...DEFAULT_SETTINGS,...(db.settings||{})};db.meta=db.meta||{};
-  if(!db.meta.cancelScheduledThrough20261005){
-    const cancelled=[];
-    for(const p of db.posts){
-      if(p.scheduledAt&&Number.isFinite(Date.parse(p.scheduledAt))&&Date.parse(p.scheduledAt)<PAUSE_UNTIL&&["draft","approved","error"].includes(p.status)&&!p.metaMediaId){
-        p.status="cancelled";p.cancelledAt=new Date().toISOString();p.cancelReason="Cancelado a pedido do usuario ate 05/10/2026 inclusive";delete p.nextRetryAt;cancelled.push(p.id);
-      }
-    }
-    db.meta.cancelScheduledThrough20261005={at:new Date().toISOString(),count:cancelled.length,ids:cancelled,through:PAUSE_THROUGH};changed=true;
-    console.log("[Social Agent] Agendamentos cancelados ate 05/10/2026:",cancelled.length);
-  }
   if(!db.meta.apiBlockMigration20260929){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:200};db.meta.apiBlockMigration20260929=true;changed=true}
   if(!db.meta.rateLimitRecovery20260928&&db.posts.some(p=>p.status==="error"&&/User is performing too many actions/i.test(p.lastError||""))){db.meta.publishCooldownUntil=new Date(Date.now()+60*60*1000).toISOString();db.meta.rateLimitRecovery20260928=true;changed=true}
   if(!db.meta.purgedUnpublished20260927){
@@ -144,6 +153,7 @@ async function loadDb(){
     db.meta.seededInstitutionalPost=true;
     changed=true;
   }
+  if(rebuildCancelledPosts(db))changed=true;
   if(changed)await saveDb(db);return db;
 }
 function json(res,status,data,extra={}){res.writeHead(status,{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff",...extra});res.end(JSON.stringify(data))}
@@ -200,7 +210,7 @@ export function visuallySimilar(a,b){
   if(a.sha===b.sha)return true;
   let bits=0;for(let i=0;i<a.dhash.length;i++){let n=parseInt(a.dhash[i],16)^parseInt(b.dhash[i],16);while(n){bits+=n&1;n>>=1}}
   const mae=a.tone.reduce((sum,n,i)=>sum+Math.abs(n-b.tone[i]),0)/a.tone.length;
-  return bits<=8||mae<=12;
+  return (bits<=8&&mae<=24)||mae<=6;
 }
 async function imageFingerprint(buffer){
   const normalized=await sharp(buffer).rotate().resize(1080,1080,{fit:"cover"}).png().toBuffer();
@@ -232,7 +242,6 @@ async function assertUniqueArtwork(post,db){
   return fingerprint;
 }
 async function publish(post){
-  if(Date.now()<PAUSE_UNTIL)throw new Error("Publicacoes pausadas ate 05/10/2026 inclusive");
   if(["cancelled","deleted","rejected"].includes(post.status))throw new Error("Postagem cancelada ou rejeitada");
   if(post.artStatus&&!["ready","uploaded"].includes(post.artStatus))throw new Error("Arte final ainda não está pronta");
   const db=await loadDb();await assertUniqueArtwork(post,db);await saveDb(db);
@@ -253,10 +262,6 @@ function scheduleFor(date,index,count,settings){
       return new Date(date+"T"+String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":00-03:00").toISOString()
     }
 function escapeXml(s=""){return String(s).replace(/[<>&'"]/g,m=>({"<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"}[m]))}
-const ART_ASSETS=Object.freeze({
-  robot:"robot.jpg",inspection:"inspection.jpg",servers:"drive.jpg",network:"network.jpg",cyber:"cyber.jpg"
-});
-function sceneType(project){if(project.id==="rovix-drive")return"servers";if(project.id==="cipher")return"cyber";if(project.id==="tagcheck")return"inspection";if(project.id==="uap-studio")return"network";return"robot"}
 function titleLines(value){
   const words=String(value||"ROVIX Automation").trim().split(/\s+/),lines=[""];
   for(const word of words){
@@ -267,9 +272,8 @@ function titleLines(value){
   if(lines[1]?.length>28)lines[1]=lines[1].slice(0,27).trimEnd()+"…";
   return lines;
 }
-export async function renderArtworkBuffer(post,project){
-  const type=sceneType(project),asset=ART_ASSETS[type];
-  const bg=fs.readFileSync(path.join(__dirname,"social-agent-assets",asset));
+export async function renderArtworkBuffer(post,project,bg){
+  if(!bg)throw new Error("Uma cena original gerada para esta postagem e obrigatoria");
   const lines=titleLines(post.title||project.name);
   const titleSize=lines.some(x=>x.length>23)?53:60;
   const heading=lines.map((line,i)=>`<text x="82" y="${818+i*69}" font-family="Arial,Helvetica,sans-serif" font-size="${titleSize}" font-weight="800" fill="#ffffff">${escapeXml(line)}</text>`).join("");
@@ -286,31 +290,121 @@ export async function renderArtworkBuffer(post,project){
   const badge=await sharp(EMBLEM_PNG).resize(196,196,{fit:"contain"}).png().toBuffer();
   return sharp(bg).resize(1080,1080).composite([{input:overlay,left:0,top:0},{input:badge,left:846,top:32}]).jpeg({quality:93,mozjpeg:true}).toBuffer();
 }
-async function createFastArtwork(post,project,db){
-  const source="art-library://rovix/"+ART_ASSETS[sceneType(project)];
-  if(db.posts.some(p=>p.id!==post.id&&p.imageKey&&p.visualSource===source))throw new Error("Fundo ja utilizado. Aguarda arte original: mudar o titulo nao cria uma imagem diferente.");
-  const final=await renderArtworkBuffer(post,project);
-  const fingerprint=await imageFingerprint(final);
+const ORIGINAL_SUBJECTS=Object.freeze({
+  rovix:["engineers connecting a conveyor control panel","precision robotic gripper assembling a metal gear","technician studying a factory digital twin","industrial sensor network around a working production line"],
+  tagcheck:["technician scanning a QR tag on a pressure gauge with a tablet","calibration bench with precision instruments and digital checklist","field inspector checking a tagged industrial valve","organized instrument storage with visible equipment tags"],
+  "tagcheck-campo":["field technician scanning equipment with a smartphone","mobile inspection beside industrial piping","maintenance worker consulting a tablet at a pump","portable measuring instruments on a service trolley"],
+  "tagcheck-v2":["separate industrial plants connected to their own secure digital workspaces","factory manager comparing instrument records on a dashboard","distinct company workspaces represented by separate glass rooms","instrumentation team coordinating inspection across factory units"],
+  "tagcheck-desktop":["laptop showing instrument records beside measuring tools","offline field workstation beside tagged equipment","desktop synchronization with a tablet of inspection records","calibration specialist consulting a desktop asset viewer"],
+  "rovix-drive":["floating file folders moving into a luminous cloud vault","organized digital documents inside transparent storage shelves","laptop downloading a product archive from a cloud","secure file sharing between two distant workspaces"],
+  "uap-studio":["technician diagnosing a programmable logic controller on a workbench","RS485 interface linking industrial controllers","CAN bus modules connected around a test bench","industrial ethernet network with cables and diagnostic instruments"],
+  "rovix-uap":["distinct industrial controllers linked by protocol gateways","RS485 connector and CAN interface on a testing station","industrial network gateway connecting different machines","diagnostic laptop beside programmable controllers"],
+  cipher:["middle-aged intelligence operative entering a rain-soaked train station","woman discovering a classified document in a home study","covert exchange of a sealed envelope in a crowded cafe","cybersecurity analyst tracing a conspiracy in a dim operations room"],
+  orpheus:["classified puzzle dossier beside a vintage terminal","encrypted mission map on an investigator desk","locked evidence box with clues and a computer terminal","interactive espionage terminal revealing a hidden code"],
+  "rovix-social-agent":["creative studio arranging different social media storyboards","analytics screens beside a campaign planner","content designer comparing original campaign illustrations","calendar showing distinct visual campaign cards"],
+  "rovix-store":["digital product showcase with software packages on display plinths","customer browsing software products on a tablet","illuminated digital storefront with downloadable product boxes","organized software catalog on a desktop workspace"],
+  "rovix-store-admin":["administrator organizing software versions on transparent shelves","digital catalog management desk with distinct product packages","software release packages sorted into numbered archive drawers","product manager arranging versioned software release cards"],
+  "rovix-projects":["project exhibition with separate technological prototypes","engineering portfolio displayed as individual model stations","visitor exploring a digital project gallery","developer presenting different prototypes on workbenches"],
+  "rovix-setup":["computer repair bench with diagnostic laptop and tools","technician installing software on a workstation","organized system recovery tools beside a desktop tower","technician checking computer components with a diagnostic screen"],
+  "rovix-screensaver":["futuristic command center with panoramic monitors","ambient technological desktop display in a studio","digital command console illuminating an operator desk","geometric cyber landscape displayed on a desktop monitor"],
+  "rovix-osint":["investigator connecting public information clues on a corkboard","open-source researcher reviewing maps and public documents","intelligence analyst arranging verified digital evidence","research desk with geographic maps and browser windows"],
+  "rovix-guardian":["modular software tools represented as interlocking secure workspaces","developer assembling plugin modules on a desktop","organized diagnostic modules around a secure workstation","operator selecting distinct tools on a control dashboard"],
+  "rovix-vote":["electronic voting training terminal in a civic classroom","citizen practicing a ballot on a simulated voting machine","training instructor beside an electronic ballot station","secure ballot simulation with accessible touchscreen"],
+  "rovix-market":["family organizing grocery shopping beside a budget tablet","shopping basket and itemized budget on a kitchen table","person comparing a grocery list at a supermarket aisle","organized pantry and shopping list on a smartphone"],
+  "rovix-ai-os":["experimental AI research workstation with abstract neural structures","developer testing an AI prototype in a laboratory","software experiment on a desk with translucent neural modules","research lab comparing AI tool prototypes"],
+  "balanca-urano":["industrial weighing scale connected to an Arduino and LCD","serial adapter linking a precision scale to a test laptop","electronic weighing integration on an engineering bench","technician testing scale measurements with calibrated weights"],
+  almox:["warehouse clerk scanning labeled storage bins","organized industrial parts on warehouse racks","warehouse inventory station beside material boxes","stockroom technician checking incoming materials with a tablet"],
+  amigopet:["veterinarian caring for a dog beside a digital care planner","pet owner arranging a cat care schedule","dog and cat in a bright veterinary waiting room","pet service professional consulting appointment records"],
+  driverbel:["employee shuttle stopping at a factory entrance","transport dispatcher coordinating a fleet on a map","workers boarding a commuter minibus","company transport requests on a tablet beside a shuttle"],
+  presentecerto:["person arranging a gift wishlist beside colorful packages","family selecting gifts using a digital shared list","carefully wrapped presents and a gift planning tablet","friends comparing gift suggestions in a cozy room"],
+  "bola-de-gude":["colorful glass marbles rolling through a miniature game arena","close-up glass marble on a playful three-dimensional track","mobile gaming scene with a spiral marble course","marbles competing on a sunlit sculpted playing board"],
+  "meu-status":["smartphone displaying distinct illustrated status cards","mobile creator arranging a colorful visual update board","person sharing a mobile status update at a cafe","smartphone surrounded by different expressive social cards"],
+  crismaj:["mahjong tile game with biblical olive branch and ark motifs","tabletop mahjong puzzle with a dove and illuminated manuscript","family-friendly biblical tile game beside an open book","colorful mahjong tiles with fish and olive branch symbols"],
+  cosmos:["multiscreen workstation with voice automation microphone","operator coordinating distinct displays at a curved desk","experimental desktop assistant workspace with audio tools","creative control room with multiple screens and a microphone"],
+  matrix:["software laboratory testing different prototype interfaces","developer assembling a digital prototype on a glass workbench","experimental software modules in a design studio","technology lab with different code prototypes on separate screens"],
+  "rovix-os":["bootable USB drive beside a laptop starting a custom system","system recovery workstation with a boot menu monitor","portable operating system toolkit on a technician desk","computer startup environment with a branded USB device"],
+  "rovix-machine-watch":["technician analyzing USB activity on a computer workbench","hardware key connected beside a process monitoring screen","software process inspection station with diagnostic equipment","computer forensic workstation tracking files and modules"]
+});
+export function buildOriginalScene(post,project,serial){
+  const subjects=ORIGINAL_SUBJECTS[project.id]||["software engineer testing a prototype workstation","technician integrating electronic equipment","product developer presenting a practical software tool","engineering team comparing technical prototypes"];
+  const cameras=["wide environmental view","close-up with shallow depth of field","high-angle view","isometric composition","low-angle cinematic view","over-the-shoulder view","three-quarter perspective","top-down tabletop view"];
+  const lights=["soft morning daylight","warm late-afternoon rim light","crisp neutral studio lighting","cool twilight with practical lamps","bright diffused skylight","dramatic side lighting"];
+  const palettes=["cobalt blue and silver","warm graphite and copper","ivory with deep blue accents","charcoal with red accents","teal and brushed metal","warm beige and dark blue"];
+  const digest=crypto.createHash("sha256").update(post.id+":"+serial).digest();
+  const subject=subjects[serial%subjects.length],camera=cameras[digest[0]%cameras.length],light=lights[digest[1]%lights.length],palette=palettes[digest[2]%palettes.length];
+  const focus=35+digest[3]%70,seed=digest.readUInt32BE(4);
+  const conceptKey=crypto.createHash("sha256").update(JSON.stringify({project:project.id,subject,camera,light,palette,focus})).digest("hex");
+  const prompt=`Premium stylized 3D animated editorial illustration. Scene: ${subject}. ${camera}, ${focus}mm lens perspective. ${light}. Materials: carefully modeled realistic metal, glass, fabric and wood. Palette: ${palette}. Natural grounded environment, meaningful believable actions. Theme: ${post.title}. Brand context: ${project.name}. Square advertising composition, main subject in upper two thirds with room for caption at the bottom. Original scene with varied props and spatial composition. No text, no typography, no logos, no watermark. ### blurry, distorted, low quality, letters, watermark, duplicated objects, generic humanoid robot, illegible interfaces`;
+  return{subject,camera,light,palette,focus,seed,conceptKey,prompt,serial};
+}
+async function hordeFetch(route,options={}){
+  const r=await fetch(HORDE_BASE+route,{...options,headers:{"Content-Type":"application/json","apikey":HORDE_KEY,"Client-Agent":"ROVIX-Social-Agent:0.8:contato.rovix@gmail.com",...(options.headers||{})},signal:AbortSignal.timeout(20000)});
+  const d=await r.json();if(!r.ok){const e=new Error(d.message||"Gerador gratuito temporariamente indisponivel");e.httpStatus=r.status;throw e}return d;
+}
+async function chooseImageModel(){
+  const preferred=["AlbedoBase XL 3.1","AlbedoBase XL (SDXL)","DreamShaper XL","Cheyenne"];
+  try{const models=await hordeFetch("/status/models?type=image");const live=models.filter(m=>preferred.includes(m.name)&&m.count>0&&m.performance>0).sort((a,b)=>a.eta-b.eta);if(live.length)return live[0].name}catch{}
+  return "AlbedoBase XL 3.1";
+}
+async function startOriginalArtwork(post,project,db){
+  db.meta.sceneCursors=db.meta.sceneCursors||{};
+  let serial=Number(db.meta.sceneCursors[project.id]||0),plan;
+  do{plan=buildOriginalScene(post,project,serial++)}while(db.posts.some(p=>p.id!==post.id&&p.scenePlan?.conceptKey===plan.conceptKey));
+  db.meta.sceneCursors[project.id]=serial;
+  const model=await chooseImageModel();
+  const job=await hordeFetch("/generate/async",{method:"POST",body:JSON.stringify({prompt:plan.prompt,params:{width:1024,height:1024,steps:20,cfg_scale:7,sampler_name:"k_euler",n:1,seed:String(plan.seed)},models:[model],nsfw:false,censor_nsfw:true,trusted_workers:true,r2:true,allow_downgrade:true})});
+  if(!job.id)throw new Error("O gerador nao retornou um identificador");
+  post.scenePlan=plan;post.artJobId=job.id;post.artJobStartedAt=new Date().toISOString();post.artStatus="generating";post.visualEngine=VISUAL_ENGINE;post.artAttempts=Number(post.artAttempts||0)+1;post.lastError="";delete post.artError;delete post.nextArtRetryAt;
+  console.log("[Social Agent] Cena original na fila:",post.id,job.id,model);
+}
+async function finishOriginalArtwork(post,project,db){
+  const state=await hordeFetch("/generate/check/"+post.artJobId);
+  post.artQueuePosition=state.queue_position;post.artWaitSeconds=state.wait_time;
+  if(!state.done&&Date.now()-Date.parse(post.artJobStartedAt)>2*60*60*1000){
+    await hordeFetch("/generate/status/"+post.artJobId,{method:"DELETE"});
+    throw new Error("O gerador perdeu a solicitacao; sera criada outra cena");
+  }
+  if(state.faulted)throw new Error("O gerador perdeu a solicitacao; sera criada outra cena");
+  if(!state.done)return false;
+  const result=await hordeFetch("/generate/status/"+post.artJobId),g=result.generations?.find(x=>!x.censored&&x.img);
+  if(!g)throw new Error("Nenhuma imagem valida recebida; sera criada outra cena");
+  let raw;
+  if(/^https:\/\//.test(g.img)){const r=await fetch(g.img,{signal:AbortSignal.timeout(20000)});if(!r.ok)throw new Error("Falha ao baixar a nova cena");raw=Buffer.from(await r.arrayBuffer())}
+  else raw=Buffer.from(g.img,"base64");
+  const meta=await sharp(raw).metadata();if(!meta.width||!meta.height||meta.width<512||meta.height<512)throw new Error("Gerador retornou uma imagem sem resolucao suficiente");
+  const final=await renderArtworkBuffer(post,project,raw),fingerprint=await imageFingerprint(final);
+  const source="ai-horde://"+post.artJobId;
   await assertUniqueArtwork({...post,visualSource:source,visualFingerprint:fingerprint},db);
-  const asset=ART_ASSETS[sceneType(project)];
-  const key="social-agent/v4/"+Date.now()+"-"+crypto.randomBytes(6).toString("hex")+".jpg";
+  const key="social-agent/v5/"+post.id+"-"+crypto.randomBytes(6).toString("hex")+".jpg";
   await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:key,Body:final,ContentType:"image/jpeg"}));
-  return{key,fingerprint,asset:{url:"art-library://rovix/"+asset,license:"ROVIX Automation artwork"}};
+  Object.assign(post,{imageKey:key,imageUrl:"",artStatus:"ready",visualPolicy:POSTING_POLICY.id,visualEngine:VISUAL_ENGINE,visualSource:source,visualModel:g.model,visualSeed:g.seed,visualFingerprint:fingerprint,diversityPolicy:DIVERSITY_POLICY,artGeneratedAt:new Date().toISOString(),lastError:""});
+  post.completedArtJobId=post.artJobId;delete post.artJobId;delete post.artError;delete post.nextArtRetryAt;
+  console.log("[Social Agent] Nova arte validada:",post.id,g.model);
+  return true;
 }
 async function prepareArtworkForQueue(){
-  const db=await loadDb();let made=0;if(Date.now()<PAUSE_UNTIL)return{made:0,pausedThrough:PAUSE_THROUGH};
-  const candidates=db.posts.filter(p=>p.generatedBy==="agent"&&["draft","approved","error"].includes(p.status)&&(p.artStatus!=="ready"||p.visualEngine!==VISUAL_ENGINE)).sort((a,b)=>Number(b.status==="approved")-Number(a.status==="approved")||new Date(b.createdAt)-new Date(a.createdAt)).slice(0,MAX_FAST_IMAGES_PER_RUN);
-  for(const p of candidates){
+  const db=await loadDb();let made=0,queued=0;
+  const candidates=db.posts.filter(p=>p.generatedBy==="agent"&&p.artStatus!=="uploaded"&&["draft","approved","error"].includes(p.status)&&(p.artStatus!=="ready"||p.visualEngine!==VISUAL_ENGINE)).sort((a,b)=>Date.parse(a.scheduledAt||a.createdAt)-Date.parse(b.scheduledAt||b.createdAt));
+  let changed=false;
+  for(const p of candidates.filter(p=>p.artJobId&&(!p.nextArtRetryAt||Date.parse(p.nextArtRetryAt)<=Date.now())).slice(0,MAX_IMAGE_JOBS)){
     const project=db.projects.find(x=>x.id===p.projectId)||{id:"rovix",name:"ROVIX Automation"};
-    try{
-      const art=await createFastArtwork(p,project,db);
-      p.visualFingerprint=art.fingerprint;p.diversityPolicy=DIVERSITY_POLICY;
-      p.imageKey=art.key;p.imageUrl="";p.artStatus="ready";p.visualPolicy=POSTING_POLICY.id;p.visualEngine=VISUAL_ENGINE;p.visualLevel="rapido";p.visualSource=art.asset.url;p.visualLicense=art.asset.license;p.artGeneratedAt=new Date().toISOString();p.lastError="";delete p.artError;
-      if(p.status==="error")p.status=db.settings.approvalMode==="auto"?"approved":"draft";
-      made++;
-    }catch(e){p.artStatus="blocked";p.status="draft";p.artError=e.message;p.lastError=e.message;console.error("[Social Agent] Arte bloqueada",p.id,e.message)}
+    try{if(await finishOriginalArtwork(p,project,db))made++;changed=true}
+    catch(e){
+      if(/igual|semelhante|ja utilizado/.test(e.message)){p.artStatus="pending";delete p.artJobId;p.artError="Imagem semelhante detectada. Criando outra cena automaticamente.";p.nextArtRetryAt=new Date(Date.now()+60000).toISOString();console.log("[Social Agent] Repeticao evitada; gerando outra cena:",p.id)}
+      else if(e.httpStatus===404||/perdeu|Nenhuma imagem|resolucao/.test(e.message)){p.artStatus="pending";delete p.artJobId;p.artError=e.message;p.nextArtRetryAt=new Date(Date.now()+120000).toISOString()}
+      else{p.artError=e.message;p.nextArtRetryAt=new Date(Date.now()+120000).toISOString()}
+      changed=true;
+    }
   }
-  if(candidates.length)await saveDb(db);return{made,engine:VISUAL_ENGINE,level:"rapido"}
+  let inFlight=db.posts.filter(p=>p.artJobId&&["draft","approved","error"].includes(p.status)).length;
+  for(const p of candidates.filter(p=>!p.artJobId&&(p.artStatus!=="ready"||p.visualEngine!==VISUAL_ENGINE)&&(!p.nextArtRetryAt||Date.parse(p.nextArtRetryAt)<=Date.now())).slice(0,MAX_FAST_IMAGES_PER_RUN)){
+    if(inFlight>=MAX_IMAGE_JOBS)break;
+    const project=db.projects.find(x=>x.id===p.projectId)||{id:"rovix",name:"ROVIX Automation"};
+    try{await startOriginalArtwork(p,project,db);inFlight++;queued++;changed=true}
+    catch(e){p.artStatus="pending";p.artError=e.message;p.nextArtRetryAt=new Date(Date.now()+5*60000).toISOString();changed=true;if(e.httpStatus===429)break}
+  }
+  if(changed)await saveDb(db);
+  return{made,queued,generating:inFlight,engine:VISUAL_ENGINE,level:"original",cost:"free"};
 }
 function buildCaption(project,topic,i){
   if(project.description){
@@ -325,10 +419,9 @@ function buildCaption(project,topic,i){
 ];return variants[i%variants.length]+"\n\n"+project.cta+".\n\n#ROVIX #Automacao #Tecnologia #Industria40 #Inovacao"}
 async function ensureDailyContent(force=false,requestedDate=""){
   const db=await loadDb(),s=db.settings;
-  if((requestedDate||saoDate())<=PAUSE_THROUGH)return{created:0,target:0,day:requestedDate||saoDate(),reason:"paused_through_2026_10_05"};
   if(!s.enabled&&!force)return{created:0,target:0,day:saoDate(),reason:"disabled"};
   const day=requestedDate||saoDate(),target=Math.max(1,Math.min(12,Number(s.postsPerDay)||3));
-  const existing=db.posts.filter(p=>p.generatedDate===day&&p.generatedBy==="agent").length;
+  const existing=db.posts.filter(p=>p.generatedDate===day&&p.generatedBy==="agent"&&!["cancelled","deleted","rejected"].includes(p.status)).length;
   if(existing>=target)return{created:0,target,day,existing,reason:"daily_target_already_met"};
   const startIndex=existing;
   let created=0;
@@ -354,9 +447,10 @@ async function publishDue(){
 let publishingBusy=false;
 async function publishDueLocked(){
   const db=await loadDb();
-  if(Date.now()<PAUSE_UNTIL)return [];
   if(activeCooldown(db)||db.meta.apiAccessBlocked)return [];
-  const now=new Date(),due=db.posts.filter(p=>p.status==="approved"&&p.scheduledAt&&new Date(p.scheduledAt)<=now&&(!p.nextRetryAt||new Date(p.nextRetryAt)<=now)).slice(0,10),results=[];
+  const lastPublished=Math.max(0,...db.posts.filter(p=>p.status==="published").map(p=>Date.parse(p.publishedAt)||0));
+  if(Date.now()-lastPublished<60*60000)return [];
+  const now=new Date(),due=db.posts.filter(p=>p.status==="approved"&&(["ready","uploaded"].includes(p.artStatus)||(!p.generatedBy&&p.imageKey))&&p.scheduledAt&&new Date(p.scheduledAt)<=now&&(!p.nextRetryAt||new Date(p.nextRetryAt)<=now)).sort((a,b)=>Date.parse(a.scheduledAt)-Date.parse(b.scheduledAt)).slice(0,1),results=[];
   if(due.length)console.log("[Social Agent] Publicações vencidas:",due.length,now.toISOString());
   for(const p of due){
     p.status="publishing";p.publishStartedAt=new Date().toISOString();
@@ -387,7 +481,9 @@ async function publishDueLocked(){
   if(due.length)await saveDb(db);
   return results;
 }
-let busy=false;async function automationTick(){if(busy)return;busy=true;try{await ensureDailyContent(false);await prepareArtworkForQueue();await publishDue()}catch(e){console.error("Social Agent:",e.message)}finally{busy=false}}
+let dbOperation=Promise.resolve();
+function withSocialDbLock(fn){const task=dbOperation.then(fn,fn);dbOperation=task.catch(()=>{});return task}
+let busy=false;async function automationTick(){if(busy)return;busy=true;try{await withSocialDbLock(async()=>{await ensureDailyContent(false);await prepareArtworkForQueue();await publishDue()})}catch(e){console.error("Social Agent:",e.message)}finally{busy=false}}
 setTimeout(()=>automationTick(),5000);setInterval(()=>automationTick(),60*1000);
 
 function crc32(buf){let c=0xffffffff;for(const b of buf){c^=b;for(let k=0;k<8;k++)c=(c>>>1)^((c&1)?0xedb88320:0)}return(c^0xffffffff)>>>0}
@@ -402,15 +498,15 @@ async function api(req,res,u){
   if(!authed(req))return json(res,401,{error:"Autenticação obrigatória"});
 
   const db=await loadDb();
-  if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"0.7.2",diversityPolicy:DIVERSITY_POLICY,pausedThrough:PAUSE_THROUGH,cancellation:db.meta.cancelScheduledThrough20261005,online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"3D animado com artes temáticas",storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
+  if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"0.8.0",diversityPolicy:DIVERSITY_POLICY,cancellation:db.meta.cancelScheduledThrough20261005,online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"Cenas originais geradas por IA, sem biblioteca fixa",imageProvider:"AI Horde",imageQueue:db.posts.filter(p=>p.artJobId).length,replacements:db.meta.rebuildRepeatedArt20261001,storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
   if(req.method==="GET"&&u.pathname==="/social-api/meta/test"){if(!metaConfigured())return json(res,200,{connected:false,error:"Credenciais Meta ainda não configuradas"});try{const result=await testMeta();if(db.meta.apiAccessBlocked){delete db.meta.apiAccessBlocked;await saveDb(db)}return json(res,200,result)}catch(e){console.error("[Social Agent] Teste Meta:",e.httpStatus||"",e.metaCode||"",e.metaSubcode||"",e.message);if(/API access blocked/i.test(e.message||"")&&!db.meta.apiAccessBlocked){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:e.metaCode||null};await saveDb(db)}return json(res,200,{connected:false,error:e.message,httpStatus:e.httpStatus||null,metaCode:e.metaCode||null,metaSubcode:e.metaSubcode||null})}}
   if(req.method==="GET"&&u.pathname==="/social-api/meta/analytics"){const days=Number(u.searchParams.get("days")||7);if(![7,30].includes(days))return json(res,400,{error:"Período inválido"});return json(res,200,await accountAnalytics(days))}
   if(req.method==="GET"&&u.pathname==="/social-api/projects")return json(res,200,db.projects);
   if(req.method==="GET"&&u.pathname==="/social-api/posts")return json(res,200,db.posts.filter(p=>p.status!=="deleted"));
   const imgUrlMatch=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/image-url$/);
-  if(req.method==="GET"&&imgUrlMatch){const p=db.posts.find(x=>x.id===imgUrlMatch[1]);if(!p)return json(res,404,{error:"Post não encontrado"});try{return json(res,200,{url:await mediaUrl(p)})}catch(e){return json(res,400,{error:e.message})}}
+  if(req.method==="GET"&&imgUrlMatch){const p=db.posts.find(x=>x.id===imgUrlMatch[1]);if(!p)return json(res,404,{error:"Post não encontrado"});if(p.generatedBy==="agent"&&!["ready","uploaded"].includes(p.artStatus))return json(res,409,{error:"Imagem original em geracao; a previa aparecera automaticamente"});try{return json(res,200,{url:await mediaUrl(p)})}catch(e){return json(res,400,{error:e.message})}}
   const imgMatch=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/image$/);
-  if(req.method==="GET"&&imgMatch){const p=db.posts.find(x=>x.id===imgMatch[1]);if(!p)return json(res,404,{error:"Post não encontrado"});try{const loc=await mediaUrl(p);res.writeHead(302,{Location:loc,"Cache-Control":"no-store"});res.end();return}catch(e){return json(res,400,{error:e.message})}}
+  if(req.method==="GET"&&imgMatch){const p=db.posts.find(x=>x.id===imgMatch[1]);if(!p)return json(res,404,{error:"Post não encontrado"});if(p.generatedBy==="agent"&&!["ready","uploaded"].includes(p.artStatus))return json(res,409,{error:"Imagem original em geracao; a previa aparecera automaticamente"});try{const loc=await mediaUrl(p);res.writeHead(302,{Location:loc,"Cache-Control":"no-store"});res.end();return}catch(e){return json(res,400,{error:e.message})}}
   if(req.method==="GET"&&u.pathname==="/social-api/settings")return json(res,200,db.settings);
   if(req.method==="GET"&&u.pathname==="/social-api/policies")return json(res,200,POSTING_POLICY);
   if(req.method==="PUT"&&u.pathname==="/social-api/settings"){const d=await body(req);const postsPerDay=Math.max(1,Math.min(12,Number(d.postsPerDay)||3));const incomingTimes=Array.isArray(d.postTimes)?d.postTimes.map(x=>String(x)).filter(x=>/^([01]\d|2[0-3]):([0-5]\d)$/.test(x)).slice(0,postsPerDay):[];db.settings={...db.settings,enabled:Boolean(d.enabled),postsPerDay,approvalMode:["manual","auto","hybrid"].includes(d.approvalMode)?d.approvalMode:"manual",scheduleMode:["interval","exact"].includes(d.scheduleMode)?d.scheduleMode:"interval",startHour:Math.max(0,Math.min(23,Number(d.startHour)||9)),endHour:Math.max(0,Math.min(23,Number(d.endHour)||19)),postTimes:incomingTimes};await saveDb(db);return json(res,200,db.settings)}
@@ -433,13 +529,13 @@ async function api(req,res,u){
     else if(d.imageUrl){p.imageKey="";p.imageUrl=String(d.imageUrl);p.artStatus="uploaded";delete p.visualFingerprint;delete p.visualSource;delete p.diversityPolicy;p.status="draft"}
     await saveDb(db);return json(res,200,p);
   }
-  const m=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/(approve|reject|publish)$/);if(req.method==="POST"&&m){const p=db.posts.find(x=>x.id===m[1]);if(!p)return json(res,404,{error:"Post não encontrado"});if(["publishing","published","cancelled","deleted"].includes(p.status))return json(res,409,{error:"Postagem publicada, em andamento ou cancelada; nao pode ser reaprovada"});if(m[2]==="approve"){if(p.scheduledAt&&Date.parse(p.scheduledAt)<PAUSE_UNTIL)return json(res,409,{error:"Agendamentos suspensos ate 05/10/2026 inclusive"});try{await assertUniqueArtwork(p,db)}catch(e){p.artError=e.message;p.lastError=e.message;await saveDb(db);return json(res,409,{error:e.message})}p.status="approved";p.lastError=""}else if(m[2]==="reject")p.status="rejected";else{if(Date.now()<PAUSE_UNTIL)return json(res,409,{error:"Publicacoes pausadas ate 05/10/2026 inclusive"});if(db.meta.apiAccessBlocked)return json(res,429,{error:"Acesso à API da Meta bloqueado. Execute um teste de conexão depois que a Meta liberar o acesso."});if(publishingBusy)return json(res,409,{error:"Há outra publicação em andamento. Tente novamente em instantes"});const until=activeCooldown(db);if(until)return json(res,429,{error:cooldownMessage(until),retryAt:until});publishingBusy=true;try{p.status="publishing";p.publishStartedAt=new Date().toISOString();await saveDb(db);const r=await publish(p);p.status="published";p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError="";delete p.nextRetryAt}catch(e){if(p.status==="publishing"){p.status="error";if(isMetaActionLimit(e)){db.meta.publishCooldownUntil=cooldownDate(e);p.lastError=cooldownMessage(db.meta.publishCooldownUntil)}else if(/API access blocked/i.test(e.message||"")){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:e.metaCode||null};p.lastError="A Meta bloqueou o acesso à API. Publicações pausadas até um teste de conexão bem-sucedido."}else p.lastError=e.message;await saveDb(db)}return json(res,isMetaActionLimit(e)||db.meta.apiAccessBlocked?429:400,{error:p.lastError||e.message,retryAt:activeCooldown(db)})}finally{publishingBusy=false}}await saveDb(db);return json(res,200,p)}
+  const m=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/(approve|reject|publish)$/);if(req.method==="POST"&&m){const p=db.posts.find(x=>x.id===m[1]);if(!p)return json(res,404,{error:"Post não encontrado"});if(["publishing","published","cancelled","deleted"].includes(p.status))return json(res,409,{error:"Postagem publicada, em andamento ou cancelada; nao pode ser reaprovada"});if(m[2]==="approve"){try{await assertUniqueArtwork(p,db)}catch(e){p.artError=e.message;p.lastError=e.message;await saveDb(db);return json(res,409,{error:e.message})}p.status="approved";p.lastError=""}else if(m[2]==="reject")p.status="rejected";else{if(db.meta.apiAccessBlocked)return json(res,429,{error:"Acesso à API da Meta bloqueado. Execute um teste de conexão depois que a Meta liberar o acesso."});if(publishingBusy)return json(res,409,{error:"Há outra publicação em andamento. Tente novamente em instantes"});const until=activeCooldown(db);if(until)return json(res,429,{error:cooldownMessage(until),retryAt:until});publishingBusy=true;try{p.status="publishing";p.publishStartedAt=new Date().toISOString();await saveDb(db);const r=await publish(p);p.status="published";p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError="";delete p.nextRetryAt}catch(e){if(p.status==="publishing"){p.status="error";if(isMetaActionLimit(e)){db.meta.publishCooldownUntil=cooldownDate(e);p.lastError=cooldownMessage(db.meta.publishCooldownUntil)}else if(/API access blocked/i.test(e.message||"")){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:e.metaCode||null};p.lastError="A Meta bloqueou o acesso à API. Publicações pausadas até um teste de conexão bem-sucedido."}else p.lastError=e.message;await saveDb(db)}return json(res,isMetaActionLimit(e)||db.meta.apiAccessBlocked?429:400,{error:p.lastError||e.message,retryAt:activeCooldown(db)})}finally{publishingBusy=false}}await saveDb(db);return json(res,200,p)}
   return json(res,404,{error:"Rota social não encontrada"});
 }
 
 export async function handleSocialAgent(req,res){
   const u=new URL(req.url,"http://localhost");
-  if(u.pathname.startsWith("/social-api/")){await api(req,res,u);return true}
+  if(u.pathname.startsWith("/social-api/")){await withSocialDbLock(()=>api(req,res,u));return true}
   if(u.pathname==="/social-agent/emblem.png"){res.writeHead(200,{"Content-Type":"image/png","Cache-Control":"public, max-age=86400"});res.end(EMBLEM_PNG);return true}
   if(u.pathname==="/social-agent/brand.png"){res.writeHead(200,{"Content-Type":"image/png","Cache-Control":"public, max-age=86400"});res.end(brandPng());return true}
   if(u.pathname==="/social-agent"){res.writeHead(302,{Location:"/social-agent/"});res.end();return true}
