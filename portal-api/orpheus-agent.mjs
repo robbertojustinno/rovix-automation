@@ -266,8 +266,8 @@ export async function attachPreapproved(db,post){
     const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:chosen.object_key}));
     const original=Buffer.from(await r.Body.transformToByteArray());
     const escape=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
-    const text=await sharp({text:{text:escape(String(post.title||'CIPHER').slice(0,150)),font:'DejaVu Sans Bold 48',width:920,height:160,align:'center',rgba:true}}).png().toBuffer();
-    const footer=await sharp({text:{text:'CIPHER — PROTOCOLO ORPHEUS',font:'DejaVu Sans 24',width:920,align:'center',rgba:true}}).png().toBuffer();
+    const text=await sharp({text:{text:'<span foreground="white">'+escape(String(post.title||'CIPHER').slice(0,150))+'</span>',font:'DejaVu Sans Bold 48',width:920,height:160,align:'center',rgba:true}}).png().toBuffer();
+    const footer=await sharp({text:{text:'<span foreground="white">CIPHER — PROTOCOLO ORPHEUS</span>',font:'DejaVu Sans 24',width:920,align:'center',rgba:true}}).png().toBuffer();
     const band=await sharp({create:{width:1080,height:300,channels:4,background:{r:3,g:8,b:18,alpha:0.88}}}).png().toBuffer();
     const tinted=await sharp(text).tint('#ffffff').png().toBuffer();
     const bottom=await sharp(footer).tint('#ffffff').png().toBuffer();
