@@ -209,6 +209,23 @@ const server=http.createServer(async(req,res)=>{
       return reply(res,200,{download_url:downloadUrl,expires_in:300},origin);
     }
 
+    if(req.method==="POST"&&req.url==="/preview-url"){
+      await requireAdmin(token);
+      const body=await readBody(req);
+      const rows=await supa("rovix_files?id=eq."+encodeURIComponent(body.file_id)+"&kind=eq.file&select=id,name,object_key,mime_type",token);
+      const file=rows?.[0];
+      if(!file)return reply(res,404,{error:"file_not_found"},origin);
+      if(!String(file.mime_type||"").startsWith("image/"))return reply(res,400,{error:"preview_not_supported"},origin);
+      const cmd=new GetObjectCommand({
+        Bucket:R2_BUCKET,
+        Key:file.object_key,
+        ResponseContentType:file.mime_type||"application/octet-stream",
+        ResponseContentDisposition:'inline; filename="'+String(file.name).replace(/"/g,"")+'"'
+      });
+      const previewUrl=await getSignedUrl(s3(),cmd,{expiresIn:900});
+      return reply(res,200,{preview_url:previewUrl,expires_in:900},origin);
+    }
+
     if(req.method==="POST"&&req.url==="/share-url"){
       await requireAdmin(token);
       const body=await readBody(req);
