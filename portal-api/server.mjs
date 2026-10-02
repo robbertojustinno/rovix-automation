@@ -93,7 +93,22 @@ async function supa(path,token,init={}){
     throw Object.assign(new Error(t||"SUPABASE_ERROR"),{status:r.status});
   }
   const t=await r.text();
-  return t?JSON.parse(t):null;
+  const result=t?JSON.parse(t):null;
+  if(path.startsWith("rovix_files")&&["POST","PATCH","DELETE"].includes(init.method)){
+    try{await syncOrpheusCatalog(token)}catch(e){console.error("ORPHEUS catalog sync failed",e.message)}
+  }
+  return result;
+}
+async function syncOrpheusCatalog(token){
+  const folderId="080b03b1-8429-44a1-9ae2-2dcaf086a4f7",ownerId="c926b386-69e0-4fbb-be99-6aa1a7872d86";
+  const folders=await supa("rovix_files?id=eq."+folderId+"&owner_id=eq."+ownerId+"&kind=eq.folder&select=id",token);
+  if(!folders?.length)return;
+  const files=[];let offset=0;
+  while(true){
+    const page=await supa("rovix_files?parent_id=eq."+folderId+"&owner_id=eq."+ownerId+"&kind=eq.file&select=id,name,object_key,mime_type,size_bytes&order=id&limit=500&offset="+offset,token);
+    files.push(...(page||[]));if(!page||page.length<500)break;offset+=500;
+  }
+  await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:"orpheus-agent/preapproved-catalog.json",Body:JSON.stringify({folderId,ownerId,files,updatedAt:new Date().toISOString()}),ContentType:"application/json"}));
 }
 async function requireAdmin(token){
   const rows=await supa("rovix_profiles?select=role",token);
