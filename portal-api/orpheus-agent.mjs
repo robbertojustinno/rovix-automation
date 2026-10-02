@@ -41,12 +41,23 @@ const POSTING_POLICY=Object.freeze({
     approvedStandard:"cinematic-photoreal-20261001",
     promptTemplate:"Official artworks in the user's Drive/R2 define the mandatory visual quality and cinematic photographic identity. Match their finish, realism and character consistency. The approved dossier is one scene, not a repeating template. Do not rotate through a fixed catalogue or recycle images and compositions periodically. Revisiting a character or theme requires a materially new situation, environment, action and camera composition, not different colors, crops or mirroring. Other established characters from the CIPHER story, including supporting characters, may appear; do not limit the cast to Blake, Lara, Evelyn and Gordon. Use canonical information and official references where available; do not invent identities or unsupported story events. Use case: ads-marketing. Create one premium cinematic espionage thriller Instagram promotional artwork for the novel CIPHER — Protocolo Orpheus by Roberto Justino. Scene/backdrop: {{setting}}. Subject and action: {{character}} / {{action}}. Composition/framing: {{framing}} / {{composition}}. Sophisticated contemporary film-poster art direction, photorealistic photography, physically convincing materials, textured surfaces, rich shadow detail, selective focus, dramatic practical lighting, exceptionally polished finish and narrative intrigue rather than generic sci-fi. Dark navy and muted silver with restrained red warning light, adapted naturally to the scene. Preserve official character identity using official references when a named character appears. Official Drive/R2 assets are reference and fallback only. Integrate only the exact supplied publication text in clean legible typography in the lower quarter, with the smaller footer 'CIPHER — PROTOCOLO ORPHEUS'. Vary character, environment, action, camera angle, composition, props and lighting between publications. Never copy the previous scene, merely recolor it or mirror it. No geometric cartoon figures, no flat vector illustration, no crude procedural drawings, no collages, no diagram, no stock watermarks. The image must tell a coherent espionage story.",
     approvedExample:"No people: a tense, atmospheric clandestine intelligence archive at night, photorealistic macro foreground of a worn classified dossier partially open on a dark metal desk, a tiny encrypted USB device, a redacted document, an old photograph turned face-down, rain reflections from a Venetian-blind window, deep background glimpses of a secure server room and a subtly illuminated ORPHEUS terminal. Text: 'ALGUNS ARQUIVOS' / 'NUNCA DEVERIAM SER ABERTOS.' Footer: 'CIPHER — PROTOCOLO ORPHEUS'.",
+    approvedSceneExamples:[
+      {concept:"vigilancia-ferroviaria",scene:"Estacao ferroviaria sob chuva a meia-noite; agente anonimo distante com maleta; camera de vigilancia em primeiro plano",framing:"plano amplo diagonal elevado",composition:"profundidade dos trilhos e personagem pequeno",text:"VOCE NAO ESTA SOZINHO."},
+      {concept:"escuta-em-relogio",scene:"Mecanismo de relogio analogico aberto com dispositivo de escuta oculto; pinca de precisao",framing:"macro obliquo com foco seletivo",composition:"objeto dominante e fundo desfocado",text:"O PERIGO ESTA NOS DETALHES."}
+    ],
+    approvedExamplesAreQualityReferencesOnly:true,
     minWidth:1080,
     minHeight:1080,
     preferredFormats:["1080x1080","1080x1350"],
     style:["thriller-de-espionagem","cinematografico","classificado","noturno","CIPHER"],
     palette:["azul-escuro","vermelho","prata","grafite","preto"],
     requirements:[
+      "PADRAO APROVADO: fotografia cinematografica premium de espionagem, materiais fisicamente convincentes, luz pratica dramatica, profundidade e acabamento profissional",
+      "exemplos aprovados de estacao e relogio definem qualidade; nunca se tornam modelos de cena repetidos",
+      "variar personagem, cenario, acao, enquadramento e composicao; trocar apenas cor, texto, corte ou espelhamento nao constitui nova arte",
+      "alternar planos amplos, medios e macros, cenas com personagens canonicos e cenas sem pessoas, objetos, pistas e tecnologia",
+      "paleta adaptada a cena permite luz ambar e tons naturais; nao impor sempre o mesmo esquema azul/vermelho",
+      "tipografia portuguesa correta, legivel e com margens seguras; nenhuma marca dagua",
       "PADRAO OBRIGATORIO: qualidade, realismo e identidade cinematografica das artes oficiais do Drive/R2",
       "nao repetir imagens ou cenas por rotacao periodica de um catalogo fixo",
       "retomar personagem ou tema somente em uma situacao visual materialmente nova",
@@ -390,3 +401,4 @@ export async function handleOrpheusAgent(req,res){
   if(u.pathname.startsWith("/orpheus-agent/")){const rel=u.pathname.slice("/orpheus-agent/".length)||"index.html",safe=rel.replace(/\.\./g,""),file=path.join(PUBLIC,safe);if(!file.startsWith(PUBLIC)||!fs.existsSync(file)||fs.statSync(file).isDirectory()){text(res,404,"Não encontrado");return true}text(res,200,fs.readFileSync(file),mime(file));return true}
   return false;
 }
+
