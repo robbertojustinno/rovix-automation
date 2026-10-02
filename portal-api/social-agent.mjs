@@ -27,15 +27,25 @@ const MAX_IMAGE_JOBS=2;
 const EMBLEM_PNG=fs.readFileSync(path.join(__dirname,"social-agent-assets","rovix-emblem.png"));
 const DEFAULT_SETTINGS={enabled:true,postsPerDay:3,approvalMode:"manual",scheduleMode:"interval",startHour:9,endHour:19,postTimes:["09:00","14:00","19:00"],timezone:"America/Sao_Paulo"};
 const POSTING_POLICY=Object.freeze({
-  id:"rovix-v5-ai-original-scenes",
+  id:"rovix-cinematic-metallic-20261001",
   immutable:true,
+  approvedReference:"/social-agent/reference-rovix-cinematic.jpg",
+  approvedAt:"2026-10-01",
+  referenceTitle:"Precisão que move o futuro",
   image:{
     minWidth:1080,
     minHeight:1080,
     preferredFormats:["1080x1080","1080x1350"],
-    style:["3d-animado","premium","industrial","tecnologico","padrao-rapido"],
+    style:["3D cinematográfico","acabamento metálico premium","tecnologia aplicada","cenas com propósito","referência visual aprovada"],
     palette:["azul-escuro","vermelho","prata","grafite","preto"],
     requirements:[
+      "Referência obrigatória: arte aprovada Precisão que move o futuro; preservar acabamento, iluminação, profundidade e impacto visual",
+      "Metal escovado, titânio, prata e grafite com textura detalhada; azul profundo e ciano, com vermelho discreto na identidade ROVIX",
+      "Iluminação cinematográfica, contraste controlado e profundidade; protagonista visual claro e composição publicitária marcante",
+      "Representar a função real de cada produto em uma cena compreensível; máquinas, sensores e operações tecnicamente plausíveis",
+      "Variar assunto, ação, cenário, enquadramento e composição; não transformar toda postagem no mesmo robô ou reutilizar esta imagem",
+      "Proibidos cenários genéricos sem relação com o conteúdo, objetos aleatórios, imagens pobres e mecânica deformada",
+      "Resolução e ausência de repetição não substituem avaliação da qualidade e da coerência visual",
       "logo ROVIX integrada sem distorcao",
       "composicao publicitaria profissional",
       "tipografia forte e legivel",
@@ -62,7 +72,7 @@ const POSTING_POLICY=Object.freeze({
     keepBrandFamily:true,
     avoidRepeatedThemes:true,
     visualEngine:"ROVIX V5 Original AI Scenes (FREE)",
-    defaultVisualLevel:"rapido"
+    defaultVisualLevel:"cinematografico"
   }
 });
 const TOPICS={
@@ -328,13 +338,13 @@ const ORIGINAL_SUBJECTS=Object.freeze({
 export function buildOriginalScene(post,project,serial){
   const subjects=ORIGINAL_SUBJECTS[project.id]||["software engineer testing a prototype workstation","technician integrating electronic equipment","product developer presenting a practical software tool","engineering team comparing technical prototypes"];
   const cameras=["wide environmental view","close-up with shallow depth of field","high-angle view","isometric composition","low-angle cinematic view","over-the-shoulder view","three-quarter perspective","top-down tabletop view"];
-  const lights=["soft morning daylight","warm late-afternoon rim light","crisp neutral studio lighting","cool twilight with practical lamps","bright diffused skylight","dramatic side lighting"];
-  const palettes=["cobalt blue and silver","warm graphite and copper","ivory with deep blue accents","charcoal with red accents","teal and brushed metal","warm beige and dark blue"];
+  const lights=["cinematic cool key light with warm rim light","dramatic side lighting and subtle volumetric blue light","controlled high-contrast studio lighting","moody practical lights with crisp metal reflections","cinematic diffused skylight and rim lighting","dramatic backlight with clear readable subject"];
+  const palettes=["deep navy, titanium silver and restrained cyan","graphite and brushed steel with subtle red accents","dark cobalt and chrome with cyan accents","charcoal and silver with restrained red accents","deep blue and brushed metal","navy, steel and subtle warm highlights"];
   const digest=crypto.createHash("sha256").update(post.id+":"+serial).digest();
   const subject=subjects[serial%subjects.length],camera=cameras[digest[0]%cameras.length],light=lights[digest[1]%lights.length],palette=palettes[digest[2]%palettes.length];
   const focus=35+digest[3]%70,seed=digest.readUInt32BE(4);
   const conceptKey=crypto.createHash("sha256").update(JSON.stringify({project:project.id,subject,camera,light,palette,focus})).digest("hex");
-  const prompt=`Premium stylized 3D animated editorial illustration. Scene: ${subject}. ${camera}, ${focus}mm lens perspective. ${light}. Materials: carefully modeled realistic metal, glass, fabric and wood. Palette: ${palette}. Natural grounded environment, meaningful believable actions. Theme: ${post.title}. Brand context: ${project.name}. Square advertising composition, main subject in upper two thirds with room for caption at the bottom. Original scene with varied props and spatial composition. No text, no typography, no logos, no watermark. ### blurry, distorted, low quality, letters, watermark, duplicated objects, generic humanoid robot, illegible interfaces`;
+  const prompt=`Spectacular premium cinematic 3D advertising artwork for ROVIX Automation, extraordinary polished detail and visual storytelling, high-end animated film finish with physically grounded materials. Scene: ${subject}. This exact product function must be unmistakable: ${project.description||project.name}. Theme: ${post.title}. ${camera}, ${focus}mm lens perspective. ${light}. Carefully modeled brushed titanium, polished steel, graphite and glass where appropriate to the product; crisp material microtexture and sophisticated reflections. Palette: ${palette}. One strong meaningful hero subject doing a plausible useful action, mechanically coherent connections and proportions, believable working environment, cinematic depth and asymmetrical composition. Make this composition original; vary subject, action, setting and camera instead of repeating one robot. Square campaign composition, main subject in upper two thirds with room for caption at bottom. Preserve approved ROVIX cinematic metallic quality while representing THIS product, not an unrelated industrial robot for every product. No text, no typography, no logos; real branding is added separately. ### generic office, empty workstation, unrelated appliance, random props, meaningless holograms, flat lighting, poor composition, blurry, distorted machinery, low quality, letters, watermark, duplicated objects, malformed hands, generic humanoid robot, illegible interfaces`;
   return{subject,camera,light,palette,focus,seed,conceptKey,prompt,serial};
 }
 async function hordeFetch(route,options={}){
