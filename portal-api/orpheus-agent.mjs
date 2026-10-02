@@ -6,7 +6,8 @@ import {fileURLToPath} from "node:url";
 import {S3Client,PutObjectCommand,GetObjectCommand,ListObjectsV2Command,DeleteObjectsCommand} from "@aws-sdk/client-s3";
 import {getSignedUrl} from "@aws-sdk/s3-request-presigner";
 import sharp from "sharp";
-import {ENGINE,repairQueue} from "./orpheus-visual.mjs";
+import {PROVIDER,selectScene,generate,duplicateImage,publishable} from "./orpheus-flux.mjs";
+const ENGINE=PROVIDER;
 
 const __dirname=path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC=path.join(__dirname,"orpheus-agent-public");
@@ -150,8 +151,11 @@ async function loadDb(){
     if(!existing){db.projects.push({...p});changed=true}
     else for(const key of ["description","projectStatus","category","topics"])if(p[key]!==undefined&&JSON.stringify(existing[key])!==JSON.stringify(p[key])){existing[key]=p[key];changed=true}
   }
-  const repair=repairQueue(db,{today:saoDate(),schedule:scheduleFor,makeId:id});
-  if(repair.changed){changed=true;console.log('[ORPHEUS Queue] Reparo iniciado',JSON.stringify(repair))}
+  db.meta.artHistory=db.meta.artHistory||[];
+  for(const p of db.posts){
+    if(p.artStatus==='generating'&&Date.now()-Date.parse(p.artStartedAt||0)>10*60000){p.artStatus='error';p.artError='Geração interrompida; nova tentativa após 30 minutos';p.artRetryAt=new Date(Date.now()+30*60000).toISOString();changed=true;}
+    if(!['published','publishing','deleted','rejected'].includes(p.status)&&p.artStatus==='ready'&&!p.artValidation){p.artStatus='review_pending';changed=true;}
+  }
   if(changed)await saveDb(db);
   await purgeRejectedArtwork(db);return db;
 }
@@ -203,9 +207,9 @@ async function accountAnalytics(days=7){
   return promise;
 }
 async function testMeta(){const c=metaCfg(),d=await metaFetch(c.ig,{params:{fields:"id,username,account_type"}});return{connected:true,id:d.id||c.ig,username:d.username||null,accountType:d.account_type||null,apiHost:c.host,apiVersion:c.version}}
-async function mediaUrl(post){if(post.artStatus==="awaiting_generator")throw new Error("Arte rejeitada removida; nova prévia pendente");if(post.imageKey)return await getSignedUrl(s3(),new GetObjectCommand({Bucket:R2_BUCKET,Key:post.imageKey}),{expiresIn:900});if(/\/logo\.jpg(?:$|\?)/i.test(post.imageUrl||""))return ORPHEUS_PUBLIC_BASE+"/brand.png";if(/^https:\/\//i.test(post.imageUrl||""))return post.imageUrl;return ORPHEUS_PUBLIC_BASE+"/brand.png"}
+async function mediaUrl(post){if(!["ready","review_pending"].includes(post.artStatus))throw new Error(post.artError||"Arte ainda sem prévia; geração pendente");if(post.imageKey)return await getSignedUrl(s3(),new GetObjectCommand({Bucket:R2_BUCKET,Key:post.imageKey}),{expiresIn:900});if(/\/logo\.jpg(?:$|\?)/i.test(post.imageUrl||""))return ORPHEUS_PUBLIC_BASE+"/brand.png";if(/^https:\/\//i.test(post.imageUrl||""))return post.imageUrl;return ORPHEUS_PUBLIC_BASE+"/brand.png"}
 async function waitContainer(id){for(let i=0;i<12;i++){const d=await metaFetch(id,{params:{fields:"status_code,status"}}),s=String(d.status_code||"").toUpperCase();if(!s||s==="FINISHED")return;if(s==="ERROR"||s==="EXPIRED")throw new Error(d.status||("Container "+s));await new Promise(r=>setTimeout(r,1800))}throw new Error("A mídia ainda não ficou pronta para publicação")}
-async function publish(post){if(post.artStatus&&post.artStatus!=="ready")throw new Error("Arte final ainda não está pronta");const c=metaCfg(),url=await mediaUrl(post);const created=await metaFetch(c.ig+"/media",{method:"POST",params:{image_url:url,caption:post.caption||""}});if(!created.id)throw new Error("A Meta não retornou o ID do container");await waitContainer(created.id);const pub=await metaFetch(c.ig+"/media_publish",{method:"POST",params:{creation_id:created.id}});if(!pub.id)throw new Error("A Meta não retornou o ID da publicação");return{...pub,containerId:created.id}}
+async function publish(post){if(!publishable(post))throw new Error("Arte final precisa estar pronta e validada na prévia");const c=metaCfg(),url=await mediaUrl(post);const created=await metaFetch(c.ig+"/media",{method:"POST",params:{image_url:url,caption:post.caption||""}});if(!created.id)throw new Error("A Meta não retornou o ID do container");await waitContainer(created.id);const pub=await metaFetch(c.ig+"/media_publish",{method:"POST",params:{creation_id:created.id}});if(!pub.id)throw new Error("A Meta não retornou o ID da publicação");return{...pub,containerId:created.id}}
 async function uploadImage(data){const m=String(data.dataUrl||"").match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);if(!m)throw new Error("Imagem inválida. Use JPG, PNG ou WEBP");const b=Buffer.from(m[2],"base64");if(b.length>8*1024*1024)throw new Error("Imagem maior que 8 MB");const ext=m[1]==="image/jpeg"?"jpg":m[1].split("/")[1],key="orpheus-agent/media/"+Date.now()+"-"+crypto.randomBytes(6).toString("hex")+"."+ext;await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:key,Body:b,ContentType:m[1]}));return key}
 function id(p="id"){return p+"-"+Date.now()+"-"+crypto.randomBytes(3).toString("hex")}
 function saoDate(){return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date())}
@@ -247,8 +251,36 @@ function titleLines(value){
 }
 async function prepareArtworkForQueue(){
   const db=await loadDb();
-  return{made:0,pending:db.posts.filter(p=>p.artStatus==="awaiting_generator"||p.artStatus==="placeholder").length,reason:"cinematic_generator_not_connected"};
+  const queue=db.posts.filter(p=>!['published','publishing','deleted','rejected'].includes(p.status)&&p.scheduledAt&&new Date(p.scheduledAt)>new Date(Date.now()-3600000)).sort((a,b)=>new Date(a.scheduledAt)-new Date(b.scheduledAt));
+  if(Date.parse(db.meta.generatorRetryAt||0)>Date.now())return{made:0,reason:db.meta.generatorError,retryAt:db.meta.generatorRetryAt};
+  const post=queue.find(p=>['placeholder','awaiting_generator','error'].includes(p.artStatus)&&Date.parse(p.artRetryAt||0)<=Date.now());
+  console.log('[ORPHEUS Artwork Queue]',JSON.stringify({provider:PROVIDER,queue:queue.map(p=>({id:p.id,date:p.generatedDate||p.scheduledAt,status:p.artStatus})),ready:queue.filter(p=>publishable(p)).length,review:queue.filter(p=>p.artStatus==='review_pending').length}));
+  if(!post)return{made:0,pending:queue.filter(p=>!publishable(p)).length};
+  try{
+    post.visualConcept=selectScene(db.meta.artHistory,post);post.artStatus='generating';post.artStartedAt=new Date().toISOString();post.artError='';
+    db.meta.artHistory.push({...post.visualConcept,postId:post.id,at:post.artStartedAt,state:'reserved'});await saveDb(db);
+    const result=await generate(post.visualConcept);
+    if(duplicateImage(result,db.meta.artHistory))throw new Error('DUPLICATE_IMAGE: imagem repetida ou visualmente semelhante bloqueada');
+    const key='orpheus-agent/flux/'+result.hash+'.jpg';
+    await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:key,Body:result.buffer,ContentType:'image/jpeg'}));
+    const stored=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:key}));const actual=Buffer.from(await stored.Body.transformToByteArray());
+    if(!actual.equals(result.buffer))throw new Error('R2_READBACK_FAILED');
+    post.imageKey=key;post.imageUrl='';post.artStatus='review_pending';post.artHash=result.hash;post.visualEngine=PROVIDER;delete post.artValidation;delete post.artPreviewViewedAt;
+    Object.assign(db.meta.artHistory.at(-1),{hash:result.hash,perceptual:result.perceptual,state:'stored',elapsedMs:result.elapsedMs});
+    db.meta.generatorMeasurements=db.meta.generatorMeasurements||[];db.meta.generatorMeasurements.push({at:new Date().toISOString(),elapsedMs:result.elapsedMs,success:true});
+    delete db.meta.generatorError;delete db.meta.generatorRetryAt;
+    console.log('[ORPHEUS Artwork Stored]',JSON.stringify({id:post.id,hash:result.hash,bytes:actual.length,readback:true,elapsedMs:result.elapsedMs,concept:post.visualConcept,preview:'authenticated-image-url',status:post.artStatus}));
+    await saveDb(db);return{made:1,ready:0,reviewPending:1};
+  }catch(e){
+    post.artStatus='error';post.artError=e.message;const quota=/quota|exceed|429|ZeroGPU|GPU.*limit/i.test(e.message),identity=/CHARACTER_REFERENCE_REQUIRED/.test(e.message);
+    post.artRetryAt=new Date(Date.now()+(identity?24*60:quota?360:30)*60000).toISOString();
+    if(!identity){db.meta.generatorError=e.message;db.meta.generatorRetryAt=post.artRetryAt;}
+    db.meta.generatorMeasurements=db.meta.generatorMeasurements||[];db.meta.generatorMeasurements.push({at:new Date().toISOString(),success:false,error:e.message});
+    await saveDb(db);console.error('[ORPHEUS Artwork Error]',JSON.stringify({id:post.id,error:e.message,retryAt:post.artRetryAt,paidFallback:false}));return{made:0,error:e.message,retryAt:post.artRetryAt};
+  }
 }
+function postDate(p){return p.scheduledAt?new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(p.scheduledAt)):p.generatedDate;}
+
 function buildCaption(project,topic,i){
   const cipher=[
     topic+" faz parte do universo CIPHER — Protocolo Orpheus. Arquivos, pistas e personagens se cruzam em uma história de espionagem, vigilância e segredos.",
@@ -268,7 +300,7 @@ async function ensureDailyContent(force=false,requestedDate=""){
   if(!s.enabled&&!force)return{created:0,target:0,day:saoDate(),reason:"disabled"};
   const day=requestedDate||saoDate();
   const target=Math.max(1,Math.min(12,Number(s.postsPerDay)||3));
-  const existingPosts=db.posts.filter(p=>p.generatedDate===day&&p.generatedBy==="agent"&&!["deleted","rejected"].includes(p.status));
+  const existingPosts=db.posts.filter(p=>postDate(p)===day&&ALLOWED_UNIVERSE_PROJECTS.has(p.projectId)&&!["deleted","rejected"].includes(p.status));
   const existing=existingPosts.length;
   if(existing>=target)return{created:0,target,day,existing,reason:"daily_target_already_met",existingPosts:existingPosts.map(p=>({id:p.id,title:p.title,status:p.status,scheduledAt:p.scheduledAt}))};
   const startIndex=existing;
@@ -296,7 +328,7 @@ let publishingBusy=false;
 async function publishDueLocked(){
   const db=await loadDb();
   if(!db.settings.enabled||activeCooldown(db)||db.meta.apiAccessBlocked)return [];
-  const now=new Date(),due=db.posts.filter(p=>p.status==="approved"&&p.artStatus==="ready"&&p.scheduledAt&&new Date(p.scheduledAt)<=now&&(!p.nextRetryAt||new Date(p.nextRetryAt)<=now)).slice(0,10),results=[];
+  const now=new Date(),due=db.posts.filter(p=>p.status==="approved"&&publishable(p)&&p.scheduledAt&&new Date(p.scheduledAt)<=now&&(!p.nextRetryAt||new Date(p.nextRetryAt)<=now)).slice(0,10),results=[];
   if(due.length)console.log("[ORPHEUS Agent] Publicações vencidas:",due.length,now.toISOString());
   for(const p of due){
     p.status="publishing";p.publishStartedAt=new Date().toISOString();
@@ -330,7 +362,9 @@ async function publishDueLocked(){
 let operationTail=Promise.resolve();
 function serialOperation(fn){const result=operationTail.then(fn);operationTail=result.catch(()=>{});return result}
 let busy=false;
-async function automationTick(){if(busy)return;busy=true;try{await serialOperation(async()=>{await ensureDailyContent(false);await prepareArtworkForQueue();
+async function automationTick(){if(busy)return;busy=true;try{await serialOperation(async()=>{const tomorrow=new Date(Date.parse(saoDate()+"T12:00:00Z")+86400000).toISOString().slice(0,10);
+    for(let day=tomorrow;day<= (tomorrow<='2026-10-05'?'2026-10-05':tomorrow);day=new Date(Date.parse(day+'T12:00:00Z')+86400000).toISOString().slice(0,10))await ensureDailyContent(false,day);
+    await prepareArtworkForQueue();
     const db=await loadDb();
     if(!db.meta.connectionRecheck20261001&&metaConfigured()){
       try{const result=await testMeta();delete db.meta.apiAccessBlocked;console.log('[ORPHEUS Meta] Conectado',result.username)}
@@ -354,13 +388,15 @@ async function api(req,res,u){
   if(!authed(req))return json(res,401,{error:"Autenticação obrigatória"});
 
   const db=await loadDb();
-  if(req.method==="GET"&&u.pathname==="/orpheus-api/status")return json(res,200,{app:"ORPHEUS Social Agent",targetInstagram:TARGET_INSTAGRAM,universe:"CIPHER",automaticScope:["cipher","orpheus"],version:"0.8.0",online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:false,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"Padrão cinematográfico aprovado; gerador pendente",storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
+  if(req.method==="GET"&&u.pathname==="/orpheus-api/status")return json(res,200,{app:"ORPHEUS Social Agent",targetInstagram:TARGET_INSTAGRAM,universe:"CIPHER",automaticScope:["cipher","orpheus"],version:"0.9.0",online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:true,generator:{provider:PROVIDER,retryAt:db.meta.generatorRetryAt||null,error:db.meta.generatorError||null,measurements:db.meta.generatorMeasurements||[],reviewRequired:true},visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"FLUX gratuito conectado; revisão visual obrigatória",storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
   if(req.method==="GET"&&u.pathname==="/orpheus-api/meta/test"){if(!metaConfigured())return json(res,200,{connected:false,error:"Credenciais Meta ainda não configuradas"});try{const result=await testMeta();if(db.meta.apiAccessBlocked){delete db.meta.apiAccessBlocked;await saveDb(db)}return json(res,200,result)}catch(e){console.error("[ORPHEUS Agent] Teste Meta:",e.httpStatus||"",e.metaCode||"",e.metaSubcode||"",e.message);if(/API access blocked/i.test(e.message||"")&&!db.meta.apiAccessBlocked){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:e.metaCode||null};await saveDb(db)}return json(res,200,{connected:false,error:e.message,httpStatus:e.httpStatus||null,metaCode:e.metaCode||null,metaSubcode:e.metaSubcode||null})}}
   if(req.method==="GET"&&u.pathname==="/orpheus-api/meta/analytics"){const days=Number(u.searchParams.get("days")||7);if(![7,30].includes(days))return json(res,400,{error:"Período inválido"});return json(res,200,await accountAnalytics(days))}
   if(req.method==="GET"&&u.pathname==="/orpheus-api/projects")return json(res,200,db.projects);
   if(req.method==="GET"&&u.pathname==="/orpheus-api/posts")return json(res,200,db.posts.filter(p=>p.status!=="deleted"));
   const imgUrlMatch=u.pathname.match(/^\/orpheus-api\/posts\/([^/]+)\/image-url$/);
-  if(req.method==="GET"&&imgUrlMatch){const p=db.posts.find(x=>x.id===imgUrlMatch[1]);if(!p)return json(res,404,{error:"Post não encontrado"});try{return json(res,200,{url:await mediaUrl(p)})}catch(e){return json(res,400,{error:e.message})}}
+  if(req.method==="GET"&&imgUrlMatch){const p=db.posts.find(x=>x.id===imgUrlMatch[1]);if(!p)return json(res,404,{error:"Post não encontrado"});try{const url=await mediaUrl(p);return json(res,200,{url})}catch(e){return json(res,400,{error:e.message})}}
+  const viewed=u.pathname.match(/^\/orpheus-api\/posts\/([^/]+)\/preview-viewed$/);
+  if(req.method==='POST'&&viewed){const p=db.posts.find(x=>x.id===viewed[1]);if(!p||!['ready','review_pending'].includes(p.artStatus))return json(res,409,{error:'Prévia não disponível'});p.artPreviewViewedAt=new Date().toISOString();await saveDb(db);return json(res,200,{ok:true});}
   const imgMatch=u.pathname.match(/^\/orpheus-api\/posts\/([^/]+)\/image$/);
   if(req.method==="GET"&&imgMatch){const p=db.posts.find(x=>x.id===imgMatch[1]);if(!p)return json(res,404,{error:"Post não encontrado"});try{const loc=await mediaUrl(p);res.writeHead(302,{Location:loc,"Cache-Control":"no-store"});res.end();return}catch(e){return json(res,400,{error:e.message})}}
   if(req.method==="GET"&&u.pathname==="/orpheus-api/settings")return json(res,200,db.settings);
@@ -368,7 +404,7 @@ async function api(req,res,u){
   if(req.method==="PUT"&&u.pathname==="/orpheus-api/settings"){const d=await body(req);const postsPerDay=Math.max(1,Math.min(12,Number(d.postsPerDay)||3));const incomingTimes=Array.isArray(d.postTimes)?d.postTimes.map(x=>String(x)).filter(x=>/^([01]\d|2[0-3]):([0-5]\d)$/.test(x)).slice(0,postsPerDay):[];db.settings={...db.settings,enabled:Boolean(d.enabled),postsPerDay,approvalMode:["manual","auto","hybrid"].includes(d.approvalMode)?d.approvalMode:"manual",scheduleMode:["interval","exact"].includes(d.scheduleMode)?d.scheduleMode:"interval",startHour:Math.max(0,Math.min(23,Number(d.startHour)||9)),endHour:Math.max(0,Math.min(23,Number(d.endHour)||19)),postTimes:incomingTimes};await saveDb(db);return json(res,200,db.settings)}
   if(req.method==="POST"&&u.pathname==="/orpheus-api/agent/run"){const d=await body(req),day=String(d.date||saoDate());if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||!Number.isFinite(Date.parse(day+"T00:00:00Z"))||new Date(day+"T00:00:00Z").toISOString().slice(0,10)!==day||day<saoDate())return json(res,400,{error:"Selecione uma data válida, a partir de hoje"});const a=await ensureDailyContent(true,day),art=await prepareArtworkForQueue();return json(res,200,{...a,art})}
   if(req.method==="POST"&&u.pathname==="/orpheus-api/uploads"){try{return json(res,201,{imageKey:await uploadImage(await body(req))})}catch(e){return json(res,400,{error:e.message})}}
-  if(req.method==="POST"&&u.pathname==="/orpheus-api/posts"){const d=await body(req),pr=db.projects.find(x=>x.id===d.projectId);if(!pr)return json(res,400,{error:"Projeto inválido"});const p={id:id("post"),projectId:pr.id,projectName:pr.name,title:String(d.title||"Novo post"),caption:String(d.caption||""),imageKey:String(d.imageKey||""),imageUrl:String(d.imageUrl||ORPHEUS_PUBLIC_BASE+"/brand.png"),artStatus:d.imageKey||d.imageUrl?"ready":"placeholder",scheduledAt:String(d.scheduledAt||""),status:"draft",createdAt:new Date().toISOString()};db.posts.unshift(p);await saveDb(db);return json(res,201,p)}
+  if(req.method==="POST"&&u.pathname==="/orpheus-api/posts"){const d=await body(req),pr=db.projects.find(x=>x.id===d.projectId);if(!pr)return json(res,400,{error:"Projeto inválido"});const p={id:id("post"),projectId:pr.id,projectName:pr.name,title:String(d.title||"Novo post"),caption:String(d.caption||""),imageKey:String(d.imageKey||""),imageUrl:String(d.imageUrl||ORPHEUS_PUBLIC_BASE+"/brand.png"),artStatus:d.imageKey||d.imageUrl?"review_pending":"placeholder",scheduledAt:String(d.scheduledAt||""),status:"draft",createdAt:new Date().toISOString()};db.posts.unshift(p);await saveDb(db);return json(res,201,p)}
   const edit=u.pathname.match(/^\/orpheus-api\/posts\/([^/]+)$/);
   if(edit&&(req.method==="PUT"||req.method==="DELETE")){
     const p=db.posts.find(x=>x.id===edit[1]&&x.status!=="deleted");if(!p)return json(res,404,{error:"Post não encontrado"});
@@ -381,11 +417,11 @@ async function api(req,res,u){
     if(!title||!caption)return json(res,400,{error:"Informe título e legenda"});
     if(d.scheduledAt&&isNaN(new Date(d.scheduledAt).getTime()))return json(res,400,{error:"Data de agendamento inválida"});
     Object.assign(p,{projectId:pr.id,projectName:pr.name,title,caption,scheduledAt:String(d.scheduledAt||""),updatedAt:new Date().toISOString()});
-    if(d.imageKey){p.imageKey=String(d.imageKey);p.imageUrl="";p.artStatus="ready"}
-    else if(d.imageUrl){p.imageKey="";p.imageUrl=String(d.imageUrl);p.artStatus="ready"}
+    if(d.imageKey){p.imageKey=String(d.imageKey);p.imageUrl="";p.artStatus="review_pending";delete p.artValidation;delete p.artPreviewViewedAt}
+    else if(d.imageUrl){p.imageKey="";p.imageUrl=String(d.imageUrl);p.artStatus="review_pending";delete p.artValidation;delete p.artPreviewViewedAt}
     await saveDb(db);return json(res,200,p);
   }
-  const m=u.pathname.match(/^\/orpheus-api\/posts\/([^/]+)\/(approve|reject|publish)$/);if(req.method==="POST"&&m){const p=db.posts.find(x=>x.id===m[1]);if(!p)return json(res,404,{error:"Post não encontrado"});if(p.status==="publishing"||p.status==="published")return json(res,409,{error:"Publicação já iniciada ou concluída; confira o Instagram antes de tentar novamente"});if(m[2]==="approve"){if(p.artStatus!=="ready")return json(res,409,{error:"Confira a arte final antes de aprovar"});p.status="approved";p.lastError=""}else if(m[2]==="reject")p.status="rejected";else{if(db.meta.apiAccessBlocked)return json(res,429,{error:"Acesso à API da Meta bloqueado. Execute um teste de conexão depois que a Meta liberar o acesso."});if(publishingBusy)return json(res,409,{error:"Há outra publicação em andamento. Tente novamente em instantes"});const until=activeCooldown(db);if(until)return json(res,429,{error:cooldownMessage(until),retryAt:until});publishingBusy=true;try{p.status="publishing";p.publishStartedAt=new Date().toISOString();await saveDb(db);const r=await publish(p);p.status="published";p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError="";delete p.nextRetryAt}catch(e){if(p.status==="publishing"){p.status="error";if(isMetaActionLimit(e)){db.meta.publishCooldownUntil=cooldownDate(e);p.lastError=cooldownMessage(db.meta.publishCooldownUntil)}else if(/API access blocked/i.test(e.message||"")){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:e.metaCode||null};p.lastError="A Meta bloqueou o acesso à API. Publicações pausadas até um teste de conexão bem-sucedido."}else p.lastError=e.message;await saveDb(db)}return json(res,isMetaActionLimit(e)||db.meta.apiAccessBlocked?429:400,{error:p.lastError||e.message,retryAt:activeCooldown(db)})}finally{publishingBusy=false}}await saveDb(db);return json(res,200,p)}
+  const m=u.pathname.match(/^\/orpheus-api\/posts\/([^/]+)\/(approve|reject|publish)$/);if(req.method==="POST"&&m){const p=db.posts.find(x=>x.id===m[1]);if(!p)return json(res,404,{error:"Post não encontrado"});if(p.status==="publishing"||p.status==="published")return json(res,409,{error:"Publicação já iniciada ou concluída; confira o Instagram antes de tentar novamente"});if(m[2]==="approve"){if(!["ready","review_pending"].includes(p.artStatus)||!(p.imageKey||p.imageUrl))return json(res,409,{error:"Confira a arte final antes de aprovar"});if(!p.artPreviewViewedAt)return json(res,409,{error:"Abra a prévia real antes de validar a arte"});if(db.posts.some(x=>x.id!==p.id&&x.status!=="deleted"&&((p.artHash&&x.artHash===p.artHash)||(p.imageKey&&x.imageKey===p.imageKey)||(!p.imageKey&&p.imageUrl&&x.imageUrl===p.imageUrl))))return json(res,409,{error:"Esta imagem já está associada a outra postagem; envie uma arte diferente"});p.artStatus="ready";p.artValidation={approvedAt:new Date().toISOString(),reviewer:ADMIN_USER,hash:p.artHash||p.imageKey||p.imageUrl};p.status="approved";p.lastError=""}else if(m[2]==="reject")p.status="rejected";else{if(!publishable(p))return json(res,409,{error:"Arte final precisa estar pronta e validada na prévia"});if(db.meta.apiAccessBlocked)return json(res,429,{error:"Acesso à API da Meta bloqueado. Execute um teste de conexão depois que a Meta liberar o acesso."});if(publishingBusy)return json(res,409,{error:"Há outra publicação em andamento. Tente novamente em instantes"});const until=activeCooldown(db);if(until)return json(res,429,{error:cooldownMessage(until),retryAt:until});publishingBusy=true;try{p.status="publishing";p.publishStartedAt=new Date().toISOString();await saveDb(db);const r=await publish(p);p.status="published";p.metaMediaId=r.id;p.metaContainerId=r.containerId;p.publishedAt=new Date().toISOString();p.lastError="";delete p.nextRetryAt}catch(e){if(p.status==="publishing"){p.status="error";if(isMetaActionLimit(e)){db.meta.publishCooldownUntil=cooldownDate(e);p.lastError=cooldownMessage(db.meta.publishCooldownUntil)}else if(/API access blocked/i.test(e.message||"")){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:e.metaCode||null};p.lastError="A Meta bloqueou o acesso à API. Publicações pausadas até um teste de conexão bem-sucedido."}else p.lastError=e.message;await saveDb(db)}return json(res,isMetaActionLimit(e)||db.meta.apiAccessBlocked?429:400,{error:p.lastError||e.message,retryAt:activeCooldown(db)})}finally{publishingBusy=false}}await saveDb(db);return json(res,200,p)}
   return json(res,404,{error:"Rota social não encontrada"});
 }
 
