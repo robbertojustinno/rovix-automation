@@ -262,16 +262,21 @@ export async function attachPreapproved(db,post){
     if(!available.length)throw new Error("Todas as imagens já estão reservadas para posts pendentes");
     const lastUsed=key=>history.filter(h=>h.key===key).at(-1)?.at||'';
     available.sort((a,b)=>lastUsed(a.object_key).localeCompare(lastUsed(b.object_key))||a.name.localeCompare(b.name));
-    const chosen=available[0];
+    const chosen=available.find(f=>f.object_key===post.sourceImageKey)||available[0];
     const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:chosen.object_key}));
     const original=Buffer.from(await r.Body.transformToByteArray());
     const escape=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
-    const text=await sharp({text:{text:'<span foreground="white">'+escape(String(post.title||'CIPHER').slice(0,150))+'</span>',font:'DejaVu Sans Bold 48',width:920,height:160,align:'center',rgba:true}}).png().toBuffer();
-    const footer=await sharp({text:{text:'<span foreground="white">CIPHER — PROTOCOLO ORPHEUS</span>',font:'DejaVu Sans 24',width:920,align:'center',rgba:true}}).png().toBuffer();
-    const band=await sharp({create:{width:1080,height:300,channels:4,background:{r:3,g:8,b:18,alpha:0.88}}}).png().toBuffer();
-    const tinted=await sharp(text).tint('#ffffff').png().toBuffer();
-    const bottom=await sharp(footer).tint('#ffffff').png().toBuffer();
-    const artwork=await sharp(original).rotate().resize(1080,1350,{fit:'contain',background:'#050a12'}).composite([{input:band,left:0,top:1050},{input:tinted,left:80,top:1090},{input:bottom,left:80,top:1280}]).jpeg({quality:94}).toBuffer();
+    const topic=String(post.title||'CIPHER').toLowerCase();
+    const hook=topic.includes('cego')?'O perigo também está no que você não vê.':/escuta|sinal|silêncio/.test(topic)?'Uma informação pode mudar tudo.':/arquivo|documento|dossiê/.test(topic)?'Alguns segredos nunca deveriam ser revelados.':/vigilância|sombra|perseguição/.test(topic)?'Quem observa também pode estar sendo observado.':'Cada detalhe pode ser uma pista — ou uma armadilha.';
+    const draw=async(value,font,width=920)=>sharp({text:{text:'<span foreground="white">'+escape(value)+'</span>',font,width,dpi:72,align:'left',rgba:true}}).png().toBuffer();
+    const label=await draw('ARQUIVO CIPHER  /  ACESSO RESTRITO','DejaVu Sans Bold 21');
+    const title=await sharp(await draw(String(post.title||'CIPHER').slice(0,120),'DejaVu Sans Bold 52')).resize(920,110,{fit:'inside',withoutEnlargement:true}).png().toBuffer();
+    const phrase=await sharp(await draw(hook,'DejaVu Sans 32')).resize(920,85,{fit:'inside',withoutEnlargement:true}).png().toBuffer();
+    const detail=await draw('Espionagem, vigilância e segredos.\nCIPHER — Protocolo Orpheus | Roberto Justino','DejaVu Sans 24');
+    const cta=await draw('CONHEÇA O LIVRO  →  LINK NA BIO','DejaVu Sans Bold 25');
+    const band=await sharp({create:{width:1080,height:430,channels:4,background:{r:3,g:8,b:18,alpha:0.94}}}).png().toBuffer();
+    const artwork=await sharp(original).rotate().resize(1080,1350,{fit:'contain',background:'#050a12'}).composite([{input:band,left:0,top:920},{input:label,left:80,top:949},{input:title,left:80,top:998},{input:phrase,left:80,top:1118},{input:detail,left:80,top:1200},{input:cta,left:80,top:1288}]).jpeg({quality:94}).toBuffer();
+    post.artCopy={hook,cta:'Conheça o livro — link na bio',kind:'promotional',version:2};
     const hash=crypto.createHash('sha256').update(artwork).digest('hex');
     const key='orpheus-agent/preapproved/'+post.id+'-'+hash+'.jpg';
     await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:key,Body:artwork,ContentType:'image/jpeg'}));
@@ -454,9 +459,10 @@ export async function handleOrpheusAgent(req,res){
 
 
 setTimeout(()=>serialOperation(async()=>{
-  const db=await loadDb();if(db.meta.preapprovedIntegrationVerified)return;
-  const test={id:'integration-preview',title:'ALGUNS SEGREDOS NÃO FICAM ENTERRADOS',status:'draft'};
+  const db=await loadDb();if(db.meta.preapprovedIntegrationVerified?.version===2)return;
+  for(const p of db.posts.filter(p=>p.sourceImageKey&&!['published','publishing','deleted','rejected'].includes(p.status))){const result=await attachPreapproved(db,p);if(result.made)p.status='draft';await saveDb(db);}
+  const test={id:'integration-preview',title:'Ponto Cego',status:'draft'};
   const result=await attachPreapproved({posts:[],meta:{}},test);
-  if(result.made){db.meta.preapprovedIntegrationVerified={at:new Date().toISOString(),imageKey:test.imageKey,source:test.sourceImageName,hash:test.artHash};await saveDb(db);}
+  if(result.made){db.meta.preapprovedIntegrationVerified={version:2,at:new Date().toISOString(),imageKey:test.imageKey,source:test.sourceImageName,hash:test.artHash};await saveDb(db);}
   console.log('[ORPHEUS Preapproved Verification]',JSON.stringify({...result,previewKey:test.imageKey,hash:test.artHash}));
 }).catch(e=>console.error('[ORPHEUS Preapproved Verification]',e.message)),3000);
