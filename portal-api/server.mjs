@@ -1,4 +1,5 @@
 import http from "node:http";
+import {DRIVE_IMAGE_POLICY} from "./social-drive-content.mjs";
 import {handleSocialAgent} from "./social-agent.mjs";
 import crypto from "node:crypto";
 import {
@@ -95,7 +96,7 @@ async function supa(path,token,init={}){
   const t=await r.text();
   const result=t?JSON.parse(t):null;
   if(path.startsWith("rovix_files")&&["POST","PATCH","DELETE"].includes(init.method)){
-    try{await syncOrpheusCatalog(token)}catch(e){console.error("ORPHEUS catalog sync failed",e.message)}
+    try{await syncOrpheusCatalog(token);await syncSocialCatalog(token)}catch(e){console.error("ORPHEUS catalog sync failed",e.message)}
   }
   return result;
 }
@@ -109,6 +110,15 @@ async function syncOrpheusCatalog(token){
     files.push(...(page||[]));if(!page||page.length<500)break;offset+=500;
   }
   await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:"orpheus-agent/preapproved-catalog.json",Body:JSON.stringify({folderId,ownerId,files,updatedAt:new Date().toISOString()}),ContentType:"application/json"}));
+}
+async function syncSocialCatalog(token){
+ const {folderId,ownerId}=DRIVE_IMAGE_POLICY;
+ const folders=await supa("rovix_files?id=eq."+folderId+"&owner_id=eq."+ownerId+"&kind=eq.folder&select=id",token);
+ if(!folders?.length)return;
+ const files=[];let offset=0;
+ while(true){const page=await supa("rovix_files?parent_id=eq."+folderId+"&owner_id=eq."+ownerId+"&kind=eq.file&select=id,name,object_key,mime_type,size_bytes&order=id&limit=500&offset="+offset,token);files.push(...(page||[]));if(!page||page.length<500)break;offset+=500;}
+ await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:"social-agent/preapproved-catalog.json",Body:JSON.stringify({folderId,ownerId,files,updatedAt:new Date().toISOString()}),ContentType:"application/json"}));
+ return files.length;
 }
 async function requireAdmin(token){
   const rows=await supa("rovix_profiles?select=role",token);
@@ -134,7 +144,9 @@ const server=http.createServer(async(req,res)=>{
   try{
     const {token,user}=await requireUser(req);
 
+    if(req.method==="POST"&&req.url==="/social-drive-catalog/sync"){const count=await syncSocialCatalog(token);return reply(res,200,{ok:true,availableImages:count||0},origin)}
     if(req.method==="GET"&&req.url==="/usage"){
+      await syncSocialCatalog(token);
       await requireAdmin(token);
       const used=await usedBytes(token);
       return reply(res,200,{used_bytes:used,max_bytes:MAX_BYTES,remaining_bytes:Math.max(0,MAX_BYTES-used)},origin);

@@ -6,6 +6,7 @@ import {fileURLToPath} from "node:url";
 import {S3Client,PutObjectCommand,GetObjectCommand} from "@aws-sdk/client-s3";
 import {getSignedUrl} from "@aws-sdk/s3-request-presigner";
 import sharp from "sharp";
+import {DRIVE_IMAGE_POLICY,driveContent,chooseDriveFile} from "./social-drive-content.mjs";
 
 const __dirname=path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC=path.join(__dirname,"social-agent-public");
@@ -18,7 +19,8 @@ const ADMIN_USER=process.env.SOCIAL_ADMIN_USER||"admin";
 const ADMIN_PASSWORD_HASH=process.env.SOCIAL_ADMIN_PASSWORD_HASH||"";
 const SESSION_SECRET=process.env.SOCIAL_SESSION_SECRET||"";
 const SOCIAL_PUBLIC_BASE=(process.env.SOCIAL_PUBLIC_BASE||"https://rovix-drive-api.onrender.com/social-agent").replace(/\/$/,"");
-const VISUAL_ENGINE="rovix-v5-ai-original-scenes";
+const VISUAL_ENGINE="rovix-v6-drive-curated";
+const DRIVE_CATALOG_KEY="social-agent/preapproved-catalog.json";
 const MAX_FAST_IMAGES_PER_RUN=12;
 const DIVERSITY_POLICY="unique-art-v1";
 const HORDE_BASE="https://aihorde.net/api/v2";
@@ -29,6 +31,7 @@ const DEFAULT_SETTINGS={enabled:true,postsPerDay:3,approvalMode:"manual",schedul
 const POSTING_POLICY=Object.freeze({
   id:"rovix-cinematic-metallic-20261001",
   immutable:true,
+  driveImages:DRIVE_IMAGE_POLICY,
   approvedReference:"/social-agent/reference-rovix-cinematic.jpg",
   approvedAt:"2026-10-01",
   referenceTitle:"Precisão que move o futuro",
@@ -43,7 +46,7 @@ const POSTING_POLICY=Object.freeze({
       "Metal escovado, titânio, prata e grafite com textura detalhada; azul profundo e ciano, com vermelho discreto na identidade ROVIX",
       "Iluminação cinematográfica, contraste controlado e profundidade; protagonista visual claro e composição publicitária marcante",
       "Representar a função real de cada produto em uma cena compreensível; máquinas, sensores e operações tecnicamente plausíveis",
-      "Variar assunto, ação, cenário, enquadramento e composição; não transformar toda postagem no mesmo robô ou reutilizar esta imagem",
+      "Variar assunto, ação, cenário, enquadramento e composição; não transformar toda postagem no mesmo robô; reutilizar somente após completar o ciclo da pasta",
       "Proibidos cenários genéricos sem relação com o conteúdo, objetos aleatórios, imagens pobres e mecânica deformada",
       "Resolução e ausência de repetição não substituem avaliação da qualidade e da coerência visual",
       "logo ROVIX integrada sem distorcao",
@@ -51,9 +54,9 @@ const POSTING_POLICY=Object.freeze({
       "tipografia forte e legivel",
       "coerencia visual com o produto",
       "variacao suficiente para evitar repeticao",
-      "bloquear fundo reutilizado mesmo com texto, cor ou corte diferentes",
+      "bloquear fundo reutilizado dentro do mesmo ciclo, mesmo com texto, cor ou corte diferentes",
       "comparar imagens com o historico antes de aprovar e publicar",
-      "se a imagem for semelhante, gerar outra cena automaticamente com nova composicao",
+      "se a imagem for semelhante, selecionar outro arquivo da pasta autorizada",
       "sem placeholder em publicacao final"
     ]
   },
@@ -71,7 +74,7 @@ const POSTING_POLICY=Object.freeze({
     allowPlaceholderPublish:false,
     keepBrandFamily:true,
     avoidRepeatedThemes:true,
-    visualEngine:"ROVIX V5 Original AI Scenes (FREE)",
+    visualEngine:"ROVIX Drive: imagens aprovadas + texto (FREE)",
     defaultVisualLevel:"cinematografico"
   }
 });
@@ -164,6 +167,10 @@ async function loadDb(){
     changed=true;
   }
   if(rebuildCancelledPosts(db))changed=true;
+  if(!db.meta.driveTest20261002){
+    const test={id:"drive-test-20261002",projectId:"rovix",projectName:"ROVIX Automation",title:"Teste: imagens do Drive",caption:"",status:"draft",scheduledAt:"",createdAt:new Date().toISOString(),generatedBy:"agent",artStatus:"pending",isDriveTest:true};
+    db.posts.unshift(test);db.meta.driveTest20261002={id:test.id,at:new Date().toISOString()};changed=true;
+  }
   if(changed)await saveDb(db);return db;
 }
 function json(res,status,data,extra={}){res.writeHead(status,{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff",...extra});res.end(JSON.stringify(data))}
@@ -241,6 +248,7 @@ async function assertUniqueArtwork(post,db){
   const fingerprint=post.visualFingerprint||await imageFingerprint(await artworkBytes(post));
   for(const other of db.posts){
     if(other.id===post.id||(!other.imageKey&&!other.imageUrl)||/\/(brand\.png|logo\.jpg)(?:$|\?)/i.test(other.imageUrl||""))continue;
+    if(post.driveFileId&&post.driveFileId===other.driveFileId&&Number(post.driveCycle)>Number(other.driveCycle||0))continue;
     if(post.visualSource&&post.visualSource===other.visualSource)throw new Error("Imagem bloqueada: fundo ja utilizado em outra postagem.");
     // Keep published and previously generated artwork in the history, including cancelled posts.
     if(!other.imageKey&&other.status!=="published")continue;
@@ -284,6 +292,7 @@ function titleLines(value){
 }
 export async function renderArtworkBuffer(post,project,bg){
   if(!bg)throw new Error("Uma cena original gerada para esta postagem e obrigatoria");
+  if(post.driveHasExistingText)return sharp(bg).rotate().jpeg({quality:93}).toBuffer();
   const lines=titleLines(post.title||project.name);
   const titleSize=lines.some(x=>x.length>23)?53:60;
   const heading=lines.map((line,i)=>`<text x="82" y="${818+i*69}" font-family="Arial,Helvetica,sans-serif" font-size="${titleSize}" font-weight="800" fill="#ffffff">${escapeXml(line)}</text>`).join("");
@@ -295,10 +304,10 @@ export async function renderArtworkBuffer(post,project,bg){
     ${heading}
     <text x="84" y="${subtitleY}" font-family="Arial,Helvetica,sans-serif" font-size="29" font-weight="700" fill="#c5daf0">${escapeXml(project.name.slice(0,40))}</text>
     <rect x="82" y="1010" width="916" height="2" fill="#5d7596" fill-opacity=".65"/>
-    <text x="84" y="1045" font-family="Arial,Helvetica,sans-serif" font-size="22" font-weight="700" letter-spacing="3" fill="#e1e7ef">ROVIX AUTOMATION</text>
+    <text x="84" y="1045" font-family="Arial,Helvetica,sans-serif" font-size="22" font-weight="700" letter-spacing="3" fill="#e1e7ef">ROVIX AUTOMATION · rovixautomation.com.br</text>
   </svg>`);
   const badge=await sharp(EMBLEM_PNG).resize(196,196,{fit:"contain"}).png().toBuffer();
-  return sharp(bg).resize(1080,1080).composite([{input:overlay,left:0,top:0},{input:badge,left:846,top:32}]).jpeg({quality:93,mozjpeg:true}).toBuffer();
+  return sharp(bg).rotate().resize(1080,1080,{fit:"contain",background:"#020714"}).composite([{input:overlay,left:0,top:0},{input:badge,left:846,top:32}]).jpeg({quality:93,mozjpeg:true}).toBuffer();
 }
 const ORIGINAL_SUBJECTS=Object.freeze({
   rovix:["engineers connecting a conveyor control panel","precision robotic gripper assembling a metal gear","technician studying a factory digital twin","industrial sensor network around a working production line"],
@@ -392,30 +401,35 @@ async function finishOriginalArtwork(post,project,db){
   console.log("[Social Agent] Nova arte validada:",post.id,g.model);
   return true;
 }
-async function prepareArtworkForQueue(){
-  const db=await loadDb();let made=0,queued=0;
-  const candidates=db.posts.filter(p=>p.generatedBy==="agent"&&p.artStatus!=="uploaded"&&["draft","approved","error"].includes(p.status)&&(p.artStatus!=="ready"||p.visualEngine!==VISUAL_ENGINE)).sort((a,b)=>Date.parse(a.scheduledAt||a.createdAt)-Date.parse(b.scheduledAt||b.createdAt));
-  let changed=false;
-  for(const p of candidates.filter(p=>p.artJobId&&(!p.nextArtRetryAt||Date.parse(p.nextArtRetryAt)<=Date.now())).slice(0,MAX_IMAGE_JOBS)){
-    const project=db.projects.find(x=>x.id===p.projectId)||{id:"rovix",name:"ROVIX Automation"};
-    try{if(await finishOriginalArtwork(p,project,db))made++;changed=true}
-    catch(e){
-      if(/igual|semelhante|ja utilizado/.test(e.message)){p.artStatus="pending";delete p.artJobId;p.artError="Imagem semelhante detectada. Criando outra cena automaticamente.";p.nextArtRetryAt=new Date(Date.now()+60000).toISOString();console.log("[Social Agent] Repeticao evitada; gerando outra cena:",p.id)}
-      else if(e.httpStatus===404||/perdeu|Nenhuma imagem|resolucao/.test(e.message)){p.artStatus="pending";delete p.artJobId;p.artError=e.message;p.nextArtRetryAt=new Date(Date.now()+120000).toISOString()}
-      else{p.artError=e.message;p.nextArtRetryAt=new Date(Date.now()+120000).toISOString()}
-      changed=true;
-    }
-  }
-  let inFlight=db.posts.filter(p=>p.artJobId&&["draft","approved","error"].includes(p.status)).length;
-  for(const p of candidates.filter(p=>!p.artJobId&&(p.artStatus!=="ready"||p.visualEngine!==VISUAL_ENGINE)&&(!p.nextArtRetryAt||Date.parse(p.nextArtRetryAt)<=Date.now())).slice(0,MAX_FAST_IMAGES_PER_RUN)){
-    if(inFlight>=MAX_IMAGE_JOBS)break;
-    const project=db.projects.find(x=>x.id===p.projectId)||{id:"rovix",name:"ROVIX Automation"};
-    try{await startOriginalArtwork(p,project,db);inFlight++;queued++;changed=true}
-    catch(e){p.artStatus="pending";p.artError=e.message;p.nextArtRetryAt=new Date(Date.now()+5*60000).toISOString();changed=true;if(e.httpStatus===429)break}
-  }
-  if(changed)await saveDb(db);
-  return{made,queued,generating:inFlight,engine:VISUAL_ENGINE,level:"original",cost:"free"};
+async function loadDriveCatalog(){
+  try{const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:DRIVE_CATALOG_KEY}));return JSON.parse(await readStream(r.Body))}
+  catch(e){if(e?.name!=="NoSuchKey"&&e?.$metadata?.httpStatusCode!==404)throw e;const catalog=JSON.parse(process.env.SOCIAL_DRIVE_CATALOG_BOOTSTRAP||"{}");if(catalog.folderId!==DRIVE_IMAGE_POLICY.folderId||catalog.ownerId!==DRIVE_IMAGE_POLICY.ownerId)throw new Error("Catálogo da pasta ROVIX ainda não configurado");await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:DRIVE_CATALOG_KEY,Body:JSON.stringify(catalog),ContentType:"application/json"}));return catalog}
 }
+async function prepareDriveArtwork(post,db,catalog){
+  if(catalog.folderId!==DRIVE_IMAGE_POLICY.folderId||catalog.ownerId!==DRIVE_IMAGE_POLICY.ownerId)throw new Error("Pasta ROVIX inválida");
+  const {file,cycle}=chooseDriveFile(catalog.files||[],db.posts.filter(p=>p.id!==post.id));
+  if(!file.object_key.startsWith(DRIVE_IMAGE_POLICY.ownerId+"/"))throw new Error("Imagem não pertence à pasta autorizada");
+  const content=driveContent(file,cycle),project=db.projects.find(p=>p.id===content.projectId)||db.projects.find(p=>p.id==="rovix");
+  const raw=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:file.object_key}));
+  const bytes=Buffer.from(await raw.Body.transformToByteArray());
+  const meta=await sharp(bytes).metadata();if(!meta.width||!meta.height)throw new Error("Arquivo de imagem inválido");
+  const candidate={...post,title:content.title,caption:content.caption,projectId:project.id,projectName:project.name,driveFileId:file.id,driveFileName:file.name,driveCycle:cycle,driveHasExistingText:content.hasExistingText,driveFolder:DRIVE_IMAGE_POLICY.path,visualSource:"rovix-drive://"+file.id};
+  const final=await renderArtworkBuffer(candidate,project,bytes);candidate.visualFingerprint=await imageFingerprint(final);
+  await assertUniqueArtwork(candidate,db);
+  const key="social-agent/drive/"+post.id+"-"+crypto.randomBytes(6).toString("hex")+".jpg";
+  await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:key,Body:final,ContentType:"image/jpeg"}));
+  Object.assign(post,candidate,{imageKey:key,imageUrl:"",artStatus:"ready",visualEngine:VISUAL_ENGINE,visualPolicy:POSTING_POLICY.id,artGeneratedAt:new Date().toISOString(),lastError:"",artError:""});
+  delete post.artJobId;delete post.nextArtRetryAt;
+  console.log("[Social Agent] Imagem do Drive pronta:",post.id,file.name,"ciclo",cycle);
+}
+async function prepareArtworkForQueue(){
+  const db=await loadDb(),catalog=await loadDriveCatalog();let made=0;
+  const candidates=db.posts.filter(p=>p.generatedBy==="agent"&&["draft","approved","error"].includes(p.status)&&!["ready","uploaded"].includes(p.artStatus)).sort((a,b)=>Number(!!b.isDriveTest)-Number(!!a.isDriveTest)||Date.parse(a.createdAt)-Date.parse(b.createdAt)).slice(0,MAX_FAST_IMAGES_PER_RUN);
+  for(const p of candidates){try{await prepareDriveArtwork(p,db,catalog);made++}catch(e){p.artStatus="pending";p.artError=e.message;console.error("[Social Agent] Drive:",p.id,e.message)}}
+  if(candidates.length)await saveDb(db);
+  return{made,queued:0,generating:0,engine:VISUAL_ENGINE,level:"drive",cost:"free",folder:DRIVE_IMAGE_POLICY.path,availableImages:catalog.files?.length||0};
+}
+
 function buildCaption(project,topic,i){
   if(project.description){
     const stage=project.projectStatus==="PRODUÇÃO"?"":project.projectStatus==="PREVIEW"?"\n\nProjeto em prévia: acompanhe a evolução.":"\n\nProjeto em evolução: acompanhe as novidades e a disponibilidade.";
@@ -508,7 +522,7 @@ async function api(req,res,u){
   if(!authed(req))return json(res,401,{error:"Autenticação obrigatória"});
 
   const db=await loadDb();
-  if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"0.8.0",diversityPolicy:DIVERSITY_POLICY,cancellation:db.meta.cancelScheduledThrough20261005,online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"Cenas originais geradas por IA, sem biblioteca fixa",imageProvider:"AI Horde",imageQueue:db.posts.filter(p=>p.artJobId).length,replacements:db.meta.rebuildRepeatedArt20261001,storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
+  if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"0.9.0",diversityPolicy:DIVERSITY_POLICY,cancellation:db.meta.cancelScheduledThrough20261005,online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"Imagens aprovadas do ROVIX Drive com texto e legenda",imageProvider:"ROVIX Drive",imageFolder:DRIVE_IMAGE_POLICY.path,imageQueue:db.posts.filter(p=>p.artJobId).length,replacements:db.meta.rebuildRepeatedArt20261001,storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
   if(req.method==="GET"&&u.pathname==="/social-api/meta/test"){if(!metaConfigured())return json(res,200,{connected:false,error:"Credenciais Meta ainda não configuradas"});try{const result=await testMeta();if(db.meta.apiAccessBlocked){delete db.meta.apiAccessBlocked;await saveDb(db)}return json(res,200,result)}catch(e){console.error("[Social Agent] Teste Meta:",e.httpStatus||"",e.metaCode||"",e.metaSubcode||"",e.message);if(/API access blocked/i.test(e.message||"")&&!db.meta.apiAccessBlocked){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:e.metaCode||null};await saveDb(db)}return json(res,200,{connected:false,error:e.message,httpStatus:e.httpStatus||null,metaCode:e.metaCode||null,metaSubcode:e.metaSubcode||null})}}
   if(req.method==="GET"&&u.pathname==="/social-api/meta/analytics"){const days=Number(u.searchParams.get("days")||7);if(![7,30].includes(days))return json(res,400,{error:"Período inválido"});return json(res,200,await accountAnalytics(days))}
   if(req.method==="GET"&&u.pathname==="/social-api/projects")return json(res,200,db.projects);
@@ -525,6 +539,7 @@ async function api(req,res,u){
   const imgMatch=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/image$/);
   if(req.method==="GET"&&imgMatch){const p=db.posts.find(x=>x.id===imgMatch[1]);if(!p)return json(res,404,{error:"Post não encontrado"});if(p.generatedBy==="agent"&&!["ready","uploaded"].includes(p.artStatus))return json(res,409,{error:"Imagem original em geracao; a previa aparecera automaticamente"});try{const loc=await mediaUrl(p);res.writeHead(302,{Location:loc,"Cache-Control":"no-store"});res.end();return}catch(e){return json(res,400,{error:e.message})}}
   if(req.method==="GET"&&u.pathname==="/social-api/settings")return json(res,200,db.settings);
+  if(req.method==="GET"&&u.pathname==="/social-api/drive-catalog"){const c=await loadDriveCatalog();return json(res,200,{folder:DRIVE_IMAGE_POLICY.path,availableImages:c.files?.length||0,updatedAt:c.updatedAt,files:(c.files||[]).map(f=>({id:f.id,name:f.name}))})}
   if(req.method==="GET"&&u.pathname==="/social-api/policies")return json(res,200,POSTING_POLICY);
   if(req.method==="PUT"&&u.pathname==="/social-api/settings"){const d=await body(req);const postsPerDay=Math.max(1,Math.min(12,Number(d.postsPerDay)||3));const incomingTimes=Array.isArray(d.postTimes)?d.postTimes.map(x=>String(x)).filter(x=>/^([01]\d|2[0-3]):([0-5]\d)$/.test(x)).slice(0,postsPerDay):[];db.settings={...db.settings,enabled:Boolean(d.enabled),postsPerDay,approvalMode:["manual","auto","hybrid"].includes(d.approvalMode)?d.approvalMode:"manual",scheduleMode:["interval","exact"].includes(d.scheduleMode)?d.scheduleMode:"interval",startHour:Math.max(0,Math.min(23,Number(d.startHour)||9)),endHour:Math.max(0,Math.min(23,Number(d.endHour)||19)),postTimes:incomingTimes};await saveDb(db);return json(res,200,db.settings)}
   if(req.method==="POST"&&u.pathname==="/social-api/agent/run"){const d=await body(req),day=String(d.date||saoDate());if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||!Number.isFinite(Date.parse(day+"T00:00:00Z"))||new Date(day+"T00:00:00Z").toISOString().slice(0,10)!==day||day<saoDate())return json(res,400,{error:"Selecione uma data válida, a partir de hoje"});const a=await ensureDailyContent(true,day),art=await prepareArtworkForQueue();return json(res,200,{...a,art})}
