@@ -24,3 +24,7 @@ test('quota errors and changed schema remain errors without another provider',as
  const fetcher=async(url,options)=>url.endsWith('/info')?Response.json({named_endpoints:{'/infer':{parameters}}}):options.method==='POST'?Response.json({event_id:'a'.repeat(32)}):new Response('event: error\ndata: "GPU quota exceeded"\n\n');
  await assert.rejects(()=>generate(selectScene([]),fetcher),/quota exceeded/);
 });
+test('configured token cannot silently use a paid tier',async()=>{
+ const prior=process.env.HF_TOKEN;process.env.HF_TOKEN='test-only';
+ try{let calls=0;await assert.rejects(()=>generate(selectScene([]),async()=>{calls++;return Response.json({isPro:true});}),/HF_FREE_ACCOUNT_REQUIRED/);assert.equal(calls,1);}finally{if(prior===undefined)delete process.env.HF_TOKEN;else process.env.HF_TOKEN=prior;}
+});

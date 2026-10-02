@@ -26,6 +26,10 @@ const headers=()=>({...process.env.HF_TOKEN?{Authorization:`Bearer ${process.env
 async function response(url,options={},fetcher=fetch){const r=await fetcher(url,{...options,signal:AbortSignal.timeout(180000)});if(!r.ok)throw new Error(`HF_HTTP_${r.status}: ${String(await r.text()).slice(0,300)}`);return r;}
 export async function generate(c,fetcher=fetch){
   const started=Date.now();
+  if(process.env.HF_TOKEN){
+    const account=await (await response('https://huggingface.co/api/whoami-v2',{headers:headers()},fetcher)).json();
+    if(account.isPro!==false)throw new Error('HF_FREE_ACCOUNT_REQUIRED: token de conta gratuita verificável obrigatório; uso com créditos pagos bloqueado.');
+  }
   const schema=await (await response(BASE+'/gradio_api/info',{headers:headers()},fetcher)).json();
   const params=schema.named_endpoints?.['/infer']?.parameters?.map(p=>p.parameter_name);
   if(JSON.stringify(params)!==JSON.stringify(['prompt','seed','randomize_seed','width','height','num_inference_steps']))throw new Error('HF_SCHEMA_CHANGED');

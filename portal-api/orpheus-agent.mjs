@@ -253,7 +253,7 @@ async function prepareArtworkForQueue(){
   const db=await loadDb();
   const queue=db.posts.filter(p=>!['published','publishing','deleted','rejected'].includes(p.status)&&p.scheduledAt&&new Date(p.scheduledAt)>new Date(Date.now()-3600000)).sort((a,b)=>new Date(a.scheduledAt)-new Date(b.scheduledAt));
   const post=queue.find(p=>['placeholder','awaiting_generator','error'].includes(p.artStatus)&&Date.parse(p.artRetryAt||0)<=Date.now());
-  console.log('[ORPHEUS Artwork Queue]',JSON.stringify({provider:PROVIDER,allPosts:db.posts.map(p=>({id:p.id,date:p.generatedDate||p.scheduledAt,status:p.status,artStatus:p.artStatus,origin:p.generatedBy||'manual'})),queue:queue.map(p=>({id:p.id,date:p.generatedDate||p.scheduledAt,status:p.artStatus})),ready:queue.filter(p=>publishable(p)).length,review:queue.filter(p=>p.artStatus==='review_pending').length}));
+  console.log('[ORPHEUS Artwork Queue]',JSON.stringify({provider:PROVIDER,allPosts:db.posts.filter(p=>postDate(p)>=saoDate()).slice(0,30).map(p=>({id:p.id,date:p.generatedDate||p.scheduledAt,status:p.status,artStatus:p.artStatus,origin:p.generatedBy||'manual'})),queue:queue.map(p=>({id:p.id,date:p.generatedDate||p.scheduledAt,status:p.artStatus})),ready:queue.filter(p=>publishable(p)).length,review:queue.filter(p=>p.artStatus==='review_pending').length}));
   if(Date.parse(db.meta.generatorRetryAt||0)>Date.now())return{made:0,reason:db.meta.generatorError,retryAt:db.meta.generatorRetryAt};
   if(!post)return{made:0,pending:queue.filter(p=>!publishable(p)).length};
   try{
