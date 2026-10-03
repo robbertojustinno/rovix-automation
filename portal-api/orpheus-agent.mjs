@@ -7,6 +7,7 @@ import {S3Client,PutObjectCommand,GetObjectCommand,ListObjectsV2Command,DeleteOb
 import {getSignedUrl} from "@aws-sdk/s3-request-presigner";
 import sharp from "sharp";
 import {PROVIDER,selectScene,generate,duplicateImage,publishable} from "./orpheus-flux.mjs";
+import {createManualPreviewApi} from "./orpheus-manual-previews.mjs";
 import {createStrategyApi} from "./orpheus-strategy-routes.mjs";
 const ENGINE="preapproved-drive";
 
@@ -265,6 +266,10 @@ async function refreshStrategyMetrics(post){
  for(const key of Object.keys(metrics)){sources[key]=metrics[key]===null?null:'instagram';if(metrics[key]===null&&Number.isFinite(manual?.[key])){metrics[key]=manual[key];sources[key]='manual'}}
  post.performance={metrics,sources,source:manual?'instagram e manual':'instagram',manual:manual||null,updatedAt:new Date().toISOString(),errors};
 }
+const manualPreviewApi=createManualPreviewApi({json,loadDriveCatalog,attachPreapproved,saveDb,id,sendImage:async(res,entry,download)=>{
+ const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:entry.imageKey}));const buffer=Buffer.from(await r.Body.transformToByteArray());
+ res.writeHead(200,{'Content-Type':'image/jpeg','Cache-Control':'private, no-store',...(download?{'Content-Disposition':'attachment; filename="ORPHEUS-'+entry.id+'.jpg"'}:{})});res.end(buffer);
+}});
 const strategyApi=createStrategyApi({json,body,saoDate,loadDriveCatalog,saveDb,scheduleFor,id,refreshMetrics:refreshStrategyMetrics,attachPreapproved,sourceUrl});
 export async function attachPreapproved(db,post){
   try{
@@ -424,6 +429,7 @@ async function api(req,res,u){
   if(!authed(req))return json(res,401,{error:"Autenticação obrigatória"});
 
   const db=await loadDb();
+  if(u.pathname.startsWith('/orpheus-api/manual-previews')){try{return await manualPreviewApi(req,res,u,db)}catch(e){return json(res,400,{error:e.message})}}
   if(u.pathname.startsWith('/orpheus-api/strategy')){try{return await strategyApi(req,res,u,db)}catch(e){return json(res,400,{error:e.message})}}
   if(req.method==="GET"&&u.pathname==="/orpheus-api/status")return json(res,200,{app:"ORPHEUS Social Agent",targetInstagram:TARGET_INSTAGRAM,universe:"CIPHER",automaticScope:["cipher","orpheus"],version:"0.9.0",online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:true,generator:{provider:ENGINE,retryAt:null,error:null,measurements:db.meta.generatorMeasurements||[],reviewRequired:true},visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"Acervo aprovado do Drive; revisão da composição obrigatória",storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
   if(req.method==="GET"&&u.pathname==="/orpheus-api/meta/test"){if(!metaConfigured())return json(res,200,{connected:false,error:"Credenciais Meta ainda não configuradas"});try{const result=await testMeta();if(db.meta.apiAccessBlocked){delete db.meta.apiAccessBlocked;await saveDb(db)}return json(res,200,result)}catch(e){console.error("[ORPHEUS Agent] Teste Meta:",e.httpStatus||"",e.metaCode||"",e.metaSubcode||"",e.message);if(/API access blocked/i.test(e.message||"")&&!db.meta.apiAccessBlocked){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:e.metaCode||null};await saveDb(db)}return json(res,200,{connected:false,error:e.message,httpStatus:e.httpStatus||null,metaCode:e.metaCode||null,metaSubcode:e.metaSubcode||null})}}

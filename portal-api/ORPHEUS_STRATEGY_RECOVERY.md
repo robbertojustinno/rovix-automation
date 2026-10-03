@@ -23,3 +23,11 @@ As propostas usam uma biblioteca editorial promocional. Não há leitura semânt
 Métricas indisponíveis ficam nulas, zero permanece zero e retenção não é preenchida para imagens. Comparações exigem pelo menos duas publicações por variante com mesma métrica e alcance; os resultados são observacionais e não demonstram causalidade.
 
 Validação: `node --test portal-api/orpheus-strategy.test.mjs portal-api/tests/orpheus-flux.test.mjs` e verificação sintática dos arquivos modificados. A composição foi conferida com uma imagem real do acervo aprovado.
+
+## Prévias para publicação manual
+
+Versão anterior ao botão preservada em `backup/orpheus-before-manual-previews-20261003`.
+
+Abra **Prévias manuais** e clique **Gerar 3 prévias para postar manualmente**. Cada cartão exibe a imagem final e a legenda editável. **Copiar legenda** envia o texto para a área de transferência; **Baixar imagem** baixa o JPG 1080×1350; **Usar em Criar Post** preenche o formulário com o título, a legenda editada e a mesma imagem, permitindo escolher o horário antes de salvar. A geração fica em `db.meta.manualPreviewBatch`, separada de `db.posts`, sem agendamento ou aprovação automática. O histórico editorial dos trios evita cópias de conteúdo e prioriza imagens ainda não usadas.
+
+Validação adicional: `node --test portal-api/orpheus-manual-previews.test.mjs`. Teste HTTP com armazenamento S3 simulado e o renderer real confirmou autenticação, geração de três JPGs, download e preservação da agenda.
