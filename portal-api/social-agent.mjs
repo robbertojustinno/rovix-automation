@@ -17,6 +17,7 @@ const R2_ACCESS_KEY_ID=process.env.R2_ACCESS_KEY_ID||"";
 const R2_SECRET_ACCESS_KEY=process.env.R2_SECRET_ACCESS_KEY||"";
 const R2_BUCKET=process.env.R2_BUCKET||"rovix-drive";
 const DB_KEY="social-agent/db.json";
+const RECOVERY_DB_KEY="social-agent/backups/pre-manual-previews-20261003.json";
 const ADMIN_USER=process.env.SOCIAL_ADMIN_USER||"admin";
 const ADMIN_PASSWORD_HASH=process.env.SOCIAL_ADMIN_PASSWORD_HASH||"";
 const SESSION_SECRET=process.env.SOCIAL_SESSION_SECRET||"";
@@ -127,6 +128,16 @@ const BASE_PROJECTS=[
 
 function s3(){if(!R2_ENDPOINT||!R2_ACCESS_KEY_ID||!R2_SECRET_ACCESS_KEY)throw new Error("R2_NOT_CONFIGURED");return new S3Client({region:"auto",endpoint:R2_ENDPOINT,credentials:{accessKeyId:R2_ACCESS_KEY_ID,secretAccessKey:R2_SECRET_ACCESS_KEY}})}
 async function readStream(stream){return await stream.transformToString()}
+async function ensureRecoverySnapshot(){
+  try{
+    try{await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:RECOVERY_DB_KEY}));console.log("[Social Agent] Recovery snapshot already exists:",RECOVERY_DB_KEY);return}
+    catch(e){if(e?.name!=="NoSuchKey"&&e?.$metadata?.httpStatusCode!==404)throw e}
+    const current=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:DB_KEY}));
+    const raw=await readStream(current.Body);
+    await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:RECOVERY_DB_KEY,Body:raw,ContentType:"application/json"}));
+    console.log("[Social Agent] Recovery snapshot created:",RECOVERY_DB_KEY);
+  }catch(e){console.error("[Social Agent] Recovery snapshot failed:",e.message)}
+}
 export function rebuildCancelledPosts(db){
   if(db.meta.rebuildRepeatedArt20261001)return false;
   const replaced=[];
@@ -552,7 +563,7 @@ setInterval(()=>withSocialDbLock(async()=>{
   for(const p of posts)await refreshStrategyMetrics(p);
   if(posts.length)await saveDb(db);
 }).catch(e=>console.error("[Social Agent] Métricas:",e.message)),15*60*1000);
-setTimeout(()=>automationTick(),5000);setInterval(()=>automationTick(),60*1000);
+setTimeout(()=>ensureRecoverySnapshot(),1000);setTimeout(()=>automationTick(),5000);setInterval(()=>automationTick(),60*1000);
 
 function crc32(buf){let c=0xffffffff;for(const b of buf){c^=b;for(let k=0;k<8;k++)c=(c>>>1)^((c&1)?0xedb88320:0)}return(c^0xffffffff)>>>0}
 function pngChunk(type,data){const t=Buffer.from(type),len=Buffer.alloc(4),crc=Buffer.alloc(4);len.writeUInt32BE(data.length);crc.writeUInt32BE(crc32(Buffer.concat([t,data])));return Buffer.concat([len,t,data,crc])}
