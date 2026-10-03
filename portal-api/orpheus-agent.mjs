@@ -7,6 +7,7 @@ import {S3Client,PutObjectCommand,GetObjectCommand,ListObjectsV2Command,DeleteOb
 import {getSignedUrl} from "@aws-sdk/s3-request-presigner";
 import sharp from "sharp";
 import {PROVIDER,selectScene,generate,duplicateImage,publishable} from "./orpheus-flux.mjs";
+import {createStrategyApi} from "./orpheus-strategy-routes.mjs";
 const ENGINE="preapproved-drive";
 
 const __dirname=path.dirname(fileURLToPath(import.meta.url));
@@ -250,6 +251,21 @@ function titleLines(value){
   return lines;
 }
 const PREAPPROVED_KEY="orpheus-agent/preapproved-catalog.json";
+async function loadDriveCatalog(){
+ const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:PREAPPROVED_KEY}));const c=JSON.parse(await r.Body.transformToString());
+ if(c.folderId!=="080b03b1-8429-44a1-9ae2-2dcaf086a4f7"||c.ownerId!=="c926b386-69e0-4fbb-be99-6aa1a7872d86")throw new Error('Catálogo ORPHEUS inválido');
+ c.files=(c.files||[]).filter(f=>/^image\/(png|jpeg|webp)$/.test(f.mime_type)&&f.object_key?.startsWith(c.ownerId+'/'));return c;
+}
+async function sourceUrl(fileId){const c=await loadDriveCatalog(),f=c.files.find(x=>x.id===fileId);if(!f)throw new Error('Imagem removida');return getSignedUrl(s3(),new GetObjectCommand({Bucket:R2_BUCKET,Key:f.object_key}),{expiresIn:900});}
+async function refreshStrategyMetrics(post){
+ const metrics=Object.fromEntries(['views','reach','likes','comments','saved','shares','profile_visits','follows','retention'].map(k=>[k,null]));
+ const errors=[];
+ for(const metric of Object.keys(metrics).filter(k=>k!=='retention')){try{const d=await metaFetch(post.metaMediaId+'/insights',{params:{metric}});const row=d.data?.find(r=>r.name===metric),value=row?.total_value?.value??row?.values?.[0]?.value;if(Number.isFinite(value))metrics[metric]=value}catch(e){errors.push(metric+': '+e.message)}}
+ const prior=post.performance,manual=prior?.source==='manual'?prior.metrics:prior?.manual,sources={};
+ for(const key of Object.keys(metrics)){sources[key]=metrics[key]===null?null:'instagram';if(metrics[key]===null&&Number.isFinite(manual?.[key])){metrics[key]=manual[key];sources[key]='manual'}}
+ post.performance={metrics,sources,source:manual?'instagram e manual':'instagram',manual:manual||null,updatedAt:new Date().toISOString(),errors};
+}
+const strategyApi=createStrategyApi({json,body,saoDate,loadDriveCatalog,saveDb,scheduleFor,id,refreshMetrics:refreshStrategyMetrics,attachPreapproved,sourceUrl});
 export async function attachPreapproved(db,post){
   try{
     const response=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:PREAPPROVED_KEY}));
@@ -267,16 +283,18 @@ export async function attachPreapproved(db,post){
     const original=Buffer.from(await r.Body.transformToByteArray());
     const escape=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
     const topic=String(post.title||'CIPHER').toLowerCase();
-    const hook=topic.includes('cego')?'O perigo também está no que você não vê.':/escuta|sinal|silêncio/.test(topic)?'Uma informação pode mudar tudo.':/arquivo|documento|dossiê/.test(topic)?'Alguns segredos nunca deveriam ser revelados.':/vigilância|sombra|perseguição/.test(topic)?'Quem observa também pode estar sendo observado.':'Cada detalhe pode ser uma pista — ou uma armadilha.';
+    const hook=post.strategy?.hook|| (topic.includes('cego')?'O perigo também está no que você não vê.':/escuta|sinal|silêncio/.test(topic)?'Uma informação pode mudar tudo.':/arquivo|documento|dossiê/.test(topic)?'Alguns segredos nunca deveriam ser revelados.':/vigilância|sombra|perseguição/.test(topic)?'Quem observa também pode estar sendo observado.':'Cada detalhe pode ser uma pista — ou uma armadilha.');
     const draw=async(value,font,width=920)=>sharp({text:{text:'<span foreground="white">'+escape(value)+'</span>',font,width,dpi:72,align:'left',rgba:true}}).png().toBuffer();
     const label=await draw('ARQUIVO CIPHER  /  ACESSO RESTRITO','DejaVu Sans Bold 21');
     const title=await sharp(await draw(String(post.title||'CIPHER').slice(0,120),'DejaVu Sans Bold 52')).resize(920,110,{fit:'inside',withoutEnlargement:true}).png().toBuffer();
     const phrase=await sharp(await draw(hook,'DejaVu Sans 32')).resize(920,85,{fit:'inside',withoutEnlargement:true}).png().toBuffer();
     const detail=await draw('Espionagem, vigilância e segredos.\nCIPHER — Protocolo Orpheus | Roberto Justino','DejaVu Sans 24');
-    const cta=await draw('CONHEÇA O LIVRO  →  LINK NA BIO','DejaVu Sans Bold 25');
+    const ctaText=post.strategy?.cta||'CONHEÇA O LIVRO  →  LINK NA BIO';
+    const cta=await sharp(await draw(ctaText,'DejaVu Sans Bold 25')).resize(920,45,{fit:'inside',withoutEnlargement:true}).png().toBuffer();
     const band=await sharp({create:{width:1080,height:430,channels:4,background:{r:3,g:8,b:18,alpha:0.94}}}).png().toBuffer();
-    const artwork=await sharp(original).rotate().resize(1080,1350,{fit:'contain',background:'#050a12'}).composite([{input:band,left:0,top:920},{input:label,left:80,top:949},{input:title,left:80,top:998},{input:phrase,left:80,top:1118},{input:detail,left:80,top:1200},{input:cta,left:80,top:1288}]).jpeg({quality:94}).toBuffer();
-    post.artCopy={hook,cta:'Conheça o livro — link na bio',kind:'promotional',version:2};
+    const base=post.strategy?await sharp({create:{width:1080,height:1350,channels:3,background:'#050a12'}}).composite([{input:await sharp(original).rotate().resize(1080,900,{fit:'contain',background:'#050a12'}).toBuffer(),top:0,left:0}]).png().toBuffer():original;
+    const artwork=await sharp(base).rotate().resize(1080,1350,{fit:'contain',background:'#050a12'}).composite([{input:band,left:0,top:920},{input:label,left:80,top:949},{input:title,left:80,top:998},{input:phrase,left:80,top:1118},{input:detail,left:80,top:1200},{input:cta,left:80,top:1288}]).jpeg({quality:94}).toBuffer();
+    post.artCopy={hook,cta:ctaText,kind:'promotional',version:2};
     const hash=crypto.createHash('sha256').update(artwork).digest('hex');
     const key='orpheus-agent/preapproved/'+post.id+'-'+hash+'.jpg';
     await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:key,Body:artwork,ContentType:'image/jpeg'}));
@@ -406,6 +424,7 @@ async function api(req,res,u){
   if(!authed(req))return json(res,401,{error:"Autenticação obrigatória"});
 
   const db=await loadDb();
+  if(u.pathname.startsWith('/orpheus-api/strategy'))return strategyApi(req,res,u,db);
   if(req.method==="GET"&&u.pathname==="/orpheus-api/status")return json(res,200,{app:"ORPHEUS Social Agent",targetInstagram:TARGET_INSTAGRAM,universe:"CIPHER",automaticScope:["cipher","orpheus"],version:"0.9.0",online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:true,generator:{provider:ENGINE,retryAt:null,error:null,measurements:db.meta.generatorMeasurements||[],reviewRequired:true},visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"Acervo aprovado do Drive; revisão da composição obrigatória",storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
   if(req.method==="GET"&&u.pathname==="/orpheus-api/meta/test"){if(!metaConfigured())return json(res,200,{connected:false,error:"Credenciais Meta ainda não configuradas"});try{const result=await testMeta();if(db.meta.apiAccessBlocked){delete db.meta.apiAccessBlocked;await saveDb(db)}return json(res,200,result)}catch(e){console.error("[ORPHEUS Agent] Teste Meta:",e.httpStatus||"",e.metaCode||"",e.metaSubcode||"",e.message);if(/API access blocked/i.test(e.message||"")&&!db.meta.apiAccessBlocked){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:e.metaCode||null};await saveDb(db)}return json(res,200,{connected:false,error:e.message,httpStatus:e.httpStatus||null,metaCode:e.metaCode||null,metaSubcode:e.metaSubcode||null})}}
   if(req.method==="GET"&&u.pathname==="/orpheus-api/meta/analytics"){const days=Number(u.searchParams.get("days")||7);if(![7,30].includes(days))return json(res,400,{error:"Período inválido"});return json(res,200,await accountAnalytics(days))}
