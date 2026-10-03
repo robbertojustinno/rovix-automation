@@ -35,7 +35,7 @@ export function createStrategyApi({json,body,saoDate,loadDriveCatalog,saveDb,sch
    if(!project?.active)throw new Error('Ative o projeto desta proposta antes de preparar a postagem.');
    const scheduledAt=scheduleFor(entry.date,entry.slot,Math.max(1,Number(db.settings.postsPerDay)||3),db.settings);
    if(Date.parse(scheduledAt)<=Date.now())throw new Error('O horário planejado já passou. Gere o plano a partir de amanhã.');
-   if(db.posts.some(p=>!['deleted','rejected'].includes(p.status)&&p.scheduledAt===scheduledAt))throw new Error('Este horário já está ocupado na agenda. Edite o plano ou escolha outra data.');
+   if(db.posts.some(p=>!['deleted','rejected'].includes(p.status)&&Date.parse(p.scheduledAt)===Date.parse(scheduledAt)))throw new Error('Este horário já está ocupado na agenda. Edite o plano ou escolha outra data.');
    const catalog=await loadDriveCatalog(),file=catalog.files.find(f=>f.id===entry.sourceFileId);if(!file)throw new Error('Imagem removida. Gere um novo plano.');
    if(db.posts.some(p=>!['deleted','rejected','published'].includes(p.status)&&p.sourceImageKey===file.object_key))throw new Error('Imagem já reservada em uma postagem pendente. Gere outro plano.');
    const post={sourceImageKey:file.object_key,id:id('strategy'),projectId:project.id,projectName:project.name,title:entry.title,caption:entry.caption,strategy:structuredClone(entry.strategy),status:'draft',scheduledAt,generatedDate:entry.date,generatedBy:'agent',createdAt:new Date().toISOString(),artStatus:'pending',planEntryId:entry.id};
