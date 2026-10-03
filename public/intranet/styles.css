@@ -410,3 +410,5 @@ button { border: 0; cursor: pointer; }
     padding: 22px;
   }
 }
+
+.system-art img[src*="rovix-logo-official"]{object-fit:contain;padding:16px}
