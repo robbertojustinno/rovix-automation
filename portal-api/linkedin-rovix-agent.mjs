@@ -53,7 +53,7 @@ const POSTING_POLICY=Object.freeze({
       "Variar assunto, ação, cenário, enquadramento e composição; não transformar toda postagem no mesmo robô; reutilizar somente após completar o ciclo da pasta",
       "Proibidos cenários genéricos sem relação com o conteúdo, objetos aleatórios, imagens pobres e mecânica deformada",
       "Resolução e ausência de repetição não substituem avaliação da qualidade e da coerência visual",
-      "logo ROVIX integrada sem distorcao",
+      "Usar obrigatoriamente o logo circular oficial ROVIX Automation fornecido em 03/10/2026, preservando transparência, cores e proporções; não redesenhar, distorcer ou substituir por logo gerado",
       "composicao publicitaria profissional",
       "tipografia forte e legivel",
       "coerencia visual com o produto",
