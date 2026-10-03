@@ -19,7 +19,7 @@ window.ROVIX_HUB_CONFIG = {
 {
   "name": "ROVIX Retro Games",
   "image": "/intranet/public/rovix-logo-official-20261003.png",
-  "description": "Um espaço para desestressar: cinco jogos originais, modo tranquilo, pausa, volume e controles de teclado e toque.",
+  "description": "Um espaço para desestressar: oito jogos gratuitos, modo tranquilo, pausa, volume e controles de teclado e toque.",
   "status": "PRODUÇÃO",
   "type": "Jogos / Desestresse",
   "links": [
