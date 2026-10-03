@@ -17,6 +17,19 @@ window.ROVIX_HUB_CONFIG = {
       "icon": "🚀",
       "items": [
 {
+  "name": "Dangerous Dave",
+  "image": "/dave/preview.png",
+  "description": "Jogue o clássico renovado: dez fases, diamantes, troféu, arma e jetpack. Com música e efeitos sonoros.",
+  "status": "BETA",
+  "type": "Jogo / Retrô",
+  "links": [
+    {
+      "label": "Jogar agora",
+      "url": "/dave/"
+    }
+  ]
+},
+{
   "name": "ROVIX LinkedIn Agent",
   "image": "/intranet/public/rovix-logo-official-20261003.png",
   "description": "Criação, prévias, aprovação e agendamento de publicações no LinkedIn.",
