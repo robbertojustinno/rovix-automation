@@ -59,3 +59,15 @@ body.logged-in #shell{display:block!important}
 #analyticsCards .muted{font-size:11px;margin-top:3px}
 @media(max-width:680px){#analyticsCards{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:440px){#analyticsCards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.manual-preview-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:20px}
+.manual-preview-card{display:flex;flex-direction:column;gap:12px}
+.manual-preview-card label{display:grid;gap:7px}
+.manual-hook{padding:12px 14px;border:1px solid var(--l);border-radius:12px;background:#09111c}
+.manual-hook p{margin:6px 0 0;color:#dbe8f6;line-height:1.55}
+.manual-image-button{display:block;width:100%;border:1px solid var(--l);border-radius:14px;background:#050b13;padding:0;overflow:hidden;cursor:zoom-in}
+.manual-preview-image{display:block;width:100%;aspect-ratio:4/5;object-fit:contain;background:#050b13}
+.manual-preview-modal img{max-height:82vh;object-fit:contain}
+#manualPreviewFeedback{min-height:20px;color:#8cf3df}
+@media(max-width:1100px){.manual-preview-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:760px){.manual-preview-grid{grid-template-columns:1fr}}
