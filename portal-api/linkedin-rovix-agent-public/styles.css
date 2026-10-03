@@ -59,3 +59,6 @@ body.logged-in #shell{display:block!important}
 #analyticsCards .muted{font-size:11px;margin-top:3px}
 @media(max-width:680px){#analyticsCards{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:440px){#analyticsCards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Keep account controls accessible at every viewport size. */
+aside{overflow-y:auto}.brand small{letter-spacing:1px;font-size:9px}.account-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.account-actions #logout{margin:0;font-size:14px;color:var(--t);flex-shrink:0;padding:10px 16px}header{gap:16px;flex-wrap:wrap}@media(max-width:900px){.account-actions{width:100%}#badge{font-size:12px}}
