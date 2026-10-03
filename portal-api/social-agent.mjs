@@ -9,6 +9,7 @@ import sharp from "sharp";
 import {DRIVE_IMAGE_POLICY,driveContent,chooseDriveFile} from "./social-drive-content.mjs";
 import {STRATEGY_POLICY,composeStrategy,createWeeklyPlan,assertCreativeUnique,learnFromPosts,validateMetrics,subjectFor} from "./social-strategy.mjs";
 import {createStrategyApi} from "./social-strategy-routes.mjs";
+import {createManualPreviewApi} from "./social-manual-previews.mjs";
 
 const __dirname=path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC=path.join(__dirname,"social-agent-public");
@@ -450,6 +451,50 @@ async function prepareDriveArtwork(post,db,catalog){
   delete post.artJobId;delete post.nextArtRetryAt;
   console.log("[Social Agent] Imagem do Drive pronta:",post.id,file.name,"ciclo",cycle);
 }
+async function prepareManualArtwork({db,catalog,file,virtual,seed,id:idFn}){
+  if(catalog.folderId!==DRIVE_IMAGE_POLICY.folderId||catalog.ownerId!==DRIVE_IMAGE_POLICY.ownerId)throw new Error("Pasta ROVIX inválida");
+  if(!file?.object_key||!file.object_key.startsWith(DRIVE_IMAGE_POLICY.ownerId+"/"))throw new Error("Imagem fora da pasta autorizada");
+  const content=composeStrategy(file,virtual,seed);
+  const project=db.projects.find(p=>p.id===content.projectId&&p.active);
+  if(!project)throw new Error("Projeto da proposta não está ativo");
+  const base=driveContent(file,0);
+  const entry={
+    id:idFn("manual-preview"),
+    ...content,
+    projectName:project.name,
+    sourceImageName:file.name,
+    driveFileId:file.id,
+    driveFileName:file.name,
+    driveFolder:DRIVE_IMAGE_POLICY.path,
+    driveHasExistingText:base.hasExistingText,
+    scheduledAt:"",
+    status:"manual_preview",
+    createdAt:new Date().toISOString(),
+    generatedBy:"manual-preview",
+    visualPolicy:POSTING_POLICY.id,
+    visualEngine:VISUAL_ENGINE
+  };
+  entry.strategy=structuredClone(entry.strategy);
+  Object.assign(entry.strategy.visual,{fileId:file.id,fileName:file.name});
+  const raw=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:file.object_key}));
+  const source=Buffer.from(await raw.Body.transformToByteArray());
+  const square=await renderArtworkBuffer(entry,project,source);
+  const final=await sharp(square).resize(1080,1350,{fit:"contain",background:"#020714"}).jpeg({quality:94,mozjpeg:true}).toBuffer();
+  entry.visualFingerprint=await imageFingerprint(final);
+  entry.visualSource="rovix-drive://"+file.id;
+  await assertUniqueArtwork(entry,db);
+  const key="social-agent/manual-previews/"+entry.id+"-"+crypto.randomBytes(6).toString("hex")+".jpg";
+  await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:key,Body:final,ContentType:"image/jpeg"}));
+  Object.assign(entry,{imageKey:key,imageUrl:"",artStatus:"ready",artGeneratedAt:new Date().toISOString(),diversityPolicy:DIVERSITY_POLICY});
+  return entry;
+}
+async function readManualImage(entry){
+  const bytes=await artworkBytes(entry);
+  const meta=await sharp(bytes).metadata();
+  if(meta.width===1080&&meta.height===1350&&meta.format==="jpeg")return bytes;
+  return sharp(bytes).rotate().resize(1080,1350,{fit:"contain",background:"#020714"}).jpeg({quality:94,mozjpeg:true}).toBuffer();
+}
+
 async function prepareArtworkForQueue(){
   const db=await loadDb(),catalog=await loadDriveCatalog();let made=0;
   const candidates=db.posts.filter(p=>p.generatedBy==="agent"&&["draft","approved","error"].includes(p.status)&&!["ready","uploaded"].includes(p.artStatus)).sort((a,b)=>Number(!!b.isDriveTest)-Number(!!a.isDriveTest)||Date.parse(a.createdAt)-Date.parse(b.createdAt)).slice(0,MAX_FAST_IMAGES_PER_RUN);
@@ -584,6 +629,7 @@ async function refreshStrategyMetrics(post){
   return post.performance;
 }
 const strategyApi=createStrategyApi({json,body,saoDate,loadDriveCatalog,saveDb,scheduleFor,id,refreshMetrics:refreshStrategyMetrics});
+const manualPreviewApi=createManualPreviewApi({json,loadDriveCatalog,prepareManualArtwork,readManualImage,saveDb,id});
 async function api(req,res,u){
   if(u.pathname==="/social-api/auth/status")return json(res,200,{authenticated:authed(req),user:authed(req)?ADMIN_USER:null});
   if(req.method==="POST"&&u.pathname==="/social-api/auth/login"){const d=await body(req);if(d.user!==ADMIN_USER||!verifyPassword(d.password))return json(res,401,{error:"Usuário ou senha inválidos"});const token=makeSession();return json(res,200,{ok:true,user:ADMIN_USER,sessionToken:token},{"Set-Cookie":sessionCookie(token)})}
@@ -591,6 +637,7 @@ async function api(req,res,u){
   if(!authed(req))return json(res,401,{error:"Autenticação obrigatória"});
 
   const db=await loadDb();
+  if(u.pathname.startsWith("/social-api/manual-previews")){try{return await manualPreviewApi(req,res,u,db)}catch(e){return json(res,400,{error:e.message})}}
   if(u.pathname.startsWith("/social-api/strategy")){try{return await strategyApi(req,res,u,db)}catch(e){return json(res,400,{error:e.message})}}
   if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"1.0.0",diversityPolicy:DIVERSITY_POLICY,cancellation:db.meta.cancelScheduledThrough20261005,online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"Imagens aprovadas do ROVIX Drive com texto e legenda",imageProvider:"ROVIX Drive",imageFolder:DRIVE_IMAGE_POLICY.path,imageQueue:db.posts.filter(p=>p.artJobId).length,replacements:db.meta.rebuildRepeatedArt20261001,storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
   if(req.method==="GET"&&u.pathname==="/social-api/meta/test"){if(!metaConfigured())return json(res,200,{connected:false,error:"Credenciais Meta ainda não configuradas"});try{const result=await testMeta();if(db.meta.apiAccessBlocked){delete db.meta.apiAccessBlocked;await saveDb(db)}return json(res,200,result)}catch(e){console.error("[Social Agent] Teste Meta:",e.httpStatus||"",e.metaCode||"",e.metaSubcode||"",e.message);if(/API access blocked/i.test(e.message||"")&&!db.meta.apiAccessBlocked){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:e.metaCode||null};await saveDb(db)}return json(res,200,{connected:false,error:e.message,httpStatus:e.httpStatus||null,metaCode:e.metaCode||null,metaSubcode:e.metaSubcode||null})}}
