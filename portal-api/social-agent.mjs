@@ -7,7 +7,7 @@ import {S3Client,PutObjectCommand,GetObjectCommand} from "@aws-sdk/client-s3";
 import {getSignedUrl} from "@aws-sdk/s3-request-presigner";
 import sharp from "sharp";
 import {DRIVE_IMAGE_POLICY,driveContent,chooseDriveFile} from "./social-drive-content.mjs";
-import {STRATEGY_POLICY,composeStrategy,createWeeklyPlan,assertCreativeUnique,learnFromPosts,validateMetrics} from "./social-strategy.mjs";
+import {STRATEGY_POLICY,composeStrategy,createWeeklyPlan,assertCreativeUnique,learnFromPosts,validateMetrics,subjectFor} from "./social-strategy.mjs";
 import {createStrategyApi} from "./social-strategy-routes.mjs";
 
 const __dirname=path.dirname(fileURLToPath(import.meta.url));
@@ -412,13 +412,19 @@ async function loadDriveCatalog(){
 async function prepareDriveArtwork(post,db,catalog){
   if(catalog.folderId!==DRIVE_IMAGE_POLICY.folderId||catalog.ownerId!==DRIVE_IMAGE_POLICY.ownerId)throw new Error("Pasta ROVIX inválida");
   const history=db.posts.filter(p=>p.id!==post.id);
-  const selected=post.strategy?.visual?.fileId?catalog.files.find(f=>f.id===post.strategy.visual.fileId):null;
+  const blocked=post.rejectedDriveFileIds||[];
+  let selected=post.strategy?.visual?.fileId?catalog.files.find(f=>f.id===post.strategy.visual.fileId):null;
   if(post.strategy?.visual?.fileId&&!selected)throw new Error("Imagem planejada removida da pasta. Regenerar a proposta.");
-  const {file,cycle}=selected?{file:selected,cycle:history.filter(p=>p.driveFileId===selected.id).length}:chooseDriveFile(catalog.files||[],history);
+  if(selected&&blocked.includes(selected.id))selected=null;
+  const pool=(catalog.files||[]).filter(f=>!blocked.includes(f.id)&&(!post.strategy||subjectFor(f).id===post.strategy.subject));
+  const {file,cycle}=selected?{file:selected,cycle:history.filter(p=>p.driveFileId===selected.id).length}:chooseDriveFile(pool,history);
+  post.lastAttemptDriveFileId=file.id;
   if(!file.object_key.startsWith(DRIVE_IMAGE_POLICY.ownerId+"/"))throw new Error("Imagem não pertence à pasta autorizada");
   const base=driveContent(file,cycle);
   const planned=post.strategy?{title:post.title,caption:post.caption,strategy:post.strategy,projectId:post.projectId}:composeStrategy(file,history,Number(db.meta.topicCursor||0)+cycle);
   const content={...base,...planned},project=db.projects.find(p=>p.id===content.projectId)||db.projects.find(p=>p.id==="rovix");
+  content.strategy=structuredClone(content.strategy);
+  Object.assign(content.strategy.visual,{fileId:file.id,fileName:file.name});
   const raw=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:file.object_key}));
   const bytes=Buffer.from(await raw.Body.transformToByteArray());
   const meta=await sharp(bytes).metadata();if(!meta.width||!meta.height)throw new Error("Arquivo de imagem inválido");
@@ -428,13 +434,27 @@ async function prepareDriveArtwork(post,db,catalog){
   const key="social-agent/drive/"+post.id+"-"+crypto.randomBytes(6).toString("hex")+".jpg";
   await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:key,Body:final,ContentType:"image/jpeg"}));
   Object.assign(post,candidate,{imageKey:key,imageUrl:"",artStatus:"ready",visualEngine:VISUAL_ENGINE,visualPolicy:POSTING_POLICY.id,artGeneratedAt:new Date().toISOString(),lastError:"",artError:""});
+  const entry=db.meta.contentPlan?.entries.find(e=>e.id===post.planEntryId);
+  if(entry){entry.sourceFileId=file.id;entry.strategy=structuredClone(post.strategy);}
   delete post.artJobId;delete post.nextArtRetryAt;
   console.log("[Social Agent] Imagem do Drive pronta:",post.id,file.name,"ciclo",cycle);
 }
 async function prepareArtworkForQueue(){
   const db=await loadDb(),catalog=await loadDriveCatalog();let made=0;
   const candidates=db.posts.filter(p=>p.generatedBy==="agent"&&["draft","approved","error"].includes(p.status)&&!["ready","uploaded"].includes(p.artStatus)).sort((a,b)=>Number(!!b.isDriveTest)-Number(!!a.isDriveTest)||Date.parse(a.createdAt)-Date.parse(b.createdAt)).slice(0,MAX_FAST_IMAGES_PER_RUN);
-  for(const p of candidates){try{await prepareDriveArtwork(p,db,catalog);made++}catch(e){p.artStatus="pending";p.artError=e.message;console.error("[Social Agent] Drive:",p.id,e.message)}}
+  for(const p of candidates){
+    for(let attempt=0;attempt<3;attempt++){
+      try{await prepareDriveArtwork(p,db,catalog);made++;break}
+      catch(e){
+        p.artStatus="pending";p.artError=e.message;
+        if(/igual|semelhante|ja utilizado/i.test(e.message)&&p.lastAttemptDriveFileId){
+          p.rejectedDriveFileIds=[...new Set([...(p.rejectedDriveFileIds||[]),p.lastAttemptDriveFileId])];
+          console.log("[Social Agent] Imagem semelhante descartada; buscando outra:",p.id);continue;
+        }
+        console.error("[Social Agent] Drive:",p.id,e.message);break;
+      }
+    }
+  }
   if(candidates.length)await saveDb(db);
   return{made,queued:0,generating:0,engine:VISUAL_ENGINE,level:"drive",cost:"free",folder:DRIVE_IMAGE_POLICY.path,availableImages:catalog.files?.length||0};
 }
