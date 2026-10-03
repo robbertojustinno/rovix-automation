@@ -16,6 +16,19 @@ window.ROVIX_HUB_CONFIG = {
       "group": "ROVIX",
       "icon": "🚀",
       "items": [
+{
+  "name": "ROVIX LinkedIn Agent",
+  "image": "/intranet/public/rovix-logo-official-20261003.png",
+  "description": "Criação, prévias, aprovação e agendamento de publicações no LinkedIn.",
+  "status": "PRODUÇÃO",
+  "type": "Marketing / LinkedIn",
+  "links": [
+    {
+      "label": "Abrir LinkedIn Agent",
+      "url": "https://rovixautomation.com.br/linkedinsocialagent/"
+    }
+  ]
+},
         {
           "name": "ROVIX Automation / ROVIX HUB",
           "image": "/intranet/public/cards/rovix-hub.svg",
