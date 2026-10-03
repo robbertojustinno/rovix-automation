@@ -1,6 +1,6 @@
 import sharp from "sharp";
 
-export function createManualPreviewApi({json,loadDriveCatalog,prepareManualArtwork,saveDb,id}){
+export function createManualPreviewApi({json,loadDriveCatalog,prepareManualArtwork,readManualImage,saveDb,id}){
   return async function(req,res,u,db){
     const base="/social-api/manual-previews";
     if(req.method==="GET"&&u.pathname===base)return json(res,200,db.meta.manualPreviewBatch||{entries:[]});
@@ -68,7 +68,7 @@ export function createManualPreviewApi({json,loadDriveCatalog,prepareManualArtwo
       const entry=db.meta.manualPreviewBatch?.entries?.find(e=>e.id===image[1]);
       if(!entry)return json(res,404,{error:"Prévia não encontrada; gere um novo trio."});
       if(!entry.imageKey)return json(res,409,{error:"Imagem da prévia ainda não está pronta."});
-      const bytes=await prepareManualArtwork.readImage(entry);
+      const bytes=await readManualImage(entry);
       res.writeHead(200,{
         "Content-Type":"image/jpeg",
         "Content-Length":bytes.length,
