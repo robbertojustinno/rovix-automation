@@ -17,6 +17,19 @@ window.ROVIX_HUB_CONFIG = {
       "icon": "🚀",
       "items": [
 {
+  "name": "ROVIX Retro Games",
+  "image": "/intranet/public/rovix-logo-official-20261003.png",
+  "description": "Um espaço para desestressar: cinco jogos originais, modo tranquilo, pausa, volume e controles de teclado e toque.",
+  "status": "PRODUÇÃO",
+  "type": "Jogos / Desestresse",
+  "links": [
+    {
+      "label": "Jogar agora",
+      "url": "https://rovixautomation.com.br/retrogames/"
+    }
+  ]
+},
+{
   "name": "Dangerous Dave",
   "image": "/dave/preview.png",
   "description": "Jogue o clássico renovado: dez fases, diamantes, troféu, arma e jetpack. Com música e efeitos sonoros.",
