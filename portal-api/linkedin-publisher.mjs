@@ -1,5 +1,7 @@
+import {loadLinkedInConnection} from "./linkedin-connection.mjs";
+await loadLinkedInConnection();
 const API='https://api.linkedin.com';
-export function linkedInConfigured(){return Boolean(process.env.LINKEDIN_ACCESS_TOKEN&&/^urn:li:(person|organization):[\w-]+$/.test(process.env.LINKEDIN_AUTHOR_URN||''))}
+export function linkedInConfigured(){return Boolean((!process.env.LINKEDIN_TOKEN_EXPIRES_AT||Number(process.env.LINKEDIN_TOKEN_EXPIRES_AT)>Date.now())&&process.env.LINKEDIN_ACCESS_TOKEN&&/^urn:li:(person|organization):[\w-]+$/.test(process.env.LINKEDIN_AUTHOR_URN||''))}
 function headers(){return {Authorization:`Bearer ${process.env.LINKEDIN_ACCESS_TOKEN}`,'LinkedIn-Version':process.env.LINKEDIN_API_VERSION||'202606','X-Restli-Protocol-Version':'2.0.0','Content-Type':'application/json'}}
 async function request(route,options={}){
  if(!linkedInConfigured())throw new Error('Configure a conexão LinkedIn do servidor; a conexão do ChatGPT é independente.');
@@ -14,7 +16,7 @@ export async function publishLinkedIn(post,imageUrl){
  if(!linkedInConfigured())throw new Error('Conexão LinkedIn do servidor ainda não configurada.');
  const author=process.env.LINKEDIN_AUTHOR_URN;let image;
  if(imageUrl){
-  const u=new URL(imageUrl);const allowed=(process.env.LINKEDIN_IMAGE_ALLOWED_HOSTS||'').split(',').filter(Boolean);if(process.env.R2_ENDPOINT)allowed.push(new URL(process.env.R2_ENDPOINT).hostname);
+  const u=new URL(imageUrl);const allowed=(process.env.LINKEDIN_IMAGE_ALLOWED_HOSTS||'').split(',').filter(Boolean);if(process.env.R2_ENDPOINT){const host=new URL(process.env.R2_ENDPOINT).hostname;allowed.push(host,(process.env.R2_BUCKET||'rovix-drive')+'.'+host);}
   if(u.protocol!=='https:'||!allowed.includes(u.hostname))throw new Error('Imagem deve vir do acervo autorizado; configure LINKEDIN_IMAGE_ALLOWED_HOSTS.');
   const downloaded=await fetch(imageUrl,{redirect:'error',signal:AbortSignal.timeout(30000)});if(!downloaded.ok)throw new Error('Não foi possível baixar a imagem final.');
   const contentType=downloaded.headers.get('content-type')||'';if(!/^image\/(jpeg|png|webp)/i.test(contentType))throw new Error('Formato da imagem inválido.');

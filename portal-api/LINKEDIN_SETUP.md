@@ -27,3 +27,7 @@ Não foram configuradas credenciais LinkedIn no Render, nem validada uma postage
 Testes do publisher usam respostas simuladas para validar publicação de texto, upload binário seguido de mídia, bloqueio de imagem não autorizada, identidade e ausência de retry em resposta incerta. Para homologação, verificar no perfil um post com imagem e um agendamento real antes de habilitar a geração automática.
 
 Documentação da API: https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares/images-api?view=li-lms-2026-06
+
+## Conexão pela própria plataforma
+
+Crie ou selecione o aplicativo no LinkedIn Developers. Habilite os produtos Share on LinkedIn e Sign in with LinkedIn using OpenID Connect. Cadastre exatamente o retorno `https://rovix-linkedin-agent.onrender.com/linkedin/oauth/callback`. Configure `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`, `LINKEDIN_OAUTH_SECRET` (pelo menos 32 caracteres aleatórios) e `LINKEDIN_REDIRECT_URI` no Render. Entre no painel e use Conectar LinkedIn. O token e o identificador correto são obtidos automaticamente, com armazenamento criptografado AES-256-GCM no R2 separado dos dois agentes Instagram. Reautorize quando o token expirar. A implementação não promete renovação automática.
