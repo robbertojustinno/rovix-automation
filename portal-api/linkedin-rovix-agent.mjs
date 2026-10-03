@@ -554,6 +554,23 @@ async function api(req,res,u){
     if(entries.length!==3)return json(res,409,{error:'Não há três imagens livres para os projetos ativos.'});
     db.meta.manualPreviewSequence=Number(db.meta.manualPreviewSequence||0)+3;db.meta.manualPreviewBatch={createdAt:new Date().toISOString(),entries};db.meta.manualPreviewHistory=[...history,...entries].slice(-90);await saveDb(db);return json(res,201,db.meta.manualPreviewBatch);
    }
+   const publishPreview=u.pathname.match(/^\/linkedin-rovix-api\/manual-previews\/([^/]+)\/publish$/);
+   if(req.method==='POST'&&publishPreview){
+    const entry=db.meta.manualPreviewBatch?.entries.find(e=>e.id===publishPreview[1]);
+    if(!entry)return json(res,404,{error:'Prévia não encontrada'});
+    if(entry.status==='published')return json(res,200,entry);
+    if(['publishing','publication_uncertain'].includes(entry.status))return json(res,409,{error:'Esta prévia já foi enviada. Confira o LinkedIn antes de tentar outra publicação.'});
+    const d=await body(req),caption=String(d.caption??entry.caption).trim();
+    if(!caption||caption.length>3000)return json(res,400,{error:'A legenda deve ter entre 1 e 3000 caracteres.'});
+    if(!metaConfigured())return json(res,409,{error:'Conecte o LinkedIn primeiro.'});
+    if(publishingBusy)return json(res,409,{error:'Aguarde a publicação em andamento.'});
+    const until=activeCooldown(db);if(until)return json(res,429,{error:cooldownMessage(until)});
+    try{await assertUniqueArtwork(entry,db)}catch(e){return json(res,409,{error:e.message})}
+    publishingBusy=true;entry.caption=caption;entry.status='publishing';entry.publishStartedAt=new Date().toISOString();
+    try{await saveDb(db);const r=await publish(entry);entry.status='published';entry.linkedinPostId=r.id;entry.linkedinPostUrl=r.url;entry.publishedAt=new Date().toISOString();entry.lastError='';if(!db.posts.some(p=>p.id===entry.id))db.posts.unshift({...entry});await saveDb(db);return json(res,200,entry)}
+    catch(e){entry.status='publication_uncertain';entry.lastError=e.message;await saveDb(db);return json(res,502,{error:'Não foi possível confirmar a publicação. Confira seu LinkedIn antes de publicar novamente.'})}
+    finally{publishingBusy=false}
+   }
    const match=u.pathname.match(/^\/linkedin-rovix-api\/manual-previews\/([^/]+)\/image$/);
    if(req.method==='GET'&&match){const entry=db.meta.manualPreviewBatch?.entries.find(e=>e.id===match[1]);if(!entry)return json(res,404,{error:'Prévia não encontrada'});const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:entry.imageKey}));const bytes=Buffer.from(await r.Body.transformToByteArray());res.writeHead(200,{'Content-Type':'image/jpeg','Cache-Control':'no-store',...(u.searchParams.get('download')==='1'?{'Content-Disposition':'attachment; filename="rovix-linkedin-'+entry.id+'.jpg"'}:{})});res.end(bytes);return;}
    return json(res,404,{error:'Rota não encontrada'});
