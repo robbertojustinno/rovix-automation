@@ -9,7 +9,7 @@ import sharp from "sharp";
 import {DRIVE_IMAGE_POLICY,driveContent,chooseDriveFile} from "./social-drive-content.mjs";
 import {STRATEGY_POLICY,composeStrategy,createWeeklyPlan,assertCreativeUnique,learnFromPosts,validateMetrics,subjectFor} from "./social-strategy.mjs";
 import {createStrategyApi} from "./social-strategy-routes.mjs";
-import {createManualPreviewApi} from "./social-manual-previews.mjs";
+import {createManualPreviewApi,generateManualPreviewBatch} from "./social-manual-previews.mjs";
 
 const __dirname=path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC=path.join(__dirname,"social-agent-public");
@@ -608,7 +608,7 @@ setInterval(()=>withSocialDbLock(async()=>{
   for(const p of posts)await refreshStrategyMetrics(p);
   if(posts.length)await saveDb(db);
 }).catch(e=>console.error("[Social Agent] Métricas:",e.message)),15*60*1000);
-setTimeout(()=>ensureRecoverySnapshot(),1000);setTimeout(()=>automationTick(),5000);setInterval(()=>automationTick(),60*1000);
+setTimeout(()=>ensureRecoverySnapshot(),1000);setTimeout(()=>verifyManualPreviewFeature(),2500);setTimeout(()=>automationTick(),5000);setInterval(()=>automationTick(),60*1000);
 
 function crc32(buf){let c=0xffffffff;for(const b of buf){c^=b;for(let k=0;k<8;k++)c=(c>>>1)^((c&1)?0xedb88320:0)}return(c^0xffffffff)>>>0}
 function pngChunk(type,data){const t=Buffer.from(type),len=Buffer.alloc(4),crc=Buffer.alloc(4);len.writeUInt32BE(data.length);crc.writeUInt32BE(crc32(Buffer.concat([t,data])));return Buffer.concat([len,t,data,crc])}
@@ -630,6 +630,28 @@ async function refreshStrategyMetrics(post){
 }
 const strategyApi=createStrategyApi({json,body,saoDate,loadDriveCatalog,saveDb,scheduleFor,id,refreshMetrics:refreshStrategyMetrics});
 const manualPreviewApi=createManualPreviewApi({json,loadDriveCatalog,prepareManualArtwork,readManualImage,saveDb,id});
+async function verifyManualPreviewFeature(){
+  try{
+    const db=await loadDb();
+    if(db.meta.manualPreviewFeatureVerified?.version===1)return;
+    const beforePosts=db.posts.length;
+    const batch=await generateManualPreviewBatch({loadDriveCatalog,prepareManualArtwork,saveDb,id},db);
+    const dimensions=[];
+    for(const entry of batch.entries){
+      const bytes=await readManualImage(entry);
+      const meta=await sharp(bytes).metadata();
+      dimensions.push({id:entry.id,width:meta.width,height:meta.height,format:meta.format});
+      if(meta.width!==1080||meta.height!==1350||meta.format!=="jpeg")throw new Error("Dimensão/formato inválido em "+entry.id);
+    }
+    if(batch.entries.length!==3)throw new Error("O lote não contém três prévias");
+    if(db.posts.length!==beforePosts)throw new Error("Geração manual alterou a fila de postagens");
+    db.meta.manualPreviewFeatureVerified={version:1,at:new Date().toISOString(),count:3,dimensions,postCountPreserved:true};
+    await saveDb(db);
+    console.log("[Social Agent] Manual previews verified:",batch.entries.length,"x 1080x1350; posts unchanged");
+  }catch(e){
+    console.error("[Social Agent] Manual previews verification failed:",e.message);
+  }
+}
 async function api(req,res,u){
   if(u.pathname==="/social-api/auth/status")return json(res,200,{authenticated:authed(req),user:authed(req)?ADMIN_USER:null});
   if(req.method==="POST"&&u.pathname==="/social-api/auth/login"){const d=await body(req);if(d.user!==ADMIN_USER||!verifyPassword(d.password))return json(res,401,{error:"Usuário ou senha inválidos"});const token=makeSession();return json(res,200,{ok:true,user:ADMIN_USER,sessionToken:token},{"Set-Cookie":sessionCookie(token)})}
