@@ -46,3 +46,8 @@
 .hubExactCard small{font-size:10px;color:#9eb5d9;margin-top:auto}
 .hubExactButton{min-height:34px;padding:7px 10px;font-size:11px;font-weight:700;border-radius:9px;background:#0b1425db;border:1px solid #354057;color:#edf4ff;display:inline-flex;align-items:center;justify-content:center}
 .hubExactButton:hover{background:#2265d6;border-color:#459cff}
+
+/* Keep Hub-identical Drive/Social cards at full featured width */
+.homeSolutions .hubExactCard{grid-column:span 3;min-height:290px}
+.homeSolutions .hubExactCard .hubExactBody{min-height:290px}
+@media(max-width:1000px){.homeSolutions .hubExactCard{grid-column:span 1}}
