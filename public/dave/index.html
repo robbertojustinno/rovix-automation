@@ -39,6 +39,21 @@ async function openPrivateCode(){
  else message('Código inválido.');}
  }finally{enteringPrivateCode=false;if(wasPlaying&&mode==='pause')mode='play';pressed.clear();}
 }
+function togglePrivateShortcut(action){
+ privateCheats[action]=!privateCheats[action];
+ if(player&&privateCheats[action]){if(action==='jet')player.fuel=255;if(action==='gun')player.gun=true;}
+ pressed.clear();
+ const labels={shield:'Invencibilidade',jet:'Jetpack prolongado',gun:'Arma contínua'};
+ message(labels[action]+': '+(privateCheats[action]?'ativado':'desativado'));hud();
+}
+window.addEventListener('keydown',e=>{
+ if(!e.ctrlKey||!e.shiftKey||e.altKey||e.metaKey)return;
+ const action={Digit1:'shield',Digit2:'jet',Digit3:'gun'}[e.code];
+ if(!action)return;
+ if(e.target?.matches?.('input,textarea,select,[contenteditable="true"]'))return;
+ e.preventDefault();e.stopImmediatePropagation();
+ if(!e.repeat)togglePrivateShortcut(action);
+},true);
 window.addEventListener('keydown',e=>{if(e.ctrlKey&&e.shiftKey&&e.code==='KeyU'){e.preventDefault();e.stopImmediatePropagation();openPrivateCode();}},true);
 
 function freshPlayer(start){return{x:start[0],y:start[1],face:1,moving:false,ground:false,jump:0,climbing:false,trophy:false,gun:privateCheats.gun,fuel:privateCheats.jet?255:0,jet:false}}
