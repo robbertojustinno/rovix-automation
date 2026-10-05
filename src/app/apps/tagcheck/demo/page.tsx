@@ -18,6 +18,29 @@ const metrology=[
   "Grandeza","Unidade de medição","Faixa mínima","Faixa máxima","Classe","Resolução","EMA","Contribuição estimada da leitura"
 ];
 
+const demoAssets=[
+  {
+    tag:"DEMO-PRESSAO-01",
+    name:"Manômetro de processo",
+    category:"Instrumentação",
+    unit:"Área Demo",
+    status:"Calibrado",
+    type:"Pressão",
+    range:"0 a 630 mmWS",
+    detail:"Classe 2,0% • Resolução 10 mmWS • EMA ±12,6 mmWS • Leitura ±5 mmWS"
+  },
+  {
+    tag:"DEMO-TEMP-01",
+    name:"Termômetro digital",
+    category:"Instrumentação",
+    unit:"Laboratório Demo",
+    status:"Calibrado",
+    type:"Temperatura",
+    range:"0 a 200 °C",
+    detail:"Classe 0,5% • Resolução 0,1 °C • EMA ±1,0 °C • Leitura ±0,05 °C"
+  }
+];
+
 export default function TagCheckDemo(){
   return <main className="tagDemoPage">
     <section className="tagDemoNotice">
@@ -66,7 +89,11 @@ export default function TagCheckDemo(){
 
         <aside className="tagDemoCard tagDemoSide">
           <div className="tagDemoCardHead"><div><span>Organização</span><h2>Categorias</h2></div></div>
-          <div className="tagDemoEmptySmall">Nenhuma categoria criada.</div>
+          <div className="tagDemoMiniRows">
+            <span>Instrumentação</span>
+            <span>Pressão</span>
+            <span>Temperatura</span>
+          </div>
           <button disabled className="tagDemoGhost">+ Nova categoria</button>
 
           <div className="tagDemoSideDivider"/>
@@ -89,10 +116,15 @@ export default function TagCheckDemo(){
         </div>
         <div className="tagDemoTable">
           <div className="tagDemoTableHead"><span>TAG</span><span>Nome</span><span>Categoria</span><span>Unidade</span><span>Status</span><span>Ações</span></div>
-          <div className="tagDemoEmpty">
-            <QrCode size={34}/>
-            <h3>Nenhum ativo cadastrado</h3>
-            <p>A versão completa exibirá aqui os equipamentos da empresa.</p>
+          <div className="tagDemoTableRows">
+            {demoAssets.map(asset=><div className="tagDemoTableRow" key={asset.tag}>
+              <div><b>{asset.tag}</b><small>{asset.type} • {asset.range}</small></div>
+              <div><b>{asset.name}</b><small>{asset.detail}</small></div>
+              <span>{asset.category}</span>
+              <span>{asset.unit}</span>
+              <span><i className="tagDemoStatus">{asset.status}</i></span>
+              <span className="tagDemoRowAction">Somente visualização</span>
+            </div>)}
           </div>
         </div>
       </section>
