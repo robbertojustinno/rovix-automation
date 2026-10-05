@@ -96,7 +96,7 @@ function renderSystems() {
             <h4>${item.name}</h4>
             <span class="badge">${item.status}</span>
           </header>
-          <p>${item.description}</p>
+          <p class="system-description">${item.description}</p>
           <p class="system-type">${item.type}</p>
         </div>
       `;

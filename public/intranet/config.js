@@ -1,63 +1,63 @@
 window.ROVIX_HUB_CONFIG = {
-  APP_NAME: "Rovix Hub",
-  APP_VERSION: "1.0.0",
-  API_BASE_URL: "https://tag-1-xfzk.onrender.com",
-  TAG_ADMIN_URL: "https://tag-admin.onrender.com/",
-  STORAGE_KEYS: {
-    authToken: "tagcheck_admin_auth_token",
-    authUser: "tagcheck_admin_auth_user"
+  "APP_NAME": "Rovix Hub",
+  "APP_VERSION": "1.0.0",
+  "API_BASE_URL": "https://tag-1-xfzk.onrender.com",
+  "TAG_ADMIN_URL": "https://tag-admin.onrender.com/",
+  "STORAGE_KEYS": {
+    "authToken": "tagcheck_admin_auth_token",
+    "authUser": "tagcheck_admin_auth_user"
   },
-  ENDPOINTS: {
-    login: "/auth/login",
-    health: "/health"
+  "ENDPOINTS": {
+    "login": "/auth/login",
+    "health": "/health"
   },
-  SYSTEMS: [
+  "SYSTEMS": [
     {
       "group": "ROVIX",
       "icon": "🚀",
       "items": [
-{
-  "name": "ROVIX Retro Games",
-  "image": "/intranet/public/rovix-logo-official-20261003.png",
-  "description": "Um espaço para desestressar: oito jogos gratuitos, modo tranquilo, pausa, volume e controles de teclado e toque.",
-  "status": "PRODUÇÃO",
-  "type": "Jogos / Desestresse",
-  "links": [
-    {
-      "label": "Jogar agora",
-      "url": "https://rovixautomation.com.br/retrogames/"
-    }
-  ]
-},
-{
-  "name": "Dangerous Dave",
-  "image": "/dave/preview.png",
-  "description": "Jogue o clássico renovado: dez fases, diamantes, troféu, arma e jetpack. Com música e efeitos sonoros.",
-  "status": "BETA",
-  "type": "Jogo / Retrô",
-  "links": [
-    {
-      "label": "Jogar agora",
-      "url": "/dave/"
-    }
-  ]
-},
-{
-  "name": "ROVIX LinkedIn Agent",
-  "image": "/intranet/public/rovix-logo-official-20261003.png",
-  "description": "Criação, prévias, aprovação e agendamento de publicações no LinkedIn.",
-  "status": "PRODUÇÃO",
-  "type": "Marketing / LinkedIn",
-  "links": [
-    {
-      "label": "Abrir LinkedIn Agent",
-      "url": "https://rovixautomation.com.br/linkedinsocialagent/"
-    }
-  ]
-},
+        {
+          "name": "ROVIX Retro Games",
+          "image": "/images/hub/retro-games-20261005.webp",
+          "description": "Um espaço para desestressar: oito jogos gratuitos, modo tranquilo, pausa, volume e controles de teclado e toque.",
+          "status": "PRODUÇÃO",
+          "type": "Jogos / Desestresse",
+          "links": [
+            {
+              "label": "Jogar agora",
+              "url": "https://rovixautomation.com.br/retrogames/"
+            }
+          ]
+        },
+        {
+          "name": "Dangerous Dave",
+          "image": "/images/hub/dangerous-dave-20261005.webp",
+          "description": "Jogue o clássico renovado: dez fases, diamantes, troféu, arma e jetpack. Com música e efeitos sonoros.",
+          "status": "BETA",
+          "type": "Jogo / Retrô",
+          "links": [
+            {
+              "label": "Jogar agora",
+              "url": "/dave/"
+            }
+          ]
+        },
+        {
+          "name": "ROVIX LinkedIn Agent",
+          "image": "/images/hub/linkedin-agent-20261005.webp",
+          "description": "Criação, prévias, aprovação e agendamento de publicações no LinkedIn.",
+          "status": "PRODUÇÃO",
+          "type": "Marketing / LinkedIn",
+          "links": [
+            {
+              "label": "Abrir LinkedIn Agent",
+              "url": "https://rovixautomation.com.br/linkedinsocialagent/"
+            }
+          ]
+        },
         {
           "name": "ROVIX Automation / ROVIX HUB",
-          "image": "/intranet/public/cards/rovix-hub.svg",
+          "image": "/images/rovix-hero-20261005.webp",
           "description": "Plataforma central ROVIX e intranet de acesso aos sistemas e projetos.",
           "status": "PRODUÇÃO",
           "type": "Web",
@@ -74,7 +74,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "ROVIX Social Agent",
-          "image": "/intranet/public/cards/rovix-social-agent.svg",
+          "image": "/images/products/orpheus-social-agent-20261005.webp",
           "description": "Agente de mídia da ROVIX para criação, aprovação, agendamento e publicação automática de conteúdo no Instagram.",
           "status": "PRODUÇÃO",
           "type": "IA / Marketing / Social",
@@ -87,7 +87,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "ROVIX Drive",
-          "image": "/intranet/public/cards/rovix-drive.svg",
+          "image": "/images/hub/drive-20261005.webp",
           "description": "Armazenamento privado administrativo da ROVIX e repositório dos arquivos associados aos produtos.",
           "status": "PREVIEW",
           "type": "Cloud / Privado",
@@ -100,7 +100,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "ROVIX Store",
-          "image": "/intranet/public/cards/rovix-store.svg",
+          "image": "/images/products/market-20261005.webp",
           "description": "Catálogo e venda de produtos digitais, softwares e arquivos ROVIX.",
           "status": "PREVIEW",
           "type": "Web / Loja",
@@ -117,7 +117,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "ROVIX Store Admin",
-          "image": "/intranet/public/cards/rovix-store-admin.svg",
+          "image": "/images/hub/store-admin-20261005.webp",
           "description": "Área administrativa para cadastrar produtos, preços, versões e arquivos associados.",
           "status": "PREVIEW",
           "type": "Admin / Loja",
@@ -130,7 +130,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "ROVIX Projects",
-          "image": "/intranet/public/cards/rovix-projects.svg",
+          "image": "/images/hub/projects-20261005.webp",
           "description": "Central pública para apresentar projetos, ferramentas, versões e downloads liberados.",
           "status": "PREVIEW",
           "type": "Web / Projetos",
@@ -143,7 +143,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "ROVIX Setup / System Center",
-          "image": "/intranet/public/cards/rovix-setup.svg",
+          "image": "/images/hub/setup-20261005.webp",
           "description": "Ferramenta Windows para instalação, configuração, diagnóstico e manutenção de computadores.",
           "status": "LOCAL",
           "type": "Desktop / Windows",
@@ -151,7 +151,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "ROVIX Screensaver / Cyber Command Center",
-          "image": "/intranet/public/cards/rovix-screensaver.svg",
+          "image": "/images/hub/screensaver-20261005.webp",
           "description": "Projeto visual e operacional ROVIX para Windows, incluindo screensaver e Cyber Command Center.",
           "status": "LOCAL",
           "type": "Desktop",
@@ -164,7 +164,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "ROVIX OSINT",
-          "image": "/intranet/public/cards/rovix-osint.svg",
+          "image": "/images/hub/osint-20261005.webp",
           "description": "Plataforma ROVIX de inteligência e investigação OSINT.",
           "status": "LOCAL",
           "type": "Web / PWA",
@@ -172,7 +172,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "ROVIX Guardian",
-          "image": "/intranet/public/cards/rovix-guardian.svg",
+          "image": "/images/products/guardian-20261005.webp",
           "description": "Plataforma modular ROVIX baseada em Python para ferramentas, plugins e operações internas.",
           "status": "LOCAL",
           "type": "Web / Ferramentas",
@@ -180,7 +180,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "ROVIX Vote",
-          "image": "/intranet/public/cards/rovix-vote.svg",
+          "image": "/images/hub/vote-20261005.webp",
           "description": "Sistema eletrônico de votação e treinamento eleitoral desenvolvido em Electron/React.",
           "status": "LOCAL",
           "type": "Desktop",
@@ -188,7 +188,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "ROVIX Market",
-          "image": "/intranet/public/cards/rovix-market.svg",
+          "image": "/images/products/market-20261005.webp",
           "description": "Aplicação ROVIX desenvolvida em React, TypeScript, PWA e Capacitor.",
           "status": "LOCAL",
           "type": "Web / Mobile",
@@ -196,7 +196,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "ROVIX AI OS",
-          "image": "/intranet/public/cards/rovix-ai-os.svg",
+          "image": "/images/hub/ai-os-20261005.webp",
           "description": "Plataforma experimental ROVIX de inteligência artificial baseada em Python/FastAPI.",
           "status": "DESENVOLVIMENTO",
           "type": "IA / Web",
@@ -204,7 +204,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "O67 — Opportunity OS",
-          "image": "/intranet/public/cards/o67.svg",
+          "image": "/images/hub/o67-20261005.webp",
           "description": "Radar autônomo de oportunidades da ROVIX: detecta sinais de mercado, cruza evidências, acompanha lifecycle, ranking, alertas e evolução histórica para transformar problemas recorrentes em oportunidades econômicas investigáveis.",
           "status": "DESENVOLVIMENTO",
           "type": "IA / Opportunity Intelligence",
@@ -223,7 +223,7 @@ window.ROVIX_HUB_CONFIG = {
       "items": [
         {
           "name": "ROVIX UAP",
-          "image": "/intranet/public/cards/rovix-uap.svg",
+          "image": "/images/hub/uap-20261005.webp",
           "description": "Universal Automation Protocol — Protocolo de comunicação industrial desenvolvido pela ROVIX para integração entre equipamentos e redes industriais.",
           "status": "DESENVOLVIMENTO",
           "type": "Automação Industrial / Protocolo",
@@ -231,7 +231,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "UAP Studio",
-          "image": "/intranet/public/cards/uap-studio.svg",
+          "image": "/images/hub/uap-studio-20261005.webp",
           "description": "Software de configuração, diagnóstico e desenvolvimento para o protocolo ROVIX UAP.",
           "status": "DESENVOLVIMENTO",
           "type": "Desktop / Automação Industrial",
@@ -239,7 +239,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "Balança Urano",
-          "image": "/intranet/public/cards/balanca-urano.svg",
+          "image": "/images/hub/balanca-urano-20261005.webp",
           "description": "Projeto Arduino para integração e leitura de balança industrial Urano via comunicação serial.",
           "status": "DESENVOLVIMENTO",
           "type": "Firmware / Automação",
@@ -253,7 +253,7 @@ window.ROVIX_HUB_CONFIG = {
       "items": [
         {
           "name": "TAGCheck",
-          "image": "/intranet/public/cards/tagcheck.svg",
+          "image": "/images/products/tagcheck-20261005.webp",
           "description": "Sistema ROVIX de identificação, controle e gestão de equipamentos industriais através de tags e QR Code.",
           "status": "PRODUÇÃO",
           "type": "Web / Industrial",
@@ -274,7 +274,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "TAGCheck Campo",
-          "image": "/intranet/public/cards/tagcheck-campo.svg",
+          "image": "/images/products/tagcheck-20261005.webp",
           "description": "Aplicativo de campo do ecossistema TAGCheck para consulta e operação em dispositivos móveis.",
           "status": "PRODUÇÃO",
           "type": "PWA / Campo",
@@ -291,7 +291,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "TAGCheck Fase 2",
-          "image": "/intranet/public/cards/tagcheck-fase2.svg",
+          "image": "/images/products/tagcheck-20261005.webp",
           "description": "Nova arquitetura multiempresa do TAGCheck com usuários, empresas, unidades e controle de acesso.",
           "status": "DESENVOLVIMENTO",
           "type": "Web / SaaS",
@@ -312,7 +312,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "TAGCheck Desktop",
-          "image": "/intranet/public/cards/tagcheck-desktop.svg",
+          "image": "/images/products/tagcheck-20261005.webp",
           "description": "Cliente desktop do TAGCheck com suporte offline, sincronização e Viewer integrado.",
           "status": "DESENVOLVIMENTO",
           "type": "Desktop / Tauri",
@@ -320,7 +320,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "ALMOX / ALMOX DVAPRO",
-          "image": "/intranet/public/cards/almox.svg",
+          "image": "/images/hub/almox-20261005.webp",
           "description": "Sistema de controle e gestão de almoxarifado desenvolvido em Python/FastAPI.",
           "status": "LOCAL",
           "type": "Web / Gestão",
@@ -334,7 +334,7 @@ window.ROVIX_HUB_CONFIG = {
       "items": [
         {
           "name": "AmigoPet",
-          "image": "/intranet/public/cards/amigopet.svg",
+          "image": "/images/hub/amigopet-20261005.webp",
           "description": "Plataforma para serviços e gestão de cuidados com animais.",
           "status": "PRODUÇÃO",
           "type": "Web / Mobile",
@@ -363,7 +363,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "Driverbel",
-          "image": "/intranet/public/cards/driverbel.svg",
+          "image": "/images/hub/driverbel-20261005.webp",
           "description": "Plataforma interna de transporte de funcionários inspirada em serviços de mobilidade.",
           "status": "LOCAL",
           "type": "Web / PWA",
@@ -371,7 +371,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "PresenteCerto",
-          "image": "/intranet/public/cards/presentecerto.svg",
+          "image": "/images/hub/presentecerto-20261005.webp",
           "description": "Plataforma para criação e compartilhamento de listas e sugestões de presentes.",
           "status": "DESENVOLVIMENTO",
           "type": "Web",
@@ -384,7 +384,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "Bola de Gude",
-          "image": "/intranet/public/cards/bola-de-gude.svg",
+          "image": "/images/hub/bola-de-gude-20261005.webp",
           "description": "Jogo 3D para Android desenvolvido em Unity.",
           "status": "DESENVOLVIMENTO",
           "type": "Game / Android",
@@ -392,7 +392,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "Meu Status",
-          "image": "/intranet/public/cards/meu-status.svg",
+          "image": "/images/hub/meu-status-20261005.webp",
           "description": "Aplicativo mobile desenvolvido em React, Vite e Capacitor.",
           "status": "DESENVOLVIMENTO",
           "type": "Mobile",
@@ -400,7 +400,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "CrisMaj / Mahjong Bíblico",
-          "image": "/intranet/public/cards/crismaj.svg",
+          "image": "/images/hub/crismaj-20261005.webp",
           "description": "Jogo inspirado em Mahjong com temática cristã e versão Android.",
           "status": "DESENVOLVIMENTO",
           "type": "Game / Android",
@@ -414,7 +414,7 @@ window.ROVIX_HUB_CONFIG = {
       "items": [
         {
           "name": "CIPHER — Protocolo Orpheus",
-          "image": "/intranet/public/cards/cipher.svg",
+          "image": "/images/hub/cipher-20261005.webp",
           "description": "Universo editorial CIPHER e primeiro livro da série Protocolo Orpheus.",
           "status": "PRODUÇÃO",
           "type": "Livro / Projeto Editorial",
@@ -422,7 +422,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "ORPHEUS",
-          "image": "/intranet/public/cards/orpheus.svg",
+          "image": "/images/hub/orpheus-20261005.webp",
           "description": "Aplicativo companion de CIPHER com terminal, enigmas, missões e conteúdo interativo.",
           "status": "DESENVOLVIMENTO",
           "type": "Desktop / Tauri",
@@ -435,7 +435,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "ORPHEUS Social Agent",
-          "image": "/intranet/public/cards/orpheus-social-agent.png",
+          "image": "/images/products/orpheus-social-agent-20261005.webp",
           "description": "Agente independente de mídia do universo CIPHER / ORPHEUS, dedicado à criação, aprovação, agendamento e publicação de conteúdo no Instagram @protocolorpheus.",
           "status": "PRODUÇÃO",
           "type": "IA / Marketing / Social",
@@ -454,7 +454,7 @@ window.ROVIX_HUB_CONFIG = {
       "items": [
         {
           "name": "COSMOS",
-          "image": "/intranet/public/cards/cosmos.svg",
+          "image": "/images/products/cosmos-20261005.webp",
           "description": "Projeto experimental desktop baseado em Electron e tecnologias web.",
           "status": "LOCAL",
           "type": "Desktop / Experimental",
@@ -462,7 +462,7 @@ window.ROVIX_HUB_CONFIG = {
         },
         {
           "name": "MATRIX",
-          "image": "/intranet/public/cards/matrix.svg",
+          "image": "/images/hub/matrix-20261005.webp",
           "description": "Projeto experimental desenvolvido com protótipos HTML/JavaScript e Python.",
           "status": "DESENVOLVIMENTO",
           "type": "Experimental",

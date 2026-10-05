@@ -412,3 +412,34 @@ button { border: 0; cursor: pointer; }
 }
 
 .system-art img[src*="rovix-logo-official"]{object-fit:contain;padding:16px}
+
+/* Shared visual language with the official ROVIX product catalogue. */
+:root{--bg:#050a13;--bg-2:#080e1b;--panel:#050c18;--panel-2:#0a1220;--radius:14px}
+.app-shell{max-width:1280px;padding:14px 24px 24px}
+.system-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.system-card{position:relative;isolation:isolate;display:flex;flex-direction:column;min-height:290px;background:#050c18;box-shadow:none;border-color:#263447;border-radius:14px;transition:border-color .2s ease,transform .2s ease}
+.system-card:hover{border-color:#459cff77;transform:translateY(-2px)}
+.system-art{position:absolute;inset:0;z-index:-2;aspect-ratio:auto;border:0;background:#050c18}
+.system-art img{width:100%;height:100%;object-fit:cover;object-position:75% center}
+.system-card:after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#050c18fa 0%,#050c18eb 38%,#050c1860 65%,transparent 100%);pointer-events:none}
+.system-card-body{padding:18px 20px 10px;display:flex;flex-direction:column;gap:10px;flex:1}
+.system-card header{flex-direction:column-reverse;gap:10px;align-items:flex-start}
+.system-card h4{font-size:19px;line-height:1.18;max-width:76%;overflow-wrap:normal}
+.system-card .badge{font-size:9px;padding:4px 7px;letter-spacing:.04em;font-weight:700}
+.system-card p{font-size:12px;line-height:1.5;max-width:62%;color:#b2c3de}
+.system-card .system-type{font-size:10px;color:#9eb5d9;margin-top:auto}
+.system-actions{padding:0 20px 18px;gap:7px;align-self:stretch;position:relative;z-index:1}
+.system-actions .system-button{min-height:34px;padding:7px 10px;font-size:11px;font-weight:700;border-radius:9px;background:#0b1425db;border:1px solid #354057;color:#edf4ff}
+.system-actions .system-button:hover{background:#2265d6;border-color:#459cff}
+.system-card:focus-within{border-color:#459cff;box-shadow:0 0 0 2px #459cff44}
+.system-button:focus-visible{outline:2px solid #71b2ff;outline-offset:3px}
+@media(max-width:1100px){.system-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:680px){.app-shell{padding:10px 14px 20px}.system-grid{grid-template-columns:1fr}.system-card{min-height:290px}.system-card p{max-width:64%}}
+@media(prefers-reduced-motion:reduce){.system-card,.system-button{transition:none}.system-card:hover{transform:none}}
+
+.system-card .system-description{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:5;overflow:hidden}
+.metric{position:relative;isolation:isolate;min-height:130px;background:#050c18;padding-right:38%;box-shadow:none}
+.metric>span{position:absolute;inset:0;z-index:-2;margin:0}
+.metric>span img{width:100%;height:100%;object-fit:cover;object-position:right center}
+.metric:after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#050c18f5 0%,#050c18de 45%,transparent)}
+.metric strong{font-size:18px}.metric small{font-size:11px}
