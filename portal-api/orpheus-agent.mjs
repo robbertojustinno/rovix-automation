@@ -266,7 +266,7 @@ async function refreshStrategyMetrics(post){
  for(const key of Object.keys(metrics)){sources[key]=metrics[key]===null?null:'instagram';if(metrics[key]===null&&Number.isFinite(manual?.[key])){metrics[key]=manual[key];sources[key]='manual'}}
  post.performance={metrics,sources,source:manual?'instagram e manual':'instagram',manual:manual||null,updatedAt:new Date().toISOString(),errors};
 }
-const manualPreviewApi=createManualPreviewApi({json,loadDriveCatalog,attachPreapproved,saveDb,id,sendImage:async(res,entry,download)=>{
+const manualPreviewApi=createManualPreviewApi({json,body,loadDriveCatalog,attachPreapproved,saveDb,id,sendImage:async(res,entry,download)=>{
  const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:entry.imageKey}));const buffer=Buffer.from(await r.Body.transformToByteArray());
  res.writeHead(200,{'Content-Type':'image/jpeg','Cache-Control':'private, no-store',...(download?{'Content-Disposition':'attachment; filename="ORPHEUS-'+entry.id+'.jpg"'}:{})});res.end(buffer);
 }});

@@ -1,9 +1,9 @@
 import {composeStrategy} from './orpheus-strategy.mjs';
 
-export function createManualPreviewApi({json,loadDriveCatalog,attachPreapproved,saveDb,id,sendImage}){
+export function createManualPreviewApi({json,loadDriveCatalog,attachPreapproved,saveDb,id,sendImage,body}){
  return async function(req,res,u,db){
   const base='/orpheus-api/manual-previews';
-  if(req.method==='GET'&&u.pathname===base)return json(res,200,db.meta.manualPreviewBatch||{entries:[]});
+  if(req.method==='GET'&&u.pathname===base)return json(res,200,{...(db.meta.manualPreviewBatch||{}),entries:(db.meta.manualPreviewBatch?.entries||[]).map(e=>({...e,postStatus:db.posts.find(p=>p.id===e.postId)?.status||null}))});
   if(req.method==='POST'&&u.pathname===base+'/generate'){
    const catalog=await loadDriveCatalog(),history=db.meta.manualPreviewHistory||[],artHistory=db.meta.preapprovedHistory||[];
    const active=new Set(db.posts.filter(p=>!['deleted','rejected','published'].includes(p.status)).map(p=>p.sourceImageKey));
@@ -25,6 +25,20 @@ export function createManualPreviewApi({json,loadDriveCatalog,attachPreapproved,
    db.meta.manualPreviewBatch={id:id('manual-batch'),createdAt:new Date().toISOString(),entries};
    db.meta.manualPreviewHistory=[...history,...entries.map(e=>({id:e.id,title:e.title,caption:e.caption,strategy:e.strategy,createdAt:e.createdAt}))].slice(-90);
    await saveDb(db);return json(res,201,db.meta.manualPreviewBatch);
+  }
+  const draft=u.pathname.match(/^\/orpheus-api\/manual-previews\/([^/]+)\/draft$/);
+  if(req.method==='POST'&&draft){
+   const entry=db.meta.manualPreviewBatch?.entries.find(e=>e.id===draft[1]);if(!entry)throw new Error('Prévia não encontrada; atualize o painel.');
+   const d=await body(req),caption=String(d.caption??entry.caption).trim();if(!caption||caption.length>2200)throw new Error('A legenda deve ter entre 1 e 2200 caracteres.');
+   let post=db.posts.find(p=>p.id===entry.postId)||db.posts.find(p=>p.imageKey===entry.imageKey&&p.status!=='deleted');
+   if(post&&['published','publishing'].includes(post.status)){entry.postId=post.id;await saveDb(db);return json(res,200,post);}
+   if(!post||post.status==='deleted'){
+    const project=db.projects.find(p=>p.id===entry.projectId&&p.active);if(!project)throw new Error('Projeto indisponível.');
+    post={...structuredClone(entry),id:id('manual-post'),projectName:project.name,status:'draft',scheduledAt:'',generatedBy:'manual-preview',createdAt:new Date().toISOString(),manualPreviewId:entry.id};delete post.postId;
+    db.posts.unshift(post);entry.postId=post.id;
+   }
+   if(post.caption!==caption){post.caption=caption;post.status='draft';delete post.artValidation;delete post.artPreviewViewedAt;post.artStatus='review_pending';}
+   await saveDb(db);return json(res,200,post);
   }
   const image=u.pathname.match(/^\/orpheus-api\/manual-previews\/([^/]+)\/image$/);
   if(req.method==='GET'&&image){const entry=db.meta.manualPreviewBatch?.entries.find(e=>e.id===image[1]);if(!entry)return json(res,404,{error:'Prévia não encontrada; atualize o painel.'});return sendImage(res,entry,u.searchParams.get('download')==='1');}
