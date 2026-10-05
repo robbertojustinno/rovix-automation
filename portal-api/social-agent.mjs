@@ -515,6 +515,31 @@ async function prepareArtworkForQueue(){
   return{made,queued:0,generating:0,engine:VISUAL_ENGINE,level:"drive",cost:"free",folder:DRIVE_IMAGE_POLICY.path,availableImages:catalog.files?.length||0};
 }
 
+const GROQ_API_KEY=process.env.GROQ_API_KEY||"";
+const GROQ_MODEL=process.env.GROQ_MODEL||"openai/gpt-oss-20b";
+const OPENROUTER_API_KEY=process.env.OPENROUTER_API_KEY||"";
+const OPENROUTER_MODEL=process.env.OPENROUTER_MODEL||"openai/gpt-oss-20b";
+
+async function llmCaption(project,topic,i){
+  const fallback=buildCaption(project,topic,i);
+  const system="Você é o redator do ROVIX Social Agent. Escreva uma legenda em português do Brasil, profissional, objetiva e natural, sem inventar funcionalidades. Entregue somente a legenda final, com CTA e hashtags relevantes. Evite repetição.";
+  const user=`Projeto: ${project.name}. Tema: ${topic}. Descrição: ${project.description||"solução tecnológica ROVIX"}. CTA: ${project.cta||"Saiba mais"}. Crie uma legenda para Instagram em até 900 caracteres.`;
+  const providers=[];
+  if(GROQ_API_KEY)providers.push({name:"groq",url:"https://api.groq.com/openai/v1/chat/completions",key:GROQ_API_KEY,model:GROQ_MODEL,headers:{}});
+  if(OPENROUTER_API_KEY)providers.push({name:"openrouter",url:"https://openrouter.ai/api/v1/chat/completions",key:OPENROUTER_API_KEY,model:OPENROUTER_MODEL,headers:{"HTTP-Referer":"https://rovixautomation.com.br","X-Title":"ROVIX Social Agent"}});
+  for(const p of providers){
+    try{
+      const r=await fetch(p.url,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+p.key,...p.headers},body:JSON.stringify({model:p.model,messages:[{role:"system",content:system},{role:"user",content:user}],temperature:0.7,max_tokens:500}),signal:AbortSignal.timeout(20000)});
+      const raw=await r.text();let d;try{d=JSON.parse(raw)}catch{d={}};
+      if(!r.ok)throw new Error(d?.error?.message||("HTTP "+r.status));
+      const text=String(d?.choices?.[0]?.message?.content||"").trim();
+      if(text){console.log("[Social Agent] Caption provider:",p.name,p.model);return text.slice(0,2200)}
+      throw new Error("resposta vazia");
+    }catch(e){console.error("[Social Agent] Caption provider failed:",p.name,e.message)}
+  }
+  return fallback;
+}
+
 function buildCaption(project,topic,i){
   if(project.description){
     const stage=project.projectStatus==="PRODUÇÃO"?"":project.projectStatus==="PREVIEW"?"\n\nProjeto em prévia: acompanhe a evolução.":"\n\nProjeto em evolução: acompanhe as novidades e a disponibilidade.";
@@ -548,7 +573,7 @@ async function ensureDailyContent(force=false,requestedDate=""){
     const entry=db.meta.contentPlan.entries.find(e=>e.date===day&&!e.postId);
     const planned=entry?{title:entry.title,caption:entry.caption,strategy:structuredClone(entry.strategy),projectId:entry.projectId,planEntryId:entry.id}:{};
     const project=db.projects.find(x=>x.id===planned.projectId)||p;
-    const post={id:id("agent"),projectId:project.id,projectName:project.name,title:topic,caption:buildCaption(p,topic,i),imageUrl:SOCIAL_PUBLIC_BASE+"/brand.png",scheduledAt,status,createdAt:new Date().toISOString(),generatedBy:"agent",generatedDate:day,forcedBatch:force,visualPolicy:POSTING_POLICY.id,visualEngine:VISUAL_ENGINE,visualLevel:"rapido",artStatus:"placeholder",...planned};
+    const aiCaption=planned.caption||await llmCaption(project,topic,i);\n    const post={id:id("agent"),projectId:project.id,projectName:project.name,title:topic,caption:aiCaption,imageUrl:SOCIAL_PUBLIC_BASE+"/brand.png",scheduledAt,status,createdAt:new Date().toISOString(),generatedBy:"agent",generatedDate:day,forcedBatch:force,visualPolicy:POSTING_POLICY.id,visualEngine:VISUAL_ENGINE,visualLevel:"rapido",artStatus:"placeholder",...planned};
     db.posts.unshift(post);if(entry)entry.postId=post.id;
     created++;
   }
@@ -661,7 +686,7 @@ async function api(req,res,u){
   const db=await loadDb();
   if(u.pathname.startsWith("/social-api/manual-previews")){try{return await manualPreviewApi(req,res,u,db)}catch(e){return json(res,400,{error:e.message})}}
   if(u.pathname.startsWith("/social-api/strategy")){try{return await strategyApi(req,res,u,db)}catch(e){return json(res,400,{error:e.message})}}
-  if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"1.0.0",diversityPolicy:DIVERSITY_POLICY,cancellation:db.meta.cancelScheduledThrough20261005,online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"Imagens aprovadas do ROVIX Drive com texto e legenda",imageProvider:"ROVIX Drive",imageFolder:DRIVE_IMAGE_POLICY.path,imageQueue:db.posts.filter(p=>p.artJobId).length,replacements:db.meta.rebuildRepeatedArt20261001,storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
+  if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"1.0.0",diversityPolicy:DIVERSITY_POLICY,cancellation:db.meta.cancelScheduledThrough20261005,online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"Imagens aprovadas do ROVIX Drive com texto e legenda",textProvider:GROQ_API_KEY?"groq":OPENROUTER_API_KEY?"openrouter":"local",groqConfigured:Boolean(GROQ_API_KEY),openRouterConfigured:Boolean(OPENROUTER_API_KEY),imageProvider:"ROVIX Drive",imageFolder:DRIVE_IMAGE_POLICY.path,imageQueue:db.posts.filter(p=>p.artJobId).length,replacements:db.meta.rebuildRepeatedArt20261001,storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
   if(req.method==="GET"&&u.pathname==="/social-api/meta/test"){if(!metaConfigured())return json(res,200,{connected:false,error:"Credenciais Meta ainda não configuradas"});try{const result=await testMeta();if(db.meta.apiAccessBlocked){delete db.meta.apiAccessBlocked;await saveDb(db)}return json(res,200,result)}catch(e){console.error("[Social Agent] Teste Meta:",e.httpStatus||"",e.metaCode||"",e.metaSubcode||"",e.message);if(/API access blocked/i.test(e.message||"")&&!db.meta.apiAccessBlocked){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:e.metaCode||null};await saveDb(db)}return json(res,200,{connected:false,error:e.message,httpStatus:e.httpStatus||null,metaCode:e.metaCode||null,metaSubcode:e.metaSubcode||null})}}
   if(req.method==="GET"&&u.pathname==="/social-api/meta/analytics"){const days=Number(u.searchParams.get("days")||7);if(![7,30].includes(days))return json(res,400,{error:"Período inválido"});return json(res,200,await accountAnalytics(days))}
   if(req.method==="GET"&&u.pathname==="/social-api/projects")return json(res,200,db.projects);
