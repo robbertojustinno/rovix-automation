@@ -270,14 +270,12 @@ export default function Cloud(){
   }
 
   async function openFile(item:Item){
-    const tab=window.open("","_blank","noopener,noreferrer");
     setBusy(true);setMsg("");
     try{
       const p=await api("/preview-url",{method:"POST",body:JSON.stringify({file_id:item.id})});
-      if(tab)tab.location.href=p.preview_url;
-      else window.location.href=p.preview_url;
+      const opened=window.open(p.preview_url,"_blank","noopener,noreferrer");
+      if(!opened)setMsg("O navegador bloqueou a nova aba. Libere pop-ups para o ROVIX Drive.");
     }catch(e){
-      if(tab)tab.close();
       setMsg(e instanceof Error?e.message:"Falha ao abrir o arquivo.");
     }finally{setBusy(false)}
   }
