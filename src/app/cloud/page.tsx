@@ -269,6 +269,19 @@ export default function Cloud(){
     finally{setBusy(false)}
   }
 
+  async function openFile(item:Item){
+    const tab=window.open("","_blank","noopener,noreferrer");
+    setBusy(true);setMsg("");
+    try{
+      const p=await api("/preview-url",{method:"POST",body:JSON.stringify({file_id:item.id})});
+      if(tab)tab.location.href=p.preview_url;
+      else window.location.href=p.preview_url;
+    }catch(e){
+      if(tab)tab.close();
+      setMsg(e instanceof Error?e.message:"Falha ao abrir o arquivo.");
+    }finally{setBusy(false)}
+  }
+
   async function download(item:Item){
     setBusy(true);setMsg("");
     try{
@@ -322,6 +335,7 @@ export default function Cloud(){
       </div>
     }
     return <div className="fileActions">
+      <button onClick={()=>openFile(item)}>Abrir</button>
       <button onClick={()=>download(item)}><Download size={16}/> Baixar</button>
       <button onClick={()=>{setShareItem(item);setShareHours(24);setShareUrl("")}}><Share2 size={16}/> Compartilhar</button>
       <button onClick={()=>chooseTarget(item,"copy")}>Copiar</button>
@@ -380,7 +394,7 @@ export default function Cloud(){
         <span className="fileThumb">
           {item.kind==="folder"?<Folder/>:thumbs[item.id]?<img src={thumbs[item.id]} alt=""/>:String(item.mime_type||"").startsWith("image/")?<ImageIcon/>:<FileText/>}
         </span>
-        <button className="fileTitle" type="button" onDoubleClick={()=>item.kind==="folder"&&openFolder(item)}>{item.name}</button>
+        <button className="fileTitle" type="button" onClick={()=>item.kind==="folder"?openFolder(item):openFile(item)}>{item.name}</button>
       </div>
       <span>{item.kind==="folder"?"—":formatBytes(item.size_bytes)}</span>
       <span>{new Date(item.updated_at).toLocaleDateString("pt-BR")}</span>
