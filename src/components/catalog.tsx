@@ -13,9 +13,30 @@ export function ProductVisual({product,large=false}:{product:Product;large?:bool
 
 export function Status({value}:{value:string}){return <span className="status">{value}</span>}
 
-export function ProductCard({product}:{product:Product}){
+export function ProductCard({product,hubExact=false}:{product:Product;hubExact?:boolean}){
   const action=purchaseAction(product);
   const isTagCheck=product.slug==="tagcheck";
+  if(hubExact&&(product.slug==="rovix-drive"||product.slug==="rovix-social-agent")){
+    const drive=product.slug==="rovix-drive";
+    const image=drive?"/images/hub/drive-20261005.webp":"/images/products/orpheus-social-agent-20261005.webp";
+    const status=drive?"PREVIEW":"PRODUÇÃO";
+    const type=drive?"Cloud / Privado":"IA / Marketing / Social";
+    const description=drive
+      ?"Armazenamento privado administrativo da ROVIX e repositório dos arquivos associados aos produtos."
+      :"Agente de mídia da ROVIX para criação, aprovação, agendamento e publicação automática de conteúdo no Instagram.";
+    const href=drive?"https://rovix-drive-preview.onrender.com/cloud":"https://www.rovixautomation.com.br/mediaagente/";
+    const label=drive?"Abrir Drive":"Abrir Media Agent";
+    return <article className="card hubExactCard">
+      <div className="hubExactArt"><img src={image} alt={product.nome} loading="lazy"/></div>
+      <div className="hubExactBody">
+        <span className="hubExactBadge">{status}</span>
+        <h3>{product.nome}</h3>
+        <p>{description}</p>
+        <small>{type}</small>
+        <a className="hubExactButton" href={href}>{label}</a>
+      </div>
+    </article>
+  }
   return <article className="card professionalCard">
     <ProductVisual product={product}/>
     <div className="cardBody">
