@@ -13,7 +13,7 @@ export function ProductVisual({product,large=false}:{product:Product;large?:bool
 
 export function Status({value}:{value:string}){return <span className="status">{value}</span>}
 
-export function ProductCard({product,hubExact=false}:{product:Product;hubExact?:boolean}){
+export function ProductCard({product,hubExact=false,presentationOnly=false}:{product:Product;hubExact?:boolean;presentationOnly?:boolean}){
   const action=purchaseAction(product);
   const isTagCheck=product.slug==="tagcheck";
   if(hubExact&&(product.slug==="rovix-drive"||product.slug==="rovix-social-agent")){
@@ -33,7 +33,7 @@ export function ProductCard({product,hubExact=false}:{product:Product;hubExact?:
         <h3>{product.nome}</h3>
         <p>{description}</p>
         <small>{type}</small>
-        <a className="hubExactButton" href={href}>{label}</a>
+        {!presentationOnly&&<a className="hubExactButton" href={href}>{label}</a>}
       </div>
     </article>
   }

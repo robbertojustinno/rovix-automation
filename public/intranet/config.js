@@ -17,6 +17,19 @@ window.ROVIX_HUB_CONFIG = {
       "icon": "🚀",
       "items": [
         {
+          "name": "LIA — Assistente pessoal",
+          "image": "/images/hub/lia-avatar-aprovado-20261006.jpg",
+          "description": "Assistente pessoal com interação por voz, consulta ao Gmail, clima e atalhos para o ecossistema ROVIX.",
+          "status": "BETA",
+          "type": "IA / Assistente pessoal",
+          "links": [
+            {
+              "label": "Abrir Lia",
+              "url": "https://rovixautomation.com.br/LIA"
+            }
+          ]
+        },
+        {
           "name": "ROVIX Retro Games",
           "image": "/images/hub/retro-games-20261005.webp",
           "description": "Um espaço para desestressar: oito jogos gratuitos, modo tranquilo, pausa, volume e controles de teclado e toque.",
