@@ -474,7 +474,9 @@ async function prepareManualArtwork({db,catalog,file,virtual,seed,id:idFn}){
     visualPolicy:POSTING_POLICY.id,
     visualEngine:VISUAL_ENGINE
   };
+  entry.caption=await llmCaption(project,entry.title,seed,entry.caption);
   entry.strategy=structuredClone(entry.strategy);
+  entry.strategy.signature=crypto.createHash("sha256").update(entry.title+"|"+entry.caption).digest("hex");
   Object.assign(entry.strategy.visual,{fileId:file.id,fileName:file.name});
   const raw=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:file.object_key}));
   const source=Buffer.from(await raw.Body.transformToByteArray());
@@ -518,12 +520,13 @@ async function prepareArtworkForQueue(){
 const GROQ_API_KEY=process.env.GROQ_API_KEY||"";
 const GROQ_MODEL=process.env.GROQ_MODEL||"openai/gpt-oss-20b";
 const OPENROUTER_API_KEY=process.env.OPENROUTER_API_KEY||"";
-const OPENROUTER_MODEL=process.env.OPENROUTER_MODEL||"openai/gpt-oss-20b";
+const REQUESTED_OPENROUTER_MODEL=process.env.OPENROUTER_MODEL||"openrouter/free";
+const OPENROUTER_MODEL=REQUESTED_OPENROUTER_MODEL==="openrouter/free"||REQUESTED_OPENROUTER_MODEL.endsWith(":free")?REQUESTED_OPENROUTER_MODEL:"openrouter/free";
 
-async function llmCaption(project,topic,i){
-  const fallback=buildCaption(project,topic,i);
+async function llmCaption(project,topic,i,baseCaption=""){
+  const fallback=baseCaption||buildCaption(project,topic,i);
   const system="Você é o redator do ROVIX Social Agent. Escreva uma legenda em português do Brasil, profissional, objetiva e natural, sem inventar funcionalidades. Entregue somente a legenda final, com CTA e hashtags relevantes. Evite repetição.";
-  const user=`Projeto: ${project.name}. Tema: ${topic}. Descrição: ${project.description||"solução tecnológica ROVIX"}. CTA: ${project.cta||"Saiba mais"}. Crie uma legenda para Instagram em até 900 caracteres.`;
+  const user=`Projeto: ${project.name}. Tema: ${topic}. Descrição: ${project.description||"solução tecnológica ROVIX"}. CTA: ${project.cta||"Saiba mais"}. Referência aprovada: ${baseCaption}. Preserve os fatos, o estágio de disponibilidade e o sentido da referência. Crie uma legenda para Instagram em até 900 caracteres.`;
   const providers=[];
   if(GROQ_API_KEY)providers.push({name:"groq",url:"https://api.groq.com/openai/v1/chat/completions",key:GROQ_API_KEY,model:GROQ_MODEL,headers:{}});
   if(OPENROUTER_API_KEY)providers.push({name:"openrouter",url:"https://openrouter.ai/api/v1/chat/completions",key:OPENROUTER_API_KEY,model:OPENROUTER_MODEL,headers:{"HTTP-Referer":"https://rovixautomation.com.br","X-Title":"ROVIX Social Agent"}});
@@ -573,7 +576,9 @@ async function ensureDailyContent(force=false,requestedDate=""){
     const entry=db.meta.contentPlan.entries.find(e=>e.date===day&&!e.postId);
     const planned=entry?{title:entry.title,caption:entry.caption,strategy:structuredClone(entry.strategy),projectId:entry.projectId,planEntryId:entry.id}:{};
     const project=db.projects.find(x=>x.id===planned.projectId)||p;
-    const aiCaption=planned.caption||await llmCaption(project,topic,i);\n    const post={id:id("agent"),projectId:project.id,projectName:project.name,title:topic,caption:aiCaption,imageUrl:SOCIAL_PUBLIC_BASE+"/brand.png",scheduledAt,status,createdAt:new Date().toISOString(),generatedBy:"agent",generatedDate:day,forcedBatch:force,visualPolicy:POSTING_POLICY.id,visualEngine:VISUAL_ENGINE,visualLevel:"rapido",artStatus:"placeholder",...planned};
+    const aiCaption=await llmCaption(project,planned.title||topic,i,planned.caption);
+    const post={id:id("agent"),projectId:project.id,projectName:project.name,title:topic,imageUrl:SOCIAL_PUBLIC_BASE+"/brand.png",scheduledAt,status,createdAt:new Date().toISOString(),generatedBy:"agent",generatedDate:day,forcedBatch:force,visualPolicy:POSTING_POLICY.id,visualEngine:VISUAL_ENGINE,visualLevel:"rapido",artStatus:"placeholder",...planned,caption:aiCaption};
+    if(post.strategy)post.strategy.signature=crypto.createHash("sha256").update(post.title+"|"+post.caption).digest("hex");
     db.posts.unshift(post);if(entry)entry.postId=post.id;
     created++;
   }
