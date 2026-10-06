@@ -31,6 +31,7 @@ export function createStrategyApi({json,body,saoDate,loadDriveCatalog,saveDb,sch
    const scheduledAt=scheduleFor(entry.date,entry.slot,Math.max(1,Number(db.settings.postsPerDay)||3),db.settings);
    if(Date.parse(scheduledAt)<=Date.now())throw new Error('O horário planejado já passou. Gere o plano a partir de amanhã.');
    const post={id:id('strategy'),projectId:project.id,projectName:project.name,title:entry.title,caption:entry.caption,strategy:structuredClone(entry.strategy),status:'draft',scheduledAt,generatedDate:entry.date,generatedBy:'agent',createdAt:new Date().toISOString(),artStatus:'pending',planEntryId:entry.id};
+   if(db.meta.visualProfile?.enabled){post.imageProvider='ai-horde';post.visualProfile=structuredClone(db.meta.visualProfile);post.visualEngine='rovix-v7-profile-ai';}
    db.posts.unshift(post);entry.postId=post.id;await saveDb(db);return json(res,201,post);
   }
   const metrics=u.pathname.match(/^\/social-api\/strategy\/posts\/([^/]+)\/metrics$/);
@@ -39,3 +40,4 @@ export function createStrategyApi({json,body,saoDate,loadDriveCatalog,saveDb,sch
   return json(res,404,{error:'Rota de estratégia não encontrada'});
  };
 }
+

@@ -1,3 +1,4 @@
+import {VISUAL_PROFILE_DEFAULT,validateVisualProfile,profileSignature,applyVisualProfile} from "./social-visual-profile.mjs";
 import {publishVoicePost} from "./social-voice.mjs";
 import fs from "node:fs";
 import path from "node:path";
@@ -373,6 +374,18 @@ export function buildOriginalScene(post,project,serial){
   const prompt=`Spectacular premium cinematic 3D advertising artwork for ROVIX Automation, extraordinary polished detail and visual storytelling, high-end animated film finish with physically grounded materials. Scene: ${subject}. This exact product function must be unmistakable: ${project.description||project.name}. Theme: ${post.title}. ${camera}, ${focus}mm lens perspective. ${light}. Carefully modeled brushed titanium, polished steel, graphite and glass where appropriate to the product; crisp material microtexture and sophisticated reflections. Palette: ${palette}. One strong meaningful hero subject doing a plausible useful action, mechanically coherent connections and proportions, believable working environment, cinematic depth and asymmetrical composition. Make this composition original; vary subject, action, setting and camera instead of repeating one robot. Square campaign composition, main subject in upper two thirds with room for caption at bottom. Preserve approved ROVIX cinematic metallic quality while representing THIS product, not an unrelated industrial robot for every product. No text, no typography, no logos; real branding is added separately. ### generic office, empty workstation, unrelated appliance, random props, meaningless holograms, flat lighting, poor composition, blurry, distorted machinery, low quality, letters, watermark, duplicated objects, malformed hands, generic humanoid robot, illegible interfaces`;
   return{subject,camera,light,palette,focus,seed,conceptKey,prompt,serial};
 }
+async function renderProfileArtwork(post,project,raw){
+  const profile=post.visualProfile||VISUAL_PROFILE_DEFAULT;
+  const lines=titleLines(post.title);
+  const heading=lines.map((line,i)=>`<text x="70" y="${1090+i*65}" font-family="Arial,Helvetica,sans-serif" font-size="52" font-weight="700" fill="#ffffff">${escapeXml(line)}</text>`).join("");
+  const overlay=Buffer.from(`<svg width="1080" height="1350" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="55%" stop-color="${profile.palette[0]}" stop-opacity="0"/><stop offset="85%" stop-color="${profile.palette[0]}" stop-opacity=".96"/></linearGradient></defs><rect width="1080" height="1350" fill="url(#shade)"/><rect x="70" y="995" width="100" height="8" fill="${profile.palette.at(-1)}"/>${heading}<text x="70" y="1290" font-family="Arial,Helvetica,sans-serif" font-size="26" font-weight="700" fill="#ffffff">${escapeXml(profile.brandName.slice(0,55))}</text></svg>`);
+  const layers=[{input:overlay,left:0,top:0}];
+  let logo;
+  if(profile.logoKey){const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:profile.logoKey}));logo=Buffer.from(await r.Body.transformToByteArray())}
+  else if(profile.brandName==="ROVIX Automation")logo=await fs.promises.readFile(EMBLEM_PNG);
+  if(logo)layers.push({input:await sharp(logo).resize(170,170,{fit:"contain",background:{r:0,g:0,b:0,alpha:0}}).png().toBuffer(),left:850,top:35});
+  return sharp(raw).rotate().resize(1080,1350,{fit:"cover"}).composite(layers).jpeg({quality:94,mozjpeg:true}).toBuffer();
+}
 async function hordeFetch(route,options={}){
   const r=await fetch(HORDE_BASE+route,{...options,headers:{"Content-Type":"application/json","apikey":HORDE_KEY,"Client-Agent":"ROVIX-Social-Agent:0.8:contato.rovix@gmail.com",...(options.headers||{})},signal:AbortSignal.timeout(20000)});
   const d=await r.json();if(!r.ok){const e=new Error(d.message||"Gerador gratuito temporariamente indisponivel");e.httpStatus=r.status;throw e}return d;
@@ -385,12 +398,12 @@ async function chooseImageModel(){
 async function startOriginalArtwork(post,project,db){
   db.meta.sceneCursors=db.meta.sceneCursors||{};
   let serial=Number(db.meta.sceneCursors[project.id]||0),plan;
-  do{plan=buildOriginalScene(post,project,serial++)}while(db.posts.some(p=>p.id!==post.id&&p.scenePlan?.conceptKey===plan.conceptKey));
+  do{plan=applyVisualProfile(buildOriginalScene(post,project,serial++),post.visualProfile,post,project)}while(db.posts.some(p=>p.id!==post.id&&p.scenePlan?.conceptKey===plan.conceptKey));
   db.meta.sceneCursors[project.id]=serial;
   const model=await chooseImageModel();
-  const job=await hordeFetch("/generate/async",{method:"POST",body:JSON.stringify({prompt:plan.prompt,params:{width:1024,height:1024,steps:20,cfg_scale:7,sampler_name:"k_euler",n:1,seed:String(plan.seed)},models:[model],nsfw:false,censor_nsfw:true,trusted_workers:true,r2:true,allow_downgrade:true})});
+  const job=await hordeFetch("/generate/async",{method:"POST",body:JSON.stringify({prompt:plan.prompt,params:{width:1024,height:1024,steps:20,cfg_scale:7,sampler_name:"k_euler",n:1,seed:String(plan.seed)},models:[model],nsfw:false,censor_nsfw:true,trusted_workers:true,r2:true,allow_downgrade:false})});
   if(!job.id)throw new Error("O gerador nao retornou um identificador");
-  post.scenePlan=plan;post.artJobId=job.id;post.artJobStartedAt=new Date().toISOString();post.artStatus="generating";post.visualEngine=VISUAL_ENGINE;post.artAttempts=Number(post.artAttempts||0)+1;post.lastError="";delete post.artError;delete post.nextArtRetryAt;
+  post.scenePlan=plan;post.visualModelRequested=model;post.artJobId=job.id;post.artJobStartedAt=new Date().toISOString();post.artStatus="generating";post.visualEngine="rovix-v7-profile-ai";post.artAttempts=Number(post.artAttempts||0)+1;post.lastError="";delete post.artError;delete post.nextArtRetryAt;
   console.log("[Social Agent] Cena original na fila:",post.id,job.id,model);
 }
 async function finishOriginalArtwork(post,project,db){
@@ -400,6 +413,7 @@ async function finishOriginalArtwork(post,project,db){
     await hordeFetch("/generate/status/"+post.artJobId,{method:"DELETE"});
     throw new Error("O gerador perdeu a solicitacao; sera criada outra cena");
   }
+  if(state.done)post.artJobComplete=true;
   if(state.faulted)throw new Error("O gerador perdeu a solicitacao; sera criada outra cena");
   if(!state.done)return false;
   const result=await hordeFetch("/generate/status/"+post.artJobId),g=result.generations?.find(x=>!x.censored&&x.img);
@@ -408,13 +422,14 @@ async function finishOriginalArtwork(post,project,db){
   if(/^https:\/\//.test(g.img)){const r=await fetch(g.img,{signal:AbortSignal.timeout(20000)});if(!r.ok)throw new Error("Falha ao baixar a nova cena");raw=Buffer.from(await r.arrayBuffer())}
   else raw=Buffer.from(g.img,"base64");
   const meta=await sharp(raw).metadata();if(!meta.width||!meta.height||meta.width<512||meta.height<512)throw new Error("Gerador retornou uma imagem sem resolucao suficiente");
-  const final=await renderArtworkBuffer(post,project,raw),fingerprint=await imageFingerprint(final);
+  if(meta.width<1024||meta.height<1024)throw new Error("A imagem recebida não atende à resolução mínima de 1024 pixels");
+  const final=await renderProfileArtwork(post,project,raw),fingerprint=await imageFingerprint(final);
   const source="ai-horde://"+post.artJobId;
   await assertUniqueArtwork({...post,visualSource:source,visualFingerprint:fingerprint},db);
   const key="social-agent/v5/"+post.id+"-"+crypto.randomBytes(6).toString("hex")+".jpg";
   await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:key,Body:final,ContentType:"image/jpeg"}));
-  Object.assign(post,{imageKey:key,imageUrl:"",artStatus:"ready",visualPolicy:POSTING_POLICY.id,visualEngine:VISUAL_ENGINE,visualSource:source,visualModel:g.model,visualSeed:g.seed,visualFingerprint:fingerprint,diversityPolicy:DIVERSITY_POLICY,artGeneratedAt:new Date().toISOString(),lastError:""});
-  post.completedArtJobId=post.artJobId;delete post.artJobId;delete post.artError;delete post.nextArtRetryAt;
+  Object.assign(post,{imageKey:key,imageUrl:"",artStatus:"ready",visualPolicy:POSTING_POLICY.id,visualEngine:VISUAL_ENGINE,visualSource:source,visualModel:g.model,visualSeed:g.seed,qualityChecks:{resolution:true,notCensored:true,unique:true,profileSignature:post.scenePlan.profileSignature},visualFingerprint:fingerprint,diversityPolicy:DIVERSITY_POLICY,artGeneratedAt:new Date().toISOString(),lastError:""});
+  post.visualEngine="rovix-v7-profile-ai";post.completedArtJobId=post.artJobId;delete post.artJobComplete;delete post.artJobId;delete post.artError;delete post.nextArtRetryAt;
   console.log("[Social Agent] Nova arte validada:",post.id,g.model);
   return true;
 }
@@ -510,9 +525,38 @@ async function readManualImage(entry){
 }
 
 async function prepareArtworkForQueue(){
-  const db=await loadDb(),catalog=await loadDriveCatalog();let made=0;
-  const candidates=db.posts.filter(p=>p.generatedBy==="agent"&&["draft","approved","error"].includes(p.status)&&!["ready","uploaded"].includes(p.artStatus)).sort((a,b)=>Number(!!b.isDriveTest)-Number(!!a.isDriveTest)||Date.parse(a.createdAt)-Date.parse(b.createdAt)).slice(0,MAX_FAST_IMAGES_PER_RUN);
+  const db=await loadDb();let made=0,queued=0;
+  let catalog;
+  for(const post of db.posts.filter(p=>p.artJobId&&["cancelled","deleted","rejected"].includes(p.status))){
+    try{await hordeFetch("/generate/status/"+post.artJobId,{method:"DELETE"});delete post.artJobId;await saveDb(db)}
+    catch(e){if(e.httpStatus===404){delete post.artJobId;await saveDb(db)}}
+  }
+  const profile=db.meta.visualProfile;
+  const candidates=db.posts.filter(p=>p.generatedBy==="agent"&&["draft","approved","error"].includes(p.status)&&!["ready","uploaded"].includes(p.artStatus)).sort((a,b)=>Number(!!b.artJobId)-Number(!!a.artJobId)||Number(!!b.isVisualPreview)-Number(!!a.isVisualPreview)||Number(!!b.isDriveTest)-Number(!!a.isDriveTest)||Date.parse(a.createdAt)-Date.parse(b.createdAt)).slice(0,MAX_FAST_IMAGES_PER_RUN);
   for(const p of candidates){
+    if(p.imageProvider==="ai-horde"){
+      const project=db.projects.find(x=>x.id===p.projectId);
+      if(!project){p.artError="Projeto não encontrado";continue}
+      if(!p.visualProfile)p.visualProfile=structuredClone(profile||VISUAL_PROFILE_DEFAULT);
+      p.imageProvider="ai-horde";
+      if(p.nextArtRetryAt&&Date.parse(p.nextArtRetryAt)>Date.now())continue;
+      try{
+        if(p.artJobId){if(await finishOriginalArtwork(p,project,db))made++}
+        else if(db.posts.filter(x=>x.artJobId).length<MAX_IMAGE_JOBS&&Number(p.artAttempts||0)<3){await startOriginalArtwork(p,project,db);await saveDb(db);queued++}
+        else if(Number(p.artAttempts||0)>=3){p.artStatus="failed";p.artError="Três tentativas falharam. Revise o perfil e gere uma nova prévia."}
+      }catch(e){
+        p.artStatus="pending";p.artError=e.message;
+        if(p.artJobId&&(p.artJobComplete||e.httpStatus===404||/perdeu a solicitacao/i.test(e.message))){
+          try{await hordeFetch("/generate/status/"+p.artJobId,{method:"DELETE"});delete p.artJobId}
+          catch(cancelError){if(cancelError.httpStatus===404)delete p.artJobId}
+          delete p.artJobComplete;
+        }
+        p.nextArtRetryAt=new Date(Date.now()+5*60*1000).toISOString();
+        console.error("[Social Agent] Gerador:",p.id,e.message);
+      }
+      continue;
+    }
+    catalog=catalog||await loadDriveCatalog();
     for(let attempt=0;attempt<3;attempt++){
       try{await prepareDriveArtwork(p,db,catalog);made++;break}
       catch(e){
@@ -526,7 +570,7 @@ async function prepareArtworkForQueue(){
     }
   }
   if(candidates.length)await saveDb(db);
-  return{made,queued:0,generating:0,engine:VISUAL_ENGINE,level:"drive",cost:"free",folder:DRIVE_IMAGE_POLICY.path,availableImages:catalog.files?.length||0};
+  return{made,queued,generating:db.posts.filter(p=>p.artJobId).length,engine:profile?.enabled?"rovix-v7-profile-ai":VISUAL_ENGINE,level:profile?.enabled?"ai":"drive",cost:"free",folder:DRIVE_IMAGE_POLICY.path,availableImages:catalog?.files?.length||0};
 }
 
 const GROQ_API_KEY=process.env.GROQ_API_KEY||"";
@@ -572,7 +616,7 @@ async function ensureDailyContent(force=false,requestedDate=""){
   const day=requestedDate||saoDate(),target=Math.max(1,Math.min(12,Number(s.postsPerDay)||3));
   const existing=db.posts.filter(p=>p.generatedDate===day&&p.generatedBy==="agent"&&!["cancelled","deleted","rejected"].includes(p.status)).length;
   if(existing>=target)return{created:0,target,day,existing,reason:"daily_target_already_met"};
-  if(!db.meta.contentPlan?.entries.some(e=>e.date===day)){
+  if(!db.meta.visualProfile?.enabled&&!db.meta.contentPlan?.entries.some(e=>e.date===day)){
     const catalog=await loadDriveCatalog();
     db.meta.contentPlan=createWeeklyPlan(catalog.files||[],db.posts,day,target);
   }
@@ -585,12 +629,13 @@ async function ensureDailyContent(force=false,requestedDate=""){
     const status=s.approvalMode==="auto"?"approved":s.approvalMode==="hybrid"&&i===0?"approved":"draft";
     let scheduledAt=scheduleFor(day,i,target,s);
     if(force&&new Date(scheduledAt)<=new Date())scheduledAt=new Date(Date.now()+(created+1)*2*60*1000).toISOString();
-    const entry=db.meta.contentPlan.entries.find(e=>e.date===day&&!e.postId);
+    const entry=db.meta.visualProfile?.enabled?null:db.meta.contentPlan?.entries.find(e=>e.date===day&&!e.postId);
     const planned=entry?{title:entry.title,caption:entry.caption,strategy:structuredClone(entry.strategy),projectId:entry.projectId,planEntryId:entry.id}:{};
     const project=db.projects.find(x=>x.id===planned.projectId)||p;
     const aiCaption=await llmCaption(project,planned.title||topic,i,planned.caption);
     const post={id:id("agent"),projectId:project.id,projectName:project.name,title:topic,imageUrl:SOCIAL_PUBLIC_BASE+"/brand.png",scheduledAt,status,createdAt:new Date().toISOString(),generatedBy:"agent",generatedDate:day,forcedBatch:force,visualPolicy:POSTING_POLICY.id,visualEngine:VISUAL_ENGINE,visualLevel:"rapido",artStatus:"placeholder",...planned,caption:aiCaption};
     if(post.strategy)post.strategy.signature=crypto.createHash("sha256").update(post.title+"|"+post.caption).digest("hex");
+    if(db.meta.visualProfile?.enabled){post.imageProvider="ai-horde";post.visualProfile=structuredClone(db.meta.visualProfile);post.imageUrl="";post.artStatus="pending";post.visualEngine="rovix-v7-profile-ai";}
     db.posts.unshift(post);if(entry)entry.postId=post.id;
     created++;
   }
@@ -721,7 +766,7 @@ async function api(req,res,u){
   }
   if(u.pathname.startsWith("/social-api/manual-previews")){try{return await manualPreviewApi(req,res,u,db)}catch(e){return json(res,400,{error:e.message})}}
   if(u.pathname.startsWith("/social-api/strategy")){try{return await strategyApi(req,res,u,db)}catch(e){return json(res,400,{error:e.message})}}
-  if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"1.0.0",diversityPolicy:DIVERSITY_POLICY,cancellation:db.meta.cancelScheduledThrough20261005,online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"Imagens aprovadas do ROVIX Drive com texto e legenda",textProvider:GROQ_API_KEY?"groq":OPENROUTER_API_KEY?"openrouter":"local",groqConfigured:Boolean(GROQ_API_KEY),openRouterConfigured:Boolean(OPENROUTER_API_KEY),imageProvider:"ROVIX Drive",imageFolder:DRIVE_IMAGE_POLICY.path,imageQueue:db.posts.filter(p=>p.artJobId).length,replacements:db.meta.rebuildRepeatedArt20261001,storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
+  if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"1.0.0",diversityPolicy:DIVERSITY_POLICY,cancellation:db.meta.cancelScheduledThrough20261005,online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:Boolean(db.meta.visualProfile?.enabled),visualEngine:db.meta.visualProfile?.enabled?"rovix-v7-profile-ai":VISUAL_ENGINE,visualCost:"free",visualStyle:db.meta.visualProfile?.enabled?db.meta.visualProfile.style:"Imagens aprovadas do ROVIX Drive com texto e legenda",textProvider:GROQ_API_KEY?"groq":OPENROUTER_API_KEY?"openrouter":"local",groqConfigured:Boolean(GROQ_API_KEY),openRouterConfigured:Boolean(OPENROUTER_API_KEY),imageProvider:db.meta.visualProfile?.enabled?"AI Horde":"ROVIX Drive",imageFolder:DRIVE_IMAGE_POLICY.path,imageQueue:db.posts.filter(p=>p.artJobId).length,replacements:db.meta.rebuildRepeatedArt20261001,storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
   if(req.method==="GET"&&u.pathname==="/social-api/meta/test"){if(!metaConfigured())return json(res,200,{connected:false,error:"Credenciais Meta ainda não configuradas"});try{const result=await testMeta();if(db.meta.apiAccessBlocked){delete db.meta.apiAccessBlocked;await saveDb(db)}return json(res,200,result)}catch(e){console.error("[Social Agent] Teste Meta:",e.httpStatus||"",e.metaCode||"",e.metaSubcode||"",e.message);if(/API access blocked/i.test(e.message||"")&&!db.meta.apiAccessBlocked){db.meta.apiAccessBlocked={at:new Date().toISOString(),code:e.metaCode||null};await saveDb(db)}return json(res,200,{connected:false,error:e.message,httpStatus:e.httpStatus||null,metaCode:e.metaCode||null,metaSubcode:e.metaSubcode||null})}}
   if(req.method==="GET"&&u.pathname==="/social-api/meta/analytics"){const days=Number(u.searchParams.get("days")||7);if(![7,30].includes(days))return json(res,400,{error:"Período inválido"});return json(res,200,await accountAnalytics(days))}
   if(req.method==="GET"&&u.pathname==="/social-api/projects")return json(res,200,db.projects);
@@ -737,6 +782,34 @@ async function api(req,res,u){
   }
   const imgMatch=u.pathname.match(/^\/social-api\/posts\/([^/]+)\/image$/);
   if(req.method==="GET"&&imgMatch){const p=db.posts.find(x=>x.id===imgMatch[1]);if(!p)return json(res,404,{error:"Post não encontrado"});if(p.generatedBy==="agent"&&!["ready","uploaded"].includes(p.artStatus))return json(res,409,{error:"Imagem original em geracao; a previa aparecera automaticamente"});try{const loc=await mediaUrl(p);res.writeHead(302,{Location:loc,"Cache-Control":"no-store"});res.end();return}catch(e){return json(res,400,{error:e.message})}}
+  if(req.method==="GET"&&u.pathname==="/social-api/visual-profile")return json(res,200,{profile:db.meta.visualProfile||VISUAL_PROFILE_DEFAULT,provider:"AI Horde",cost:"free",notice:"A fila gratuita pode demorar. Resolução e repetição são verificadas automaticamente; qualidade visual precisa de revisão."});
+  if(req.method==="PUT"&&u.pathname==="/social-api/visual-profile"){
+    const d=await body(req),profile=validateVisualProfile(d,db.meta.visualProfile||VISUAL_PROFILE_DEFAULT);
+    const snapshot="social-agent/backups/pre-visual-profile-"+Date.now()+".json";
+    await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:snapshot,Body:JSON.stringify(db),ContentType:"application/json"}));
+    db.meta.visualProfile=profile;await saveDb(db);return json(res,200,{profile});
+  }
+  if(req.method==="POST"&&u.pathname==="/social-api/visual-profile/preview"){
+    const d=await body(req),profile=db.meta.visualProfile;
+    if(!profile)return json(res,400,{error:"Salve o perfil visual primeiro"});
+    if(db.posts.filter(p=>p.artJobId).length>=MAX_IMAGE_JOBS)return json(res,429,{error:"Há duas imagens na fila. Aguarde a conclusão."});
+    const project=db.projects.find(p=>p.id===d.projectId&&p.active);
+    if(!project)return json(res,400,{error:"Escolha um projeto ativo"});
+    const title=String(d.title||project.topics?.[0]||project.name).trim().slice(0,150);
+    if(!title)return json(res,400,{error:"Informe o tema"});
+    const post={id:id("visual-preview"),projectId:project.id,projectName:project.name,title,caption:"",status:"draft",scheduledAt:"",generatedBy:"agent",createdAt:new Date().toISOString(),artStatus:"pending",imageProvider:"ai-horde",visualProfile:structuredClone(profile),isVisualPreview:true};
+    post.caption=await llmCaption(project,title,Date.now());
+    await startOriginalArtwork(post,project,db);
+    db.posts.unshift(post);await saveDb(db);return json(res,202,post);
+  }
+  if(req.method==="POST"&&u.pathname==="/social-api/visual-profile/activate"){
+    const d=await body(req),profile=db.meta.visualProfile;
+    if(!profile)return json(res,400,{error:"Salve o perfil primeiro"});
+    if(d.enabled===false){profile.enabled=false;await saveDb(db);return json(res,200,{profile})}
+    const preview=db.posts.find(p=>p.id===d.previewId&&p.isVisualPreview&&p.status==="draft"&&p.imageKey&&p.imageProvider==="ai-horde"&&p.artStatus==="ready"&&p.qualityChecks?.profileSignature===profileSignature(profile));
+    if(!preview)return json(res,409,{error:"Gere e aprove uma prévia do perfil atual antes de ativar"});
+    profile.enabled=true;profile.approvedPreviewId=preview.id;profile.approvedAt=new Date().toISOString();await saveDb(db);return json(res,200,{profile});
+  }
   if(req.method==="GET"&&u.pathname==="/social-api/settings")return json(res,200,db.settings);
   if(req.method==="GET"&&u.pathname==="/social-api/drive-catalog"){const c=await loadDriveCatalog();return json(res,200,{folder:DRIVE_IMAGE_POLICY.path,availableImages:c.files?.length||0,updatedAt:c.updatedAt,files:(c.files||[]).map(f=>({id:f.id,name:f.name}))})}
   if(req.method==="GET"&&u.pathname==="/social-api/policies")return json(res,200,POSTING_POLICY);
@@ -773,3 +846,4 @@ export async function handleSocialAgent(req,res){
   if(u.pathname.startsWith("/social-agent/")){const rel=u.pathname.slice("/social-agent/".length)||"index.html",safe=rel.replace(/\.\./g,""),file=path.join(PUBLIC,safe);if(!file.startsWith(PUBLIC)||!fs.existsSync(file)||fs.statSync(file).isDirectory()){text(res,404,"Não encontrado");return true}text(res,200,fs.readFileSync(file),mime(file));return true}
   return false;
 }
+
