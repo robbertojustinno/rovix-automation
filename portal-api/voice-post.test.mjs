@@ -1,6 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {publishVoicePost,generateVoiceEntry,prepareRovixVoiceArtwork} from './voice-post.mjs';
+const imageSelectionFixture = prepare => ({
+  db:{posts:[],meta:{},projects:[{id:'rovix',active:true,name:'ROVIX'}]},
+  deps:{kind:'rovix',folderId:'approved-folder',ownerId:'owner',id:()=> 'candidate',
+    loadCatalog:async()=>({folderId:'approved-folder',ownerId:'owner',files:['A','B','C'].map(id=>({id,name:id,mime_type:'image/png',object_key:'owner/'+id}))}),
+    compose:file=>({projectId:'rovix',title:file.name,caption:'Legenda '+file.name}),prepare}
+});
+test('skips visually duplicated candidates and uses the next valid image',async()=>{
+  const tried=[];
+  const {db,deps}=imageSelectionFixture(async(p,db,c,file)=>{
+    tried.push(file.id);
+    if(file.id==='A')throw new Error('Imagem bloqueada: igual ou visualmente semelhante a outra postagem. Crie uma cena original.');
+    p.imageKey='ready-'+file.id;p.artStatus='ready';
+  });
+  const entry=await generateVoiceEntry(deps,db);
+  assert.deepEqual(tried,['A','B']);assert.equal(entry.driveFileId,'B');assert.equal(entry.imageKey,'ready-B');assert.equal(db.posts.length,0);
+});
+test('all blocked images produce no post and request new artwork',async()=>{
+  const tried=[];
+  const {db,deps}=imageSelectionFixture(async(p,db,c,file)=>{tried.push(file.id);throw new Error('Imagem bloqueada: fundo já utilizado em outra postagem.');});
+  await assert.rejects(generateVoiceEntry(deps,db),/Adicione novas imagens/);
+  assert.deepEqual(tried,['A','B','C']);assert.equal(db.posts.length,0);
+});
+test('storage and connection errors are not treated as duplicate images',async()=>{
+  const tried=[];
+  const {db,deps}=imageSelectionFixture(async(p,db,c,file)=>{tried.push(file.id);throw new Error('AccessDenied');});
+  await assert.rejects(generateVoiceEntry(deps,db),/AccessDenied/);assert.deepEqual(tried,['A']);
+});
 const setup=network=>{
  const db={meta:{},posts:[],settings:{enabled:true}},calls=[];
  const deps={network,saveDb:async()=>calls.push('save'),preflight:async()=>calls.push('check'),generate:async()=>{calls.push('generate');return {id:'voice-1',imageKey:'approved.jpg',artStatus:'ready',caption:'Legenda',title:'Título'}},publish:async()=>{calls.push('publish');return{id:'remote-1',containerId:'container',url:'https://www.linkedin.com/feed/update/remote-1'}}};

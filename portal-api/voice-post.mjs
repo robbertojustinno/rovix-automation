@@ -36,17 +36,25 @@ export async function generateVoiceEntry(deps, db) {
   const uses = f => all.filter(p => key(p) === (deps.kind === 'orpheus' ? f.object_key : f.id)).length;
   const files = (catalog.files || []).filter(f => /^image\/(png|jpeg|webp)$/.test(f.mime_type) && f.object_key?.startsWith(deps.ownerId + '/') && !active.some(p => key(p) === (deps.kind === 'orpheus' ? f.object_key : f.id))).sort((a,b) => uses(a)-uses(b) || a.name.localeCompare(b.name));
   if (!files.length) throw new Error('Não há uma imagem livre no acervo desta plataforma');
-  let entry, selected;
+  let entry, selected, blockedImages = 0;
   for (const file of files) {
     let proposal;
     try { proposal = deps.compose(file, all, db.posts.length + history.length); } catch { continue; }
     const project = db.projects.find(p => p.id === proposal.projectId && p.active);
     if (!project) continue;
-    selected = file;
-    entry = {id:deps.id('voice-post'), ...proposal, projectName:project.name, sourceImageKey:deps.kind === 'orpheus' ? file.object_key : undefined, driveFileId:deps.kind === 'rovix' ? file.id : undefined, createdAt:new Date().toISOString(), scheduledAt:'',status:'draft'};
-    await deps.prepare(entry, db, catalog, file, project);
+    const candidate = {id:deps.id('voice-post'), ...proposal, projectName:project.name, sourceImageKey:deps.kind === 'orpheus' ? file.object_key : undefined, driveFileId:deps.kind === 'rovix' ? file.id : undefined, createdAt:new Date().toISOString(), scheduledAt:'',status:'draft'};
+    try {
+      await deps.prepare(candidate, db, catalog, file, project);
+    } catch (e) {
+      const message = String(e.message || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (!/imagem bloqueada:.*(igual|semelhante|fundo ja utilizado)/i.test(message)) throw e;
+      blockedImages++;
+      continue;
+    }
+    entry = candidate; selected = file;
     break;
   }
+  if (!entry && blockedImages) throw new Error('Nenhuma imagem disponível passou pelo bloqueio de repetição. Adicione novas imagens ao acervo.');
   if (!entry || !selected) throw new Error('Não há uma proposta disponível para os projetos ativos');
   return entry;
 }
