@@ -5,7 +5,7 @@ export default function OrpheusSocialAgentPage(){
         src="https://orpheus-social-agent.onrender.com/orpheus-agent/"
         title="ORPHEUS Social Agent"
         style={{border:0,width:"100%",height:"100%",display:"block"}}
-        allow="clipboard-read; clipboard-write"
+        allow="microphone; clipboard-read; clipboard-write"
       />
     </main>
   );
