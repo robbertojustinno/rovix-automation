@@ -30,7 +30,7 @@
   let recognition = null, listening = false, busy = false, heard = false;
   function resetMic() { listening = false; mic.textContent = '🎙 Falar comando'; mic.setAttribute('aria-pressed','false'); }
   function stopListening() { if (recognition && listening) recognition.abort(); resetMic(); }
-  async function execute(raw) {
+  async function execute(raw, fromVoice = false) {
     if (busy) return;
     if (!document.body.classList.contains('logged-in')) { report('Faça login para executar comandos.'); return; }
     const command = parseCommand(raw);
@@ -39,9 +39,9 @@
     if (command.action === 'unknown') { report('Não reconheci esse comando. ' + help); return; }
     stopListening(); busy = true; mic.disabled = true; submit.disabled = true;
     try {
-      report('Executando: ' + raw);
+      report((fromVoice ? 'Comando de voz recebido. Executando automaticamente: ' : 'Executando texto: ') + raw);
       if (command.action === 'publish') {
-        report('Criando imagem e legenda para publicar no Instagram…');
+        report((fromVoice ? 'Comando de voz recebido. ' : '') + 'Criando imagem e legenda para publicar no Instagram…');
         const requestId = window.crypto.randomUUID();
         const result = await api('/voice/publish', {method:'POST',body:JSON.stringify({requestId})});
         S.posts = await api('/posts'); window.view('dash');
@@ -81,7 +81,7 @@
     recognition.onresult = event => {
       if (!document.body.classList.contains('logged-in') || document.hidden) return;
       const result = event.results[event.resultIndex]; if (!result?.isFinal || heard) return;
-      heard = true; input.value = result[0].transcript; execute(input.value);
+      heard = true; input.value = result[0].transcript; execute(input.value, true);
     };
     recognition.onerror = event => {
       resetMic();
