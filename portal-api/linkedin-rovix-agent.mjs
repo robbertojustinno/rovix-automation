@@ -1,3 +1,4 @@
+import {publishVoicePost,generateVoiceEntry,prepareRovixVoiceArtwork} from "./voice-post.mjs";
 import {linkedInConfigured,testLinkedIn,publishLinkedIn} from "./linkedin-publisher.mjs";
 import fs from "node:fs";
 import path from "node:path";
@@ -535,6 +536,23 @@ async function api(req,res,u){
   if(!authed(req))return json(res,401,{error:"Autenticação obrigatória"});
 
   const db=await loadDb();
+  if(req.method==="POST"&&u.pathname==="/linkedin-rovix-api/voice/publish"){
+    const d=await body(req);
+    if(publishingBusy)return json(res,409,{error:"Há outra publicação em andamento. Aguarde."});
+    publishingBusy=true;
+    try{
+      const post=await publishVoicePost({network:"linkedin",saveDb,publish,
+        preflight:async db=>{if(!metaConfigured())throw new Error("Conecte o LinkedIn primeiro");if(db.meta.apiAccessBlocked)throw new Error("Acesso à rede social bloqueado");const until=activeCooldown(db);if(until)throw new Error(cooldownMessage(until));const connection=await testMeta();if(!connection.connected)throw new Error(connection.error||"Conexão indisponível");},
+        generate:db=>generateVoiceEntry({kind:"rovix",folderId:"786679ae-0c1c-49e4-9967-618788427a9d",ownerId:"c926b386-69e0-4fbb-be99-6aa1a7872d86",loadCatalog:loadDriveCatalog,compose:composeStrategy,id,
+            prepare:(entry,db,catalog,file,project)=>prepareRovixVoiceArtwork({driveContent,render:renderArtworkBuffer,fingerprint:imageFingerprint,assertUnique:assertUniqueArtwork,
+              readImage:async key=>{const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:key}));return Buffer.from(await r.Body.transformToByteArray())},
+              storeImage:async(postId,bytes)=>{const key="linkedin-rovix-agent/voice/"+postId+".jpg";await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:key,Body:bytes,ContentType:"image/jpeg"}));return key}
+            },entry,db,file,project)},db),
+        onError:(db,e)=>{if(isMetaActionLimit(e))db.meta.publishCooldownUntil=cooldownDate(e);}
+      },db,String(d.requestId||""));
+      return json(res,201,{post,published:true,network:"linkedin"});
+    }catch(e){return json(res,400,{error:e.message})}finally{publishingBusy=false}
+  }
   if(u.pathname.startsWith('/linkedin-rovix-api/manual-previews')){
    if(req.method==='GET'&&u.pathname==='/linkedin-rovix-api/manual-previews')return json(res,200,db.meta.manualPreviewBatch||{entries:[]});
    if(req.method==='POST'&&u.pathname==='/linkedin-rovix-api/manual-previews/generate'){

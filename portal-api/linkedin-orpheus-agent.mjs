@@ -1,3 +1,4 @@
+import {publishVoicePost,generateVoiceEntry,prepareRovixVoiceArtwork} from "./voice-post.mjs";
 import {linkedInConfigured,testLinkedIn,publishLinkedIn} from "./linkedin-publisher.mjs";
 import fs from "node:fs";
 import path from "node:path";
@@ -390,6 +391,24 @@ async function api(req,res,u){
   if(!authed(req))return json(res,401,{error:"Autenticação obrigatória"});
 
   const db=await loadDb();
+  if(req.method==="POST"&&u.pathname==="/linkedin-orpheus-api/voice/publish"){
+    const d=await body(req);
+    if(publishingBusy)return json(res,409,{error:"Há outra publicação em andamento. Aguarde."});
+    publishingBusy=true;
+    try{
+      const post=await publishVoicePost({network:"linkedin",saveDb,publish,
+        preflight:async db=>{if(!metaConfigured())throw new Error("Conecte o LinkedIn primeiro");if(db.meta.apiAccessBlocked)throw new Error("Acesso à rede social bloqueado");const until=activeCooldown(db);if(until)throw new Error(cooldownMessage(until));const connection=await testMeta();if(!connection.connected)throw new Error(connection.error||"Conexão indisponível");},
+        generate:db=>generateVoiceEntry({kind:"orpheus",folderId:"080b03b1-8429-44a1-9ae2-2dcaf086a4f7",ownerId:"c926b386-69e0-4fbb-be99-6aa1a7872d86",loadCatalog:loadDriveCatalog,compose:composeStrategy,id,
+            prepare:async(entry,db)=>{
+              const art=await attachPreapproved(db,entry);if(!art.made)throw new Error(art.error||"Falha ao preparar a imagem");
+              if(!entry.artHash||!entry.imageKey)throw new Error("Arte armazenada ainda não validada");
+              entry.artStatus="ready";entry.artValidation={approvedAt:new Date().toISOString(),reviewer:ADMIN_USER,hash:entry.artHash,source:"explicit-voice-command",preapprovedSource:entry.sourceImageKey};
+            }},db),
+        onError:(db,e)=>{if(isMetaActionLimit(e))db.meta.publishCooldownUntil=cooldownDate(e);}
+      },db,String(d.requestId||""));
+      return json(res,201,{post,published:true,network:"linkedin"});
+    }catch(e){return json(res,400,{error:e.message})}finally{publishingBusy=false}
+  }
   if(u.pathname.startsWith('/linkedin-orpheus-api/manual-previews')){try{return await manualPreviewApi(req,res,u,db)}catch(e){return json(res,400,{error:e.message})}}
   if(u.pathname.startsWith('/linkedin-orpheus-api/strategy')){try{return await strategyApi(req,res,u,db)}catch(e){return json(res,400,{error:e.message})}}
   if(req.method==="GET"&&u.pathname==="/linkedin-orpheus-api/status")return json(res,200,{app:"ORPHEUS LinkedIn Agent",targetLinkedIn:TARGET_LINKEDIN,universe:"CIPHER",automaticScope:["cipher","orpheus"],version:"0.9.0",online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:true,generator:{provider:ENGINE,retryAt:null,error:null,measurements:db.meta.generatorMeasurements||[],reviewRequired:true},visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"Acervo aprovado do Drive; revisão da composição obrigatória",storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});
