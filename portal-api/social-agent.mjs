@@ -695,6 +695,23 @@ setInterval(()=>withSocialDbLock(async()=>{
   for(const p of posts)await refreshStrategyMetrics(p);
   if(posts.length)await saveDb(db);
 }).catch(e=>console.error("[Social Agent] Métricas:",e.message)),15*60*1000);
+async function ensureVisualGenerationSetup(){
+  const db=await loadDb();
+  if(db.meta.visualGenerationSetup20261006)return;
+  const snapshot="social-agent/backups/pre-visual-generation-20261006.json";
+  await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:snapshot,Body:JSON.stringify(db),ContentType:"application/json"}));
+  db.meta.visualProfile=db.meta.visualProfile||structuredClone(VISUAL_PROFILE_DEFAULT);
+  const project=db.projects.find(p=>p.id==="tagcheck"&&p.active)||db.projects.find(p=>p.active);
+  if(!project)throw new Error("Nenhum projeto ativo para o teste visual");
+  const post={id:"visual-preview-setup-20261006",projectId:project.id,projectName:project.name,title:"Inspeção de instrumentos com identificação QR",caption:"",status:"draft",scheduledAt:"",generatedBy:"agent",createdAt:new Date().toISOString(),artStatus:"pending",imageProvider:"ai-horde",visualProfile:structuredClone(db.meta.visualProfile),isVisualPreview:true};
+  post.caption=await llmCaption(project,post.title,0);
+  if(!db.posts.some(p=>p.id===post.id))db.posts.unshift(post);
+  db.meta.visualGenerationSetup20261006={at:new Date().toISOString(),previewId:post.id,backup:snapshot};
+  await saveDb(db);
+  console.log("[Social Agent] Perfil visual configurado; teste sem publicação agendada:",post.id);
+  await prepareArtworkForQueue();
+}
+setTimeout(()=>withSocialDbLock(ensureVisualGenerationSetup).catch(e=>console.error("[Social Agent] Configuração visual:",e.message)),7000);
 setTimeout(()=>ensureRecoverySnapshot(),1000);setTimeout(()=>verifyManualPreviewFeature(),2500);setTimeout(()=>automationTick(),5000);setInterval(()=>automationTick(),60*1000);
 
 function crc32(buf){let c=0xffffffff;for(const b of buf){c^=b;for(let k=0;k<8;k++)c=(c>>>1)^((c&1)?0xedb88320:0)}return(c^0xffffffff)>>>0}
