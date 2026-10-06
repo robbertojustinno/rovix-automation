@@ -10,6 +10,7 @@ import sharp from "sharp";
 import {PROVIDER,selectScene,generate,duplicateImage,publishable} from "./orpheus-flux.mjs";
 import {createManualPreviewApi} from "./orpheus-manual-previews.mjs";
 import {createStrategyApi} from "./orpheus-strategy-routes.mjs";
+import {composeStrategy} from "./orpheus-strategy.mjs";
 const ENGINE="preapproved-drive";
 
 const __dirname=path.dirname(fileURLToPath(import.meta.url));
