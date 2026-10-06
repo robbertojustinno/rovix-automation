@@ -382,7 +382,7 @@ async function renderProfileArtwork(post,project,raw){
   const layers=[{input:overlay,left:0,top:0}];
   let logo;
   if(profile.logoKey){const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:profile.logoKey}));logo=Buffer.from(await r.Body.transformToByteArray())}
-  else if(profile.brandName==="ROVIX Automation")logo=await fs.promises.readFile(EMBLEM_PNG);
+  else if(profile.brandName==="ROVIX Automation")logo=EMBLEM_PNG;
   if(logo)layers.push({input:await sharp(logo).resize(170,170,{fit:"contain",background:{r:0,g:0,b:0,alpha:0}}).png().toBuffer(),left:850,top:35});
   return sharp(raw).rotate().resize(1080,1350,{fit:"cover"}).composite(layers).jpeg({quality:94,mozjpeg:true}).toBuffer();
 }
@@ -544,6 +544,10 @@ async function prepareArtworkForQueue(){
       p.imageProvider="ai-horde";
       if(/required kudos|requires .* kudos/i.test(p.artError||"")&&!p.modelBudgetRecovery20261006){
         delete p.nextArtRetryAt;p.modelBudgetRecovery20261006=true;
+      }
+      if(/argument 'path'.*Received.*Buffer/.test(p.artError||"")&&!p.logoBufferRecovery20261006){
+        p.logoBufferRecovery20261006=true;delete p.nextArtRetryAt;
+        p.artAttempts=0;p.artStatus="pending";p.artError="";
       }
       if(p.nextArtRetryAt&&Date.parse(p.nextArtRetryAt)>Date.now())continue;
       try{

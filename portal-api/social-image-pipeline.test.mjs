@@ -42,3 +42,18 @@ test('branded output renders to 1080x1350 JPEG without requiring ROVIX branding'
  const meta=await sharp(image).metadata();
  assert.equal(meta.width,1080);assert.equal(meta.height,1350);assert.equal(meta.format,'jpeg');
 });
+test('ROVIX default emblem is already image bytes, never a filesystem path',async()=>{
+ const emblem=await sharp({create:{width:600,height:600,channels:4,background:{r:255,g:0,b:0,alpha:1}}}).png().toBuffer();
+ const render=extract('renderProfileArtwork','async function hordeFetch',{sharp,VISUAL_PROFILE_DEFAULT,EMBLEM_PNG:emblem,titleLines:x=>[x],escapeXml:x=>x,Buffer,fs:{promises:{readFile(){throw new Error('Image bytes must not be passed to readFile')}}}});
+ const raw=await sharp({create:{width:1024,height:1024,channels:3,background:'#334455'}}).png().toBuffer();
+ const image=await render({title:'Teste ROVIX',visualProfile:VISUAL_PROFILE_DEFAULT},{name:'ROVIX'},raw);
+ const meta=await sharp(image).metadata();
+ assert.equal(meta.width,1080);assert.equal(meta.height,1350);assert.equal(meta.format,'jpeg');
+});
+test('failed logo processing recovers without requiring another button click',async()=>{
+ const q=queueContext([{id:'failed',projectId:'rovix',generatedBy:'agent',status:'draft',artStatus:'failed',imageProvider:'ai-horde',artAttempts:3,artError:"The argument 'path' must be a string. Received <Buffer 89 50>",nextArtRetryAt:'2099-01-01',createdAt:'2026-10-06'}]);
+ await extract('prepareArtworkForQueue','const GROQ_API_KEY',q.ctx)();
+ assert.equal(q.calls.start,1);
+ assert.equal(q.state.posts[0].logoBufferRecovery20261006,true);
+ assert.equal(q.state.posts[0].artStatus,'generating');
+});
