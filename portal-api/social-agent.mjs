@@ -419,9 +419,20 @@ async function finishOriginalArtwork(post,project,db){
   return true;
 }
 async function loadDriveCatalog(){
-  try{const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:DRIVE_CATALOG_KEY}));return JSON.parse(await readStream(r.Body))}
-  catch(e){if(e?.name!=="NoSuchKey"&&e?.$metadata?.httpStatusCode!==404)throw e;const catalog=JSON.parse(process.env.SOCIAL_DRIVE_CATALOG_BOOTSTRAP||"{}");if(catalog.folderId!==DRIVE_IMAGE_POLICY.folderId||catalog.ownerId!==DRIVE_IMAGE_POLICY.ownerId)throw new Error("Catálogo da pasta ROVIX ainda não configurado");await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:DRIVE_CATALOG_KEY,Body:JSON.stringify(catalog),ContentType:"application/json"}));return catalog}
+  let catalog;
+  try{const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:DRIVE_CATALOG_KEY}));catalog=JSON.parse(await readStream(r.Body))}
+  catch(e){if(e?.name!=="NoSuchKey"&&e?.$metadata?.httpStatusCode!==404)throw e}
+  if(catalog?.folderId===DRIVE_IMAGE_POLICY.folderId&&catalog?.ownerId===DRIVE_IMAGE_POLICY.ownerId)return catalog;
+  // Migrate the stale, empty catalogue to the exact folder selected by the owner.
+  const bundled=JSON.parse(fs.readFileSync(path.join(__dirname,"social-drive-catalog-bootstrap.json"),"utf8"));
+  const env=JSON.parse(process.env.SOCIAL_DRIVE_CATALOG_BOOTSTRAP||"{}");
+  catalog=env.folderId===DRIVE_IMAGE_POLICY.folderId&&env.ownerId===DRIVE_IMAGE_POLICY.ownerId?env:bundled;
+  if(catalog.folderId!==DRIVE_IMAGE_POLICY.folderId||catalog.ownerId!==DRIVE_IMAGE_POLICY.ownerId)throw new Error("Catálogo da pasta ROVIX ainda não configurado");
+  await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:DRIVE_CATALOG_KEY,Body:JSON.stringify(catalog),ContentType:"application/json"}));
+  console.log("[Social Agent] Catálogo atualizado:",DRIVE_IMAGE_POLICY.path,(catalog.files||[]).length,"imagens");
+  return catalog;
 }
+
 async function prepareDriveArtwork(post,db,catalog){
   if(catalog.folderId!==DRIVE_IMAGE_POLICY.folderId||catalog.ownerId!==DRIVE_IMAGE_POLICY.ownerId)throw new Error("Pasta ROVIX inválida");
   const history=db.posts.filter(p=>p.id!==post.id);

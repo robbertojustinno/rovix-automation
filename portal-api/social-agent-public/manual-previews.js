@@ -41,7 +41,7 @@ function drawManualPreviews(){
   $("#app").innerHTML='<section class="panel">'+
     '<span class="k">PRÉVIAS MANUAIS</span>'+
     '<h2>Três propostas prontas para publicação manual</h2>'+
-    '<p>O agente combina imagens de <b>Postagens_pre_aprovadas</b> com título, gancho e legenda. As prévias ficam separadas da agenda e da fila de aprovação.</p>'+
+    '<p>O agente combina imagens de <b>ROVIX_IMAGENS_PRONTAS_45</b> com título, gancho e legenda. As prévias ficam separadas da agenda e da fila de aprovação.</p>'+
     '<button class="primary" id="generateManualPreviews">Gerar 3 prévias para postar manualmente</button>'+
     '<p class="muted">Gerar prévias não agenda, não publica e não consome a quantidade diária da automação. Você pode gerar outro trio quando quiser.</p>'+
     '<p id="manualPreviewFeedback" role="status" aria-live="polite"></p>'+
