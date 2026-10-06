@@ -391,9 +391,12 @@ async function hordeFetch(route,options={}){
   const d=await r.json();if(!r.ok){const e=new Error(d.message||"Gerador gratuito temporariamente indisponivel");e.httpStatus=r.status;throw e}return d;
 }
 async function chooseImageModel(){
-  const preferred=["AlbedoBase XL 3.1","AlbedoBase XL (SDXL)","DreamShaper XL","Cheyenne"];
-  try{const models=await hordeFetch("/status/models?type=image");const live=models.filter(m=>preferred.includes(m.name)&&m.count>0&&m.performance>0).sort((a,b)=>a.eta-b.eta);if(live.length)return live[0].name}catch{}
-  return "AlbedoBase XL 3.1";
+  // Use the exact SDXL model validated by the anonymous 1024px probe.
+  // Other checkpoints may require more upfront kudos even at the same size.
+  const model="AlbedoBase XL 3.1";
+  const models=await hordeFetch("/status/models?type=image");
+  if(!models.some(m=>m.name===model&&m.count>0))throw new Error("O modelo visual gratuito aprovado está sem capacidade. Tentaremos novamente.");
+  return model;
 }
 async function startOriginalArtwork(post,project,db){
   db.meta.sceneCursors=db.meta.sceneCursors||{};
@@ -539,6 +542,9 @@ async function prepareArtworkForQueue(){
       if(!project){p.artError="Projeto não encontrado";continue}
       if(!p.visualProfile)p.visualProfile=structuredClone(profile||VISUAL_PROFILE_DEFAULT);
       p.imageProvider="ai-horde";
+      if(/required kudos|requires .* kudos/i.test(p.artError||"")&&!p.modelBudgetRecovery20261006){
+        delete p.nextArtRetryAt;p.modelBudgetRecovery20261006=true;
+      }
       if(p.nextArtRetryAt&&Date.parse(p.nextArtRetryAt)>Date.now())continue;
       try{
         if(p.artJobId){if(await finishOriginalArtwork(p,project,db))made++}
