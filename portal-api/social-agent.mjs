@@ -1,3 +1,4 @@
+import {publishVoicePost} from "./social-voice.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -689,6 +690,24 @@ async function api(req,res,u){
   if(!authed(req))return json(res,401,{error:"Autenticação obrigatória"});
 
   const db=await loadDb();
+  if(req.method==="POST"&&u.pathname==="/social-api/voice/publish"){
+    const d=await body(req);
+    if(publishingBusy)return json(res,409,{error:"Há outra publicação em andamento. Aguarde."});
+    publishingBusy=true;
+    try{
+      const post=await publishVoicePost({id,saveDb,publish,
+        preflight:async db=>{
+          if(!metaConfigured())throw new Error("Instagram ainda não configurado");
+          if(db.meta.apiAccessBlocked)throw new Error("Acesso à API da Meta bloqueado");
+          const until=activeCooldown(db);if(until)throw new Error(cooldownMessage(until));
+          await testMeta();
+        },
+        generate:db=>generateManualPreviewBatch({loadDriveCatalog,prepareManualArtwork,saveDb,id},db,1),
+        onError:(db,e)=>{if(isMetaActionLimit(e))db.meta.publishCooldownUntil=cooldownDate(e);else if(/API access blocked/i.test(e.message||""))db.meta.apiAccessBlocked={at:new Date().toISOString(),code:e.metaCode||null};}
+      },db,String(d.requestId||""));
+      return json(res,201,{post,published:true,network:"instagram"});
+    }catch(e){return json(res,400,{error:e.message})}finally{publishingBusy=false}
+  }
   if(u.pathname.startsWith("/social-api/manual-previews")){try{return await manualPreviewApi(req,res,u,db)}catch(e){return json(res,400,{error:e.message})}}
   if(u.pathname.startsWith("/social-api/strategy")){try{return await strategyApi(req,res,u,db)}catch(e){return json(res,400,{error:e.message})}}
   if(req.method==="GET"&&u.pathname==="/social-api/status")return json(res,200,{app:"ROVIX Social Agent",version:"1.0.0",diversityPolicy:DIVERSITY_POLICY,cancellation:db.meta.cancelScheduledThrough20261005,online:true,metaConfigured:metaConfigured(),apiAccessBlocked:Boolean(db.meta.apiAccessBlocked),imageGenerationConfigured:true,visualEngine:VISUAL_ENGINE,visualCost:"free",visualStyle:"Imagens aprovadas do ROVIX Drive com texto e legenda",textProvider:GROQ_API_KEY?"groq":OPENROUTER_API_KEY?"openrouter":"local",groqConfigured:Boolean(GROQ_API_KEY),openRouterConfigured:Boolean(OPENROUTER_API_KEY),imageProvider:"ROVIX Drive",imageFolder:DRIVE_IMAGE_POLICY.path,imageQueue:db.posts.filter(p=>p.artJobId).length,replacements:db.meta.rebuildRepeatedArt20261001,storage:"R2",projects:db.projects.length,posts:db.posts.length,settings:db.settings,publishCooldownUntil:activeCooldown(db)});

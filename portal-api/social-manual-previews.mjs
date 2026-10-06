@@ -1,4 +1,4 @@
-export async function generateManualPreviewBatch({loadDriveCatalog,prepareManualArtwork,saveDb,id},db){
+export async function generateManualPreviewBatch({loadDriveCatalog,prepareManualArtwork,saveDb,id},db,count=3){
   const catalog=await loadDriveCatalog();
   const history=db.meta.manualPreviewHistory||[];
   const activeDriveIds=new Set(
@@ -15,13 +15,13 @@ export async function generateManualPreviewBatch({loadDriveCatalog,prepareManual
     .filter(f=>f.object_key&&!activeDriveIds.has(f.id))
     .sort((a,b)=>usedCount(a.id)-usedCount(b.id)||String(a.name).localeCompare(String(b.name)));
 
-  if(files.length<3)throw new Error("São necessárias três imagens livres na pasta Postagens_pre_aprovadas.");
+  if(files.length<count)throw new Error("São necessárias imagens livres na pasta Postagens_pre_aprovadas.");
 
   const entries=[];
   const virtual=[...db.posts,...history];
   const seed=Number(db.meta.manualPreviewSequence||0);
 
-  for(let index=0;index<3;index++){
+  for(let index=0;index<count;index++){
     let entry=null;
     for(const file of files.filter(f=>!entries.some(e=>e.driveFileId===f.id))){
       try{
@@ -34,7 +34,7 @@ export async function generateManualPreviewBatch({loadDriveCatalog,prepareManual
     virtual.push({...entry,createdAt:entry.createdAt});
   }
 
-  db.meta.manualPreviewSequence=seed+3;
+  db.meta.manualPreviewSequence=seed+count;
   db.meta.manualPreviewBatch={id:id("manual-batch"),createdAt:new Date().toISOString(),entries};
   db.meta.manualPreviewHistory=[
     ...history,
