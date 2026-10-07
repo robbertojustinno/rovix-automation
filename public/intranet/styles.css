@@ -443,3 +443,5 @@ button { border: 0; cursor: pointer; }
 .metric>span img{width:100%;height:100%;object-fit:cover;object-position:right center}
 .metric:after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#050c18f5 0%,#050c18de 45%,transparent)}
 .metric strong{font-size:18px}.metric small{font-size:11px}
+
+.visit-metrics{padding:24px;margin:20px 0}.metrics-head{display:flex;align-items:center;justify-content:space-between;gap:16px}.visit-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:20px 0}.visit-grid strong{display:block;font-size:2rem}.visit-grid small,.visit-metrics>small{font-size:.875rem}.visit-metrics>small{display:block;line-height:1.6;color:#b9c7d9}@media(max-width:480px){.visit-grid{grid-template-columns:1fr}.metrics-head{align-items:flex-start;flex-wrap:wrap}}
