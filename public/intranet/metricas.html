@@ -4,6 +4,11 @@
           <div class="metrics-head"><h3 id="visitMetricsTitle">Visitas à página principal</h3></div>
           <div class="visit-grid"><div><small>Hoje</small><strong id="visitsDaily">—</strong></div><div><small>Esta semana</small><strong id="visitsWeekly">—</strong></div><div><small>Este mês</small><strong id="visitsMonthly">—</strong></div></div>
           <p>IPs distintos hoje: <strong id="uniqueIpsToday">—</strong></p>
+          <h4>Acessos por IP</h4>
+          <label for="ipSearch">Filtrar IP</label><input id="ipSearch" type="search" placeholder="Digite parte do IP" style="max-width:320px">
+          <p id="ipCountStatus" role="status"></p>
+          <div class="visits-table-wrap"><table class="visits-table"><thead><tr><th>IP</th><th>Hoje</th><th>Semana</th><th>Mês</th><th>Histórico (até 90 dias)</th><th>Primeiro / último acesso</th><th>OSINT público</th></tr></thead><tbody id="ipCounts"></tbody></table></div>
+          <small>Até 500 IPs, ordenados por número de visitas. Contagem por sessão de 30 minutos, não por pessoa ou carregamento. OSINT: organização da rede, ASN, país, estado, cidade e fuso aproximados. Consulta gratuita sob demanda; até 20 novas consultas por dia (UTC), com cache de 7 dias. Dados da conexão não identificam o visitante. Fonte: <a href="https://ipapi.is/free-tier.html" target="_blank" rel="noopener noreferrer">ipapi.is</a>.</small>
           <h4>Últimas 100 visitas</h4><div class="visits-table-wrap"><table class="visits-table"><thead><tr><th>Data e hora</th><th>IP</th><th>Dispositivo</th><th>Navegador / sistema</th><th>Origem</th><th>Idioma / tela / fuso</th></tr></thead><tbody id="recentVisits"></tbody></table></div>
           <small>Detalhes guardados por 90 dias. IPs podem ser compartilhados ou pertencer a VPNs. Origem direta quando não informada. Navegador e sistema são estimativas.</small>
           <p id="metricsStatus" role="status"></p>
@@ -11,4 +16,4 @@
         </section>
         <p id="metricsError" class="hidden" role="status"></p>
 
-</main></div><script src="/intranet/config.js?v=20261006-lia"></script><script src="/intranet/metricas.js?v=20261007-metrics-window"></script></body></html>
+</main></div><script src="/intranet/config.js?v=20261006-lia"></script><script src="/intranet/metricas.js?v=20261007-ip-osint"></script></body></html>
