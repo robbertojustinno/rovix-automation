@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow"><title>Métricas de visitas • ROVIX</title><link rel="icon" href="/intranet/public/favicon.png"><link rel="stylesheet" href="/intranet/styles.css?v=20261007-metrics-window"></head>
+<body><div class="app-shell"><header class="topbar card"><div class="brand"><img class="brand-logo" src="/intranet/public/rovix-logo-official-20261003.png" alt="ROVIX"><div><h1>Métricas de visitas</h1><p>Painel privado • Página principal ROVIX</p></div></div><div class="topbar-actions"><a class="outline-button" href="/intranet/">Voltar ao Hub</a><button id="refreshMetrics" class="outline-button" type="button">Atualizar</button><button id="metricsLogout" class="outline-button" type="button">Sair</button></div></header><main>        <section id="visitMetrics" class="card visit-metrics hidden" aria-labelledby="visitMetricsTitle">
+          <div class="metrics-head"><h3 id="visitMetricsTitle">Visitas à página principal</h3></div>
+          <div class="visit-grid"><div><small>Hoje</small><strong id="visitsDaily">—</strong></div><div><small>Esta semana</small><strong id="visitsWeekly">—</strong></div><div><small>Este mês</small><strong id="visitsMonthly">—</strong></div></div>
+          <p>IPs distintos hoje: <strong id="uniqueIpsToday">—</strong></p>
+          <h4>Últimas 100 visitas</h4><div class="visits-table-wrap"><table class="visits-table"><thead><tr><th>Data e hora</th><th>IP</th><th>Dispositivo</th><th>Navegador / sistema</th><th>Origem</th><th>Idioma / tela / fuso</th></tr></thead><tbody id="recentVisits"></tbody></table></div>
+          <small>Detalhes guardados por 90 dias. IPs podem ser compartilhados ou pertencer a VPNs. Origem direta quando não informada. Navegador e sistema são estimativas.</small>
+          <p id="metricsStatus" role="status"></p>
+          <small>Horário de Brasília. Semana de segunda a domingo. Uma visita por sessão de 30 minutos neste navegador. A contagem começa após a ativação.</small>
+        </section>
+        <p id="metricsError" class="hidden" role="status"></p>
+
+</main></div><script src="/intranet/config.js?v=20261006-lia"></script><script src="/intranet/metricas.js?v=20261007-metrics-window"></script></body></html>
