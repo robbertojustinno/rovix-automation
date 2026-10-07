@@ -11,7 +11,7 @@
   try { localStorage.setItem(key, JSON.stringify(visit)); } catch {}
   fetch('https://tag-1-xfzk.onrender.com/rovix-metrics/visit', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({visit_id: visit.id}), keepalive: true
+    body: JSON.stringify({visit_id: visit.id, referrer: document.referrer.slice(0,2048), language: navigator.language.slice(0,40), screen: `${screen.width}×${screen.height}`.slice(0,40), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone.slice(0,100)}), keepalive: true
   }).then(response => {
     if (response.ok) {
       visit.sent = true;

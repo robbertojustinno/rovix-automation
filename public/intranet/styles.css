@@ -445,3 +445,5 @@ button { border: 0; cursor: pointer; }
 .metric strong{font-size:18px}.metric small{font-size:11px}
 
 .visit-metrics{padding:24px;margin:20px 0}.metrics-head{display:flex;align-items:center;justify-content:space-between;gap:16px}.visit-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:20px 0}.visit-grid strong{display:block;font-size:2rem}.visit-grid small,.visit-metrics>small{font-size:.875rem}.visit-metrics>small{display:block;line-height:1.6;color:#b9c7d9}@media(max-width:480px){.visit-grid{grid-template-columns:1fr}.metrics-head{align-items:flex-start;flex-wrap:wrap}}
+
+.visits-table-wrap{overflow-x:auto;margin:16px 0}.visits-table{width:100%;border-collapse:collapse;font-size:12px}.visits-table th,.visits-table td{text-align:left;padding:10px;border-bottom:1px solid #263447;vertical-align:top;overflow-wrap:anywhere;min-width:110px}.visits-table th{color:#9fb2d8}

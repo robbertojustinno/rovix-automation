@@ -241,6 +241,16 @@ async function loadVisitMetrics() {
     for (const [id, key] of [["visitsDaily", "daily"], ["visitsWeekly", "weekly"], ["visitsMonthly", "monthly"]]) {
       document.getElementById(id).textContent = number.format(data[key]);
     }
+    document.getElementById("uniqueIpsToday").textContent = number.format(data.unique_ips_today || 0);
+    const body = document.getElementById("recentVisits");
+    body.replaceChildren();
+    for (const visit of data.recent || []) {
+      const row = document.createElement("tr");
+      const values = [new Date(visit.visited_at).toLocaleString("pt-BR", {timeZone: "America/Sao_Paulo"}), visit.ip, visit.device, `${visit.browser} / ${visit.system}`, visit.referrer || "Direta / não informada", [visit.language, visit.screen, visit.timezone].filter(Boolean).join(" / ")];
+      for (const value of values) { const cell = document.createElement("td"); cell.textContent = value; row.appendChild(cell); }
+      body.appendChild(row);
+    }
+    if (!body.children.length) { const row = body.insertRow(); const cell = row.insertCell(); cell.colSpan = 6; cell.textContent = "Os detalhes aparecem a partir das próximas visitas."; }
     document.getElementById("metricsStatus").textContent = "Atualizado às " + new Date(data.updated_at).toLocaleTimeString("pt-BR", {timeZone: "America/Sao_Paulo"});
     panel.classList.remove("hidden");
   } catch (e) {
