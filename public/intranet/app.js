@@ -45,6 +45,8 @@ function clearSession() {
 }
 
 function showLogin(message = "") {
+  document.getElementById("visitMetrics").classList.add("hidden");
+  document.getElementById("metricsError").classList.add("hidden");
   loginScreen.classList.remove("hidden");
   hubScreen.classList.add("hidden");
   logoutButton.classList.add("hidden");
@@ -62,6 +64,7 @@ function showHub() {
 
   renderSystems();
   checkApiHealth();
+  loadVisitMetrics();
 }
 
 function renderSystems() {
@@ -216,3 +219,35 @@ if (getToken()) {
 } else {
   showLogin();
 }
+
+async function loadVisitMetrics() {
+  const panel = document.getElementById("visitMetrics");
+  const error = document.getElementById("metricsError");
+  const refresh = document.getElementById("refreshMetrics");
+  const token = getToken();
+  error.classList.add("hidden");
+  refresh.disabled = true;
+  try {
+    const response = await fetch(`${CONFIG.API_BASE_URL}/rovix-metrics/summary`, {
+      headers: {Authorization: `Bearer ${token}`}, cache: "no-store", signal: AbortSignal.timeout(60000)
+    });
+    if (token !== getToken()) return;
+    if (response.status === 401 || response.status === 403) {
+      clearSession(); showLogin("Entre novamente para consultar as métricas privadas."); return;
+    }
+    if (!response.ok) throw new Error("Métricas indisponíveis. Tente novamente em alguns instantes.");
+    const data = await response.json();
+    const number = new Intl.NumberFormat("pt-BR");
+    for (const [id, key] of [["visitsDaily", "daily"], ["visitsWeekly", "weekly"], ["visitsMonthly", "monthly"]]) {
+      document.getElementById(id).textContent = number.format(data[key]);
+    }
+    document.getElementById("metricsStatus").textContent = "Atualizado às " + new Date(data.updated_at).toLocaleTimeString("pt-BR", {timeZone: "America/Sao_Paulo"});
+    panel.classList.remove("hidden");
+  } catch (e) {
+    if (token !== getToken()) return;
+    panel.classList.add("hidden");
+    error.textContent = "Não foi possível consultar as métricas. Reabra o Hub para tentar novamente.";
+    error.classList.remove("hidden");
+  } finally { refresh.disabled = false; }
+}
+document.getElementById("refreshMetrics").addEventListener("click", loadVisitMetrics);
