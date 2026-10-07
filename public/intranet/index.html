@@ -8,7 +8,7 @@
   <title>Rovix Hub • Intranet</title>
   <link rel="icon" type="image/png" href="/intranet/public/favicon.png" />
   <link rel="apple-touch-icon" href="/intranet/public/favicon.png" />
-  <link rel="stylesheet" href="/intranet/styles.css?v=20261005-cards" />
+  <link rel="stylesheet" href="/intranet/styles.css?v=20261007-metrics" />
 </head>
 <body>
   <div class="app-shell">
@@ -71,6 +71,14 @@
           </div>
         </div>
 
+        <section id="visitMetrics" class="card visit-metrics hidden" aria-labelledby="visitMetricsTitle">
+          <div class="metrics-head"><h3 id="visitMetricsTitle">Visitas à página principal</h3><button id="refreshMetrics" class="outline-button" type="button">Atualizar</button></div>
+          <div class="visit-grid"><div><small>Hoje</small><strong id="visitsDaily">—</strong></div><div><small>Esta semana</small><strong id="visitsWeekly">—</strong></div><div><small>Este mês</small><strong id="visitsMonthly">—</strong></div></div>
+          <p id="metricsStatus" role="status"></p>
+          <small>Horário de Brasília. Semana de segunda a domingo. Uma visita por sessão de 30 minutos neste navegador. A contagem começa após a ativação.</small>
+        </section>
+        <p id="metricsError" class="hidden" role="status"></p>
+
         <section class="quick-grid">
           <article class="metric card">
             <span><img src="/images/products/tagcheck-20261005.webp" alt="" /></span>
@@ -104,6 +112,6 @@
   </footer>
 
   <script src="/intranet/config.js?v=20261006-lia"></script>
-  <script src="/intranet/app.js?v=20261005-cards"></script>
+  <script src="/intranet/app.js?v=20261007-metrics"></script>
 </body>
 </html>
