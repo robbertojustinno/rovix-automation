@@ -567,9 +567,9 @@ async function api(req,res,u){
      const proposal=composeStrategy(file,virtual,Number(db.meta.manualPreviewSequence||0)+entries.length);
      if(!db.projects.some(p=>p.id===proposal.projectId&&p.active))continue;
      const entry={id:id('manual-preview'),...proposal,status:'manual_preview',scheduledAt:'',createdAt:new Date().toISOString()};
-     await prepareDriveArtwork(entry,{...db,posts:virtual},catalog);entries.push(entry);virtual.push(entry);
+     try{await prepareDriveArtwork(entry,{...db,posts:virtual},catalog)}catch(e){if(/Imagem bloqueada:|visualmente semelhante|igual.*postagem/i.test(e.message||''))continue;throw e}entries.push(entry);virtual.push(entry);
     }
-    if(entries.length!==3)return json(res,409,{error:'Não há três imagens livres para os projetos ativos.'});
+    if(entries.length!==3)return json(res,409,{error:'Não há três imagens diferentes disponíveis para os projetos ativos. Adicione novas imagens à pasta ROVIX.'});
     db.meta.manualPreviewSequence=Number(db.meta.manualPreviewSequence||0)+3;db.meta.manualPreviewBatch={createdAt:new Date().toISOString(),entries};db.meta.manualPreviewHistory=[...history,...entries].slice(-90);await saveDb(db);return json(res,201,db.meta.manualPreviewBatch);
    }
    const publishPreview=u.pathname.match(/^\/linkedin-rovix-api\/manual-previews\/([^/]+)\/publish$/);
