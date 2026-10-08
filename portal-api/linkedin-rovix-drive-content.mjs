@@ -1,7 +1,7 @@
 export const DRIVE_IMAGE_POLICY=Object.freeze({
   id:'rovix-drive-images-20261002',immutable:true,
-  folderId:'b60d4a33-f1f9-4fa0-9530-1e79e77dc0fb',ownerId:'c926b386-69e0-4fbb-be99-6aa1a7872d86',
-  path:'Meu Drive → ROVIX LinkedIn Agent → Imagens',
+  folderId:'786679ae-0c1c-49e4-9967-618788427a9d',ownerId:'c926b386-69e0-4fbb-be99-6aa1a7872d86',
+  path:'Meu Drive → ROVIX → imagens_prontas_45',
   authorized:true,source:'ROVIX Drive',
   rules:['As imagens desta pasta estão disponíveis e autorizadas para uso nas postagens ROVIX.',
     'Selecionar arquivos reais; priorizar imagens ainda não utilizadas; registrar arquivo e ciclo de uso.',
