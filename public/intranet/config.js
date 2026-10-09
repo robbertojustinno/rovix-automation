@@ -192,12 +192,21 @@ window.ROVIX_HUB_CONFIG = {
           "links": []
         },
         {
-          "name": "ROVIX Vote",
-          "image": "/images/hub/vote-20261005.webp",
-          "description": "Sistema eletrônico de votação e treinamento eleitoral desenvolvido em Electron/React.",
-          "status": "LOCAL",
-          "type": "Desktop",
-          "links": []
+          "name": "ROVIX VOTE",
+          "image": "/images/hub/vote-aprovado-20261009.webp",
+          "description": "Urna corporativa experimental para computador e celular: CPF e código individual, CSV, Zerésima, BU e comprovante. Somente dados fictícios até a homologação; integração portátil futura.",
+          "status": "EXPERIMENTAL",
+          "type": "Web / Computador e celular",
+          "links": [
+            {
+              "label": "Abrir votação",
+              "url": "https://rovix-vote-api.onrender.com/"
+            },
+            {
+              "label": "Administração",
+              "url": "https://rovix-vote-api.onrender.com/admin"
+            }
+          ]
         },
         {
           "name": "ROVIX Market",
