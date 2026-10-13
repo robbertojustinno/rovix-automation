@@ -2,7 +2,7 @@ window.ROVIX_HUB_CONFIG = {
   "APP_NAME": "Rovix Hub",
   "APP_VERSION": "1.0.0",
   "API_BASE_URL": "https://tag-1-xfzk.onrender.com",
-  "TAG_ADMIN_URL": "https://tag-admin.onrender.com/",
+  "TAG_ADMIN_URL": "https://tagcheck.com.br/",
   "STORAGE_KEYS": {
     "authToken": "tagcheck_admin_auth_token",
     "authUser": "tagcheck_admin_auth_user"
@@ -319,12 +319,12 @@ window.ROVIX_HUB_CONFIG = {
           "type": "Web / SaaS",
           "links": [
             {
-              "label": "Admin homologação",
-              "url": "https://tagcheck-fase2-hml-admin.onrender.com"
+              "label": "Admin",
+              "url": "https://tagcheck.com.br/"
             },
             {
-              "label": "Viewer homologação",
-              "url": "https://tagcheck-fase2-hml-viewer.onrender.com"
+              "label": "Viewer",
+              "url": "https://tagcheck.com.br/viewer"
             },
             {
               "label": "API",
