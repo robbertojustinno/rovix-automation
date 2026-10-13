@@ -1,1 +1,1 @@
-{"name":"rovix-whatsapp-backend","private":true,"type":"module","engines":{"node":">=22"},"scripts":{"start":"node server.mjs","test":"node --test test.mjs"}}
+{"name":"rovix-whatsapp-backend","private":true,"type":"module","engines":{"node":">=22"},"scripts":{"start":"node server.mjs","test":"node --test test.mjs bridge-test.mjs"}}
