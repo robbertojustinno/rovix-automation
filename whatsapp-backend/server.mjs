@@ -7,6 +7,7 @@ const equal=(a,b)=>{const x=Buffer.from(a||''),y=Buffer.from(b||'');return x.len
 export function validSignature(raw,signature,secret){return !!secret&&equal(signature,'sha256='+createHmac('sha256',secret).update(raw).digest('hex'));}
 export function createApp(env=process.env,graphFetch=fetch){
  const states=new Map(),seen=new Map(); let chain=Promise.resolve();
+ const bridgeReady=()=>Boolean(env.WHATSAPP_SITE_ACCESS_TOKEN&&env.WHATSAPP_BRIDGE_KEY);
  const config=env.BOT_CONFIG_JSON?validate(JSON.parse(env.BOT_CONFIG_JSON)):defaults;
  const ready=()=>env.BOT_ENABLED==='true'&&!!env.WHATSAPP_ACCESS_TOKEN&&!!env.WHATSAPP_PHONE_NUMBER_ID&&!!env.META_APP_SECRET&&!!env.BOT_CONFIG_JSON;
  function clean(){const cutoff=Date.now()-86400000;for(const [id,v] of seen)if(v<cutoff)seen.delete(id);for(const [id,v] of states)if(v.at<cutoff)states.delete(id);}
@@ -37,14 +38,26 @@ export function createApp(env=process.env,graphFetch=fetch){
   const url=new URL(req.url,'http://localhost');
   const reply=(status,data,type='application/json')=>{res.writeHead(status,{'Content-Type':type,'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'});res.end(type==='application/json'?JSON.stringify(data):data);};
   try{
-   if(req.method==='GET'&&url.pathname==='/health')return reply(200,{ok:true,service:'ROVIX Bot',whatsapp:ready()?'configured_not_validated':'pending_configuration'});
-   if(req.method==='GET'&&url.pathname==='/')return reply(200,'<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>ROVIX Bot</title><body style="font:18px system-ui;max-width:700px;margin:60px auto;padding:20px"><h1>ROVIX Bot</h1><p>Servidor de integração online.</p><p>WhatsApp: '+(ready()?'credenciais configuradas; teste real pendente.':'configuração pendente.')+'</p><p>O painel de regras continua no <a href="https://rovix-bot.norcrj.chatgpt.site">ROVIX Bot</a>.</p></body></html>','text/html;charset=utf-8');
+   if(req.method==='GET'&&url.pathname==='/health')return reply(200,{ok:true,service:'ROVIX Bot',whatsapp:bridgeReady()?'connection_available_real_test_pending':ready()?'configured_not_validated':'pending_configuration'});
+   if(req.method==='GET'&&url.pathname==='/')return reply(200,'<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>ROVIX Bot</title><body style="font:18px system-ui;max-width:700px;margin:60px auto;padding:20px"><h1>ROVIX Bot</h1><p>Servidor de integração online.</p><p>WhatsApp: '+(bridgeReady()?'conexão disponível no painel; autorização e teste real pendentes.':ready()?'credenciais configuradas; teste real pendente.':'configuração pendente.')+'</p><p>O painel de regras continua no <a href="https://rovix-bot.norcrj.chatgpt.site">ROVIX Bot</a>.</p></body></html>','text/html;charset=utf-8');
    if(req.method==='GET'&&url.pathname==='/webhook'){
     if(!env.WHATSAPP_VERIFY_TOKEN)return reply(503,{error:'verification_not_configured'});
     if(url.searchParams.get('hub.mode')!=='subscribe'||!equal(url.searchParams.get('hub.verify_token'),env.WHATSAPP_VERIFY_TOKEN))return reply(403,{error:'verification_failed'});
     return reply(200,url.searchParams.get('hub.challenge')||'','text/plain');
    }
    if(req.method==='POST'&&url.pathname==='/webhook'){
+    if(bridgeReady()){
+     const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>1000000)return reply(413,{error:'payload_too_large'});chunks.push(chunk);}
+     const raw=Buffer.concat(chunks),signature=req.headers['x-hub-signature-256'];
+     if(typeof signature!=='string'||!/^sha256=[a-f0-9]{64}$/.test(signature))return reply(403,{error:'invalid_signature'});
+     const forward=async()=>{
+      const response=await graphFetch('https://rovix-bot.norcrj.chatgpt.site/integration/whatsapp/webhook',{method:'POST',headers:{'OAI-Sites-Authorization':'Bearer '+env.WHATSAPP_SITE_ACCESS_TOKEN,Authorization:'Bearer '+env.WHATSAPP_BRIDGE_KEY,'X-Hub-Signature-256':signature,'Content-Type':'application/json'},body:raw,redirect:'error',signal:AbortSignal.timeout(25000)});
+      if(response.status===403)return {status:403,data:{error:'invalid_signature_or_bridge_access'}};
+      if(!response.ok)throw Error('bridge_processing_failed');
+      return {status:200,data:{received:true}};
+     };
+     const task=chain.then(forward);chain=task.catch(()=>{});const result=await task;return reply(result.status,result.data);
+    }
     if(!env.META_APP_SECRET)return reply(503,{error:'signature_secret_not_configured'});
     const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>1000000)return reply(413,{error:'payload_too_large'});chunks.push(chunk);}
     const raw=Buffer.concat(chunks);
@@ -61,3 +74,4 @@ export function createApp(env=process.env,graphFetch=fetch){
  });
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){const app=createApp();app.listen(Number(process.env.PORT||10000),'0.0.0.0',()=>console.log('ROVIX WhatsApp backend online'));}
+
