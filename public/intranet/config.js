@@ -227,7 +227,7 @@ window.ROVIX_HUB_CONFIG = {
         {
           "name": "O67 — Opportunity OS",
           "image": "/images/hub/o67-20261005.webp",
-          "description": "Radar autônomo de oportunidades da ROVIX: detecta sinais de mercado, cruza evidências, acompanha lifecycle, ranking, alertas e evolução histórica para transformar problemas recorrentes em oportunidades econômicas investigáveis.",
+          "description": "Radar de vagas remotas e projetos freelance em programação, automação e IA, com filtros de disponibilidade e acompanhamento de candidaturas.",
           "status": "DESENVOLVIMENTO",
           "type": "IA / Opportunity Intelligence",
           "links": [
@@ -282,11 +282,11 @@ window.ROVIX_HUB_CONFIG = {
           "links": [
             {
               "label": "Admin",
-              "url": "https://tag-admin.onrender.com/"
+              "url": "https://tagcheck.com.br/"
             },
             {
               "label": "Viewer",
-              "url": "https://tag-viewer.onrender.com/"
+              "url": "https://tagcheck.com.br/viewer/"
             },
             {
               "label": "GitHub",

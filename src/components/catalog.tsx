@@ -48,7 +48,7 @@ export function ProductCard({product,hubExact=false,presentationOnly=false}:{pro
       <div className="cardActions">
         <Link className="button secondary" href={`/apps/${product.slug}`}>Ver detalhes <ArrowRight size={16}/></Link>
         {isTagCheck
-          ? <><a className="textLink" href="https://tagcheck.com.br/">Acessar sistema</a><a className="textLink" href="https://tagcheck.com.br/viewer/">Abrir Viewer</a></>
+          ? <><a className="textLink" href="https://tagcheck.com.br/">Acessar TagCheck</a>{!presentationOnly&&<a className="textLink" href="https://tagcheck.com.br/viewer/">Consultar tag no Viewer</a>}</>
           : action.href&&<a className="textLink" href={action.href} onClick={()=>analytics.track(`click_${action.kind}`,{product:product.slug})}>{action.label}</a>}
       </div>
     </div>
