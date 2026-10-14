@@ -324,7 +324,7 @@ window.ROVIX_HUB_CONFIG = {
             },
             {
               "label": "Viewer",
-              "url": "https://tagcheck.com.br/viewer"
+              "url": "https://tagcheck.com.br/viewer/"
             },
             {
               "label": "API",
