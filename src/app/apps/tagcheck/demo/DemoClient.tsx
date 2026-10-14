@@ -88,7 +88,7 @@ export default function DemoClient(){
           <p>Selecione um instrumento fictício para visualizar como o cadastro e os dados metrológicos aparecem no TAGCheck.</p>
         </div>
         <div className="tagDemoHeroActions">
-          <button disabled><QrCode size={17}/> Viewer</button>
+          <a className="button secondary" href="https://tagcheck.com.br/viewer/"><QrCode size={17}/> Viewer</a><a className="button" href="https://tagcheck.com.br/">Acessar TagCheck</a>
           <button disabled><FileText size={17}/> Gerar PDF</button>
         </div>
       </div>
