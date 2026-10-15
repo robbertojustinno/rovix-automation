@@ -319,16 +319,8 @@ window.ROVIX_HUB_CONFIG = {
           "type": "Web / SaaS",
           "links": [
             {
-              "label": "Admin",
-              "url": "https://tagcheck.com.br/"
-            },
-            {
-              "label": "Viewer",
-              "url": "https://tagcheck.com.br/viewer/"
-            },
-            {
-              "label": "API",
-              "url": "https://tagcheck-fase2-hml-api.onrender.com"
+              "label": "Ver demonstração",
+              "url": "/apps/tagcheck/demo/"
             }
           ]
         },

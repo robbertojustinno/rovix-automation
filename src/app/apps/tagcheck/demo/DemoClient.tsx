@@ -88,7 +88,7 @@ export default function DemoClient(){
           <p>Selecione um instrumento fictício para visualizar como o cadastro e os dados metrológicos aparecem no TAGCheck.</p>
         </div>
         <div className="tagDemoHeroActions">
-          <a className="button secondary" href="https://tagcheck.com.br/viewer/"><QrCode size={17}/> Viewer</a><a className="button" href="https://tagcheck.com.br/">Acessar TagCheck</a>
+          <a className="button secondary" href="#demoAtivos"><QrCode size={17}/> Explorar instrumentos</a>
           <button disabled><FileText size={17}/> Gerar PDF</button>
         </div>
       </div>
@@ -133,7 +133,7 @@ export default function DemoClient(){
         </aside>
       </div>
 
-      <section className="tagDemoCard tagDemoAssets">
+      <section className="tagDemoCard tagDemoAssets" id="demoAtivos">
         <div className="tagDemoCardHead tagDemoAssetsHead">
           <div><span>Ativos cadastrados</span><h2>Gerenciador de ativos</h2></div>
           <div className="tagDemoSearch"><Search size={17}/><input disabled placeholder="Buscar TAG ou nome"/></div>
