@@ -233,7 +233,7 @@ window.ROVIX_HUB_CONFIG = {
           "links": [
             {
               "label": "Abrir O67",
-              "url": "https://rovixautomation.com.br/067/"
+              "url": "https://o67-opportunity-os.onrender.com/work"
             }
           ]
         }
