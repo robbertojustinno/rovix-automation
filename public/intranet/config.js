@@ -312,6 +312,14 @@ window.ROVIX_HUB_CONFIG = {
           ]
         },
         {
+          "name": "TagCheck — Tagueamento",
+          "image": "/images/products/tagcheck-20261005.webp",
+          "description": "Página de avaliação para equipamentos e instrumentos vinculados, sugestão de tags e exportação CSV. Dados locais no navegador.",
+          "status": "BETA",
+          "type": "Tagueamento industrial",
+          "links": [{"label": "Abrir Tagueamento", "url": "/tagueamento/"}]
+        },
+        {
           "name": "TAGCheck Fase 2",
           "image": "/images/products/tagcheck-20261005.webp",
           "description": "Nova arquitetura multiempresa do TAGCheck com usuários, empresas, unidades e controle de acesso.",
