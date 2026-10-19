@@ -17,3 +17,12 @@ s=t.addInstrument(s,{...d,equipmentId:'eq2',quantity:'T',function:'IA'},'ia');as
 assert.match(t.csv(s),/SEEX-UN6-R001-PI001/);
 assert.equal(t.migrate([{parent:'R-1',tag:'PI-123',unit:'U',area:'A'}]).instruments[0].tag,'PI-123');
 console.log('Passed: workshops, subsections, parent validation, automatic numbering, full tags, shared loops, duplicates and legacy preservation.');
+let edited=t.updateRecord(s,'workshops','w',{code:'TNR',name:'Nova oficina'});
+assert.equal(edited.instruments[0].tag,'TNR-UN6-R001-PI001');assert.equal(edited.instruments[0].parent,'TNR-UN6-R001');
+edited=t.updateRecord(edited,'subsections','sub',{code:'UN7',name:'Nova subseção',workshopId:'w'});assert.equal(edited.equipments[0].tag,'TNR-UN7-R001');
+edited=t.updateRecord(edited,'equipments','eq',{name:'Tanque',type:'TK',subsectionId:'sub'});assert.equal(edited.instruments[0].tag,'TNR-UN7-TK001-PI001');
+edited=t.updateRecord(edited,'instruments','i',{description:'Novo indicador',equipmentId:'eq',quantity:'T',function:'IA',loopMode:'keep'});assert.equal(edited.instruments[0].tag,'TNR-UN7-TK001-TIA001');
+for(const [kind,id] of [['workshops','w'],['subsections','sub'],['equipments','eq']])assert.throws(()=>t.deleteRecord(edited,kind,id),/vínculos/);
+let removed=t.deleteRecord(edited,'instruments','i');assert.equal(removed.instruments.length,edited.instruments.length-1);assert.equal(edited.instruments.length,3);
+removed=t.deleteRecord(removed,'instruments','it');removed=t.deleteRecord(removed,'equipments','eq');assert.ok(!removed.equipments.some(x=>x.id==='eq'));
+console.log('Passed: edits at all four levels, descendant tags, stable IDs, deletion guards and leaf deletion.');

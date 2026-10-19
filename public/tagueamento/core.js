@@ -49,7 +49,50 @@ function addInstrument(state,d,id){
  const {company,unit,area}=proposed.eq;
  return {...state,instruments:[...state.instruments,{...d,id,tag:proposed.tag,loop:proposed.loop,company,unit,area,parent:proposed.eq.tag,createdAt:new Date().toISOString()}]};
 }
+function updateRecord(state,kind,id,d){
+ if(!['workshops','subsections','equipments','instruments'].includes(kind))throw Error('Tipo inválido.');
+ const old=state[kind].find(x=>x.id===id);if(!old)throw Error('Registro não encontrado.');
+ let next={...state,[kind]:state[kind].filter(x=>x.id!==id)};
+ if(kind==='workshops')next=addWorkshop(next,d,id);
+ if(kind==='subsections')next=addSubsection(next,d,id);
+ if(kind==='equipments'){
+  if(!String(d.name||'').trim())throw Error('Informe o nome do equipamento.');
+  if(old.subsectionId===d.subsectionId&&old.type===d.type)next={...next,equipments:[...next.equipments,{...old,name:d.name.trim()}]};
+  else next=addEquipment(next,d,id);
+ }
+ if(kind==='instruments'){
+  if(!String(d.description||'').trim())throw Error('Informe a descrição do instrumento.');
+  if(d.loopMode==='keep'){
+   if(d.equipmentId!==old.equipmentId)throw Error('Ao mover o instrumento, selecione nova malha ou uma malha do destino.');
+   const eq=state.equipments.find(x=>x.id===d.equipmentId);
+   if(!quantities[d.quantity]||!functions[d.function])throw Error('Selecione grandeza e função.');
+   const value=tag(eq.tag+'-'+d.quantity+d.function+String(old.loop).padStart(3,'0'));unique(next,eq.company,value);
+   next={...next,instruments:[...next.instruments,{...old,...d,tag:value,loop:old.loop}]};
+  }else next=addInstrument(next,d,id);
+ }
+ next[kind]=state[kind].map(x=>x.id===id?{...old,...next[kind].find(y=>y.id===id),updatedAt:new Date().toISOString()}:x);
+ if(kind==='workshops')next.subsections=next.subsections.map(sub=>sub.workshopId===id?{...sub,tag:next.workshops.find(w=>w.id===id).tag+'-'+sub.code}:sub);
+ next.equipments=next.equipments.map(eq=>{
+  const sub=next.subsections.find(x=>x.id===eq.subsectionId),before=state.subsections.find(x=>x.id===eq.subsectionId);
+  if(!sub)return eq;
+  const value=before&&eq.tag.startsWith(before.tag+'-')?tag(sub.tag+eq.tag.slice(before.tag.length)):eq.tag;
+  return {...eq,tag:value,workshopId:sub.workshopId,unit:sub.tag,area:sub.code};
+ });
+ next.instruments=next.instruments.map(i=>{
+  const eq=next.equipments.find(x=>x.id===i.equipmentId),before=state.equipments.find(x=>x.id===i.equipmentId);
+  if(!eq||!before)return i;
+  return {...i,parent:eq.tag,unit:eq.unit,area:eq.area,tag:i.tag.startsWith(before.tag+'-')?tag(eq.tag+i.tag.slice(before.tag.length)):i.tag};
+ });
+ const seen=new Set();for(const x of [...next.subsections,...next.equipments,...next.instruments]){const key=(x.company||'LOCAL')+':'+x.tag;if(seen.has(key))throw Error('A alteração geraria uma tag duplicada.');seen.add(key);}
+ return next;
+}
+function deleteRecord(state,kind,id){
+ if(!['workshops','subsections','equipments','instruments'].includes(kind)||!state[kind].some(x=>x.id===id))throw Error('Registro não encontrado.');
+ const children={workshops:['subsections','workshopId'],subsections:['equipments','subsectionId'],equipments:['instruments','equipmentId']}[kind];
+ if(children&&state[children[0]].some(x=>x[children[1]]===id))throw Error('Este registro possui vínculos. Exclua ou mova primeiro os itens vinculados.');
+ return {...state,[kind]:state[kind].filter(x=>x.id!==id)};
+}
 function migrate(old){const state={version:2,equipments:[],instruments:[]};for(const r of old){let eq=state.equipments.find(x=>x.tag===normalize(r.parent)&&x.unit===normalize(r.unit)&&x.area===normalize(r.area));if(!eq){eq={id:'legacy-eq-'+state.equipments.length,company:'LEGADO',unit:normalize(r.unit),area:normalize(r.area),name:r.equipment,tag:normalize(r.parent),type:'EQ'};state.equipments.push(eq);}state.instruments.push({...r,company:'LEGADO',equipmentId:eq.id});}return state;}
 function csv(state){const fields=['tipo','empresa','unidade','area','tag','descricao','equipamento_id','tag_equipamento','grandeza','funcao','malha'];const rows=[...state.equipments.map(e=>['Equipamento',e.company,e.unit,e.area,e.tag,e.name,e.id,'','','','']),...state.instruments.map(i=>['Instrumento',i.company,i.unit,i.area,i.tag,i.description,i.equipmentId,i.parent,i.quantity,i.function,i.loop])];const q=v=>'"'+String(v??'').replace(/^[=+@\-\t\r]/,"'$&").replaceAll('"','""')+'"';return '\uFEFF'+[fields,...rows].map(r=>r.map(q).join(';')).join('\r\n');}
-const api={addWorkshop,addSubsection,normalize,types,quantities,functions,equipmentTag,addEquipment,nextLoop,instrumentTag,addInstrument,migrate,csv};if(typeof module!=='undefined')module.exports=api;else root.Tagging=api;
+const api={updateRecord,deleteRecord,addWorkshop,addSubsection,normalize,types,quantities,functions,equipmentTag,addEquipment,nextLoop,instrumentTag,addInstrument,migrate,csv};if(typeof module!=='undefined')module.exports=api;else root.Tagging=api;
 })(globalThis);
