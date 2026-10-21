@@ -1,3 +1,4 @@
+import {imageInventory} from "./social-image-inventory.mjs";
 import {VISUAL_PROFILE_DEFAULT,validateVisualProfile,profileSignature,applyVisualProfile} from "./social-visual-profile.mjs";
 import {publishVoicePost} from "./social-voice.mjs";
 import fs from "node:fs";
@@ -839,6 +840,7 @@ async function api(req,res,u){
     profile.enabled=true;profile.approvedPreviewId=preview.id;profile.approvedAt=new Date().toISOString();await saveDb(db);return json(res,200,{profile});
   }
   if(req.method==="GET"&&u.pathname==="/social-api/settings")return json(res,200,db.settings);
+  if(req.method==="GET"&&u.pathname==="/social-api/image-inventory"){const catalog=await loadDriveCatalog();return json(res,200,{...imageInventory(catalog,db),updatedAt:new Date().toISOString()})}
   if(req.method==="GET"&&u.pathname==="/social-api/drive-catalog"){const c=await loadDriveCatalog();return json(res,200,{folder:DRIVE_IMAGE_POLICY.path,availableImages:c.files?.length||0,updatedAt:c.updatedAt,files:(c.files||[]).map(f=>({id:f.id,name:f.name}))})}
   if(req.method==="GET"&&u.pathname==="/social-api/policies")return json(res,200,POSTING_POLICY);
   if(req.method==="PUT"&&u.pathname==="/social-api/settings"){const d=await body(req);const postsPerDay=Math.max(1,Math.min(12,Number(d.postsPerDay)||3));const incomingTimes=Array.isArray(d.postTimes)?d.postTimes.map(x=>String(x)).filter(x=>/^([01]\d|2[0-3]):([0-5]\d)$/.test(x)).slice(0,postsPerDay):[];db.settings={...db.settings,enabled:Boolean(d.enabled),postsPerDay,approvalMode:["manual","auto","hybrid"].includes(d.approvalMode)?d.approvalMode:"manual",scheduleMode:["interval","exact"].includes(d.scheduleMode)?d.scheduleMode:"interval",startHour:Math.max(0,Math.min(23,Number(d.startHour)||9)),endHour:Math.max(0,Math.min(23,Number(d.endHour)||19)),postTimes:incomingTimes};await saveDb(db);return json(res,200,db.settings)}
