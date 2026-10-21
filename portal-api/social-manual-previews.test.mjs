@@ -1,7 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import {createManualPreviewApi} from "./social-manual-previews.mjs";
+import {createManualPreviewApi,generateManualPreviewBatch} from "./social-manual-previews.mjs";
+
+test("pedido de uma postagem usa só uma imagem livre",async()=>{
+ const db={posts:[],meta:{}};
+ const batch=await generateManualPreviewBatch({loadDriveCatalog:async()=>({files:[{id:'a',name:'a.jpg',object_key:'owner/a'}]}),prepareManualArtwork:async({file})=>({id:'preview',driveFileId:file.id}),saveDb:async()=>{},id:x=>x},db,1);
+ assert.equal(batch.entries.length,1);
+ assert.equal(db.posts.length,0);
+});
+test("falha revela a causa real sem informar três propostas no pedido único",async()=>{
+ const db={posts:[],meta:{}};
+ await assert.rejects(generateManualPreviewBatch({loadDriveCatalog:async()=>({files:[{id:'a',object_key:'owner/a'}]}),prepareManualArtwork:async()=>{throw new Error('Imagem bloqueada: fundo ja utilizado em outra postagem.')},saveDb:async()=>{},id:x=>x},db,1),e=>/fundo ja utilizado/.test(e.message)&&!e.message.includes('três'));
+ assert.equal(db.meta.manualPreviewBatch,undefined);
+});
 
 function response(){
   return {status:0,headers:{},body:null,writeHead(status,headers){this.status=status;this.headers=headers||{}},end(body){this.body=body}};
@@ -68,3 +80,4 @@ test("implementação preserva 1080x1350 e ações do frontend",()=>{
   assert.match(frontend,/window\.manualPostPreset/);
   assert.match(app,/preset\?\.imageKey/);
 });
+

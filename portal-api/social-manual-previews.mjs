@@ -15,7 +15,7 @@ export async function generateManualPreviewBatch({loadDriveCatalog,prepareManual
     .filter(f=>f.object_key&&!activeDriveIds.has(f.id))
     .sort((a,b)=>usedCount(a.id)-usedCount(b.id)||String(a.name).localeCompare(String(b.name)));
 
-  if(files.length<count)throw new Error("São necessárias imagens livres na pasta Postagens_pre_aprovadas.");
+  if(files.length<count)throw new Error("Não há "+count+" imagem(ns) livre(s) na pasta aprovada da ROVIX. Adicione imagens inéditas ou revise as postagens pendentes.");
 
   const entries=[];
   const virtual=[...db.posts,...history];
@@ -23,13 +23,21 @@ export async function generateManualPreviewBatch({loadDriveCatalog,prepareManual
 
   for(let index=0;index<count;index++){
     let entry=null;
+    const failures=new Map();
     for(const file of files.filter(f=>!entries.some(e=>e.driveFileId===f.id))){
       try{
         entry=await prepareManualArtwork({db,catalog,file,virtual,seed:seed+index,id});
         break;
-      }catch{}
+      }catch(error){
+        const reason=String(error.message||"Falha ao preparar imagem");
+        failures.set(reason,(failures.get(reason)||0)+1);
+      }
     }
-    if(!entry)throw new Error("Não foi possível criar três propostas diferentes com imagens livres e coerentes.");
+    if(!entry){
+      console.error("[Social Agent] Manual preview failures:",JSON.stringify(Object.fromEntries(failures)));
+      const reason=[...failures.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||"Nenhuma imagem válida disponível";
+      throw new Error((count===1?"Não foi possível preparar a postagem: ":"Não foi possível preparar as "+count+" prévias: ")+reason);
+    }
     entries.push(entry);
     virtual.push({...entry,createdAt:entry.createdAt});
   }
@@ -83,3 +91,4 @@ export function createManualPreviewApi({json,loadDriveCatalog,prepareManualArtwo
     return json(res,404,{error:"Rota de prévias não encontrada"});
   };
 }
+

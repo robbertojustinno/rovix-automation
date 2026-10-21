@@ -481,7 +481,7 @@ async function prepareDriveArtwork(post,db,catalog){
   delete post.artJobId;delete post.nextArtRetryAt;
   console.log("[Social Agent] Imagem do Drive pronta:",post.id,file.name,"ciclo",cycle);
 }
-async function prepareManualArtwork({db,catalog,file,virtual,seed,id:idFn}){
+async function prepareManualArtwork({db,catalog,file,virtual,seed,id:idFn,dryRun=false}){
   if(catalog.folderId!==DRIVE_IMAGE_POLICY.folderId||catalog.ownerId!==DRIVE_IMAGE_POLICY.ownerId)throw new Error("Pasta ROVIX inválida");
   if(!file?.object_key||!file.object_key.startsWith(DRIVE_IMAGE_POLICY.ownerId+"/"))throw new Error("Imagem fora da pasta autorizada");
   const content=composeStrategy(file,virtual,seed);
@@ -504,7 +504,7 @@ async function prepareManualArtwork({db,catalog,file,virtual,seed,id:idFn}){
     visualPolicy:POSTING_POLICY.id,
     visualEngine:VISUAL_ENGINE
   };
-  entry.caption=await llmCaption(project,entry.title,seed,entry.caption);
+  if(!dryRun)entry.caption=await llmCaption(project,entry.title,seed,entry.caption);
   entry.strategy=structuredClone(entry.strategy);
   entry.strategy.signature=crypto.createHash("sha256").update(entry.title+"|"+entry.caption).digest("hex");
   Object.assign(entry.strategy.visual,{fileId:file.id,fileName:file.name});
@@ -515,6 +515,7 @@ async function prepareManualArtwork({db,catalog,file,virtual,seed,id:idFn}){
   entry.visualFingerprint=await imageFingerprint(final);
   entry.visualSource="rovix-drive://"+file.id;
   await assertUniqueArtwork(entry,db);
+  if(dryRun)return entry;
   const key="social-agent/manual-previews/"+entry.id+"-"+crypto.randomBytes(6).toString("hex")+".jpg";
   await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:key,Body:final,ContentType:"image/jpeg"}));
   Object.assign(entry,{imageKey:key,imageUrl:"",artStatus:"ready",artGeneratedAt:new Date().toISOString(),diversityPolicy:DIVERSITY_POLICY});
@@ -722,6 +723,18 @@ async function ensureVisualGenerationSetup(){
   await prepareArtworkForQueue();
 }
 setTimeout(()=>withSocialDbLock(ensureVisualGenerationSetup).catch(e=>console.error("[Social Agent] Configuração visual:",e.message)),7000);
+// Read-only rollout diagnosis: no post, preview or publication is saved.
+setTimeout(()=>withSocialDbLock(async()=>{
+  const db=structuredClone(await loadDb()),catalog=await loadDriveCatalog();
+  const occupied=new Set(db.posts.filter(p=>!["deleted","rejected","published","cancelled"].includes(p.status)).map(p=>p.driveFileId||p.strategy?.visual?.fileId).filter(Boolean));
+  const files=(catalog.files||[]).filter(f=>f.object_key&&!occupied.has(f.id));
+  const used=new Set(db.posts.map(p=>p.driveFileId||p.strategy?.visual?.fileId).filter(Boolean));
+  const stats={catalog:catalog.files?.length||0,unreserved:files.length,unseen:files.filter(f=>!used.has(f.id)).length};
+  const file=files.find(f=>!used.has(f.id))||files[0];
+  if(file)try{await prepareManualArtwork({db,catalog,file,virtual:[...db.posts,...(db.meta.manualPreviewHistory||[])],seed:Number(db.meta.manualPreviewSequence||0),id,dryRun:true});stats.sample="ready"}
+  catch(e){stats.sampleError=e.message}
+  console.log("[Social Agent] Manual availability diagnostic:",JSON.stringify(stats));
+}).catch(e=>console.error("[Social Agent] Manual availability diagnostic:",e.message)),12000);
 setTimeout(()=>ensureRecoverySnapshot(),1000);setTimeout(()=>verifyManualPreviewFeature(),2500);setTimeout(()=>automationTick(),5000);setInterval(()=>automationTick(),60*1000);
 
 function crc32(buf){let c=0xffffffff;for(const b of buf){c^=b;for(let k=0;k<8;k++)c=(c>>>1)^((c&1)?0xedb88320:0)}return(c^0xffffffff)>>>0}
@@ -873,4 +886,5 @@ export async function handleSocialAgent(req,res){
   if(u.pathname.startsWith("/social-agent/")){const rel=u.pathname.slice("/social-agent/".length)||"index.html",safe=rel.replace(/\.\./g,""),file=path.join(PUBLIC,safe);if(!file.startsWith(PUBLIC)||!fs.existsSync(file)||fs.statSync(file).isDirectory()){text(res,404,"Não encontrado");return true}text(res,200,fs.readFileSync(file),mime(file));return true}
   return false;
 }
+
 
