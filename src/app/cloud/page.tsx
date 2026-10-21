@@ -2,6 +2,7 @@
 import{ArrowLeft,CheckSquare,Download,FileText,Folder,HardDrive,Image as ImageIcon,Share2,Square,Upload}from"lucide-react";
 import{useEffect,useMemo,useRef,useState}from"react";
 import{useRouter}from"next/navigation";
+import{makeZip,type ZipEntry}from"./zip";
 import{authRest,getValidSession}from"@/services/rovix-auth";
 
 type Item={
@@ -33,6 +34,7 @@ export default function Cloud(){
   const[shareItem,setShareItem]=useState<Item|null>(null);
   const[shareHours,setShareHours]=useState(24);
   const[shareUrl,setShareUrl]=useState("");
+  const[zipProgress,setZipProgress]=useState<{done:number;total:number;name:string}|null>(null);
 
   async function api(path:string,init:RequestInit={}){
     const s=await getValidSession();
@@ -289,6 +291,58 @@ export default function Cloud(){
     finally{setBusy(false)}
   }
 
+  async function downloadFolder(item:Item){
+    if(busy)return;
+    setBusy(true);setMsg("");setZipProgress({done:0,total:0,name:item.name});
+    try{
+      // RLS do Supabase limita esta listagem aos arquivos autorizados.
+      const all=await authRest("rovix_files?select=id,kind,name,parent_id,size_bytes&order=name.asc") as Item[];
+      const children=new Map<string,Item[]>();
+      for(const row of all){
+        if(row.parent_id){const list=children.get(row.parent_id)||[];list.push(row);children.set(row.parent_id,list)}
+      }
+      const files:{item:Item;path:string}[]=[];
+      const entries:ZipEntry[]=[];
+      const visited=new Set<string>();
+      function visit(folder:Item,prefix:string,depth:number){
+        if(depth>80||visited.has(folder.id))throw Error("Estrutura de pastas inválida.");
+        visited.add(folder.id);
+        const nodes=children.get(folder.id)||[];
+        if(nodes.length===0)entries.push({path:prefix,data:new Uint8Array(0)});
+        for(const node of nodes){
+          const clean=node.name.replace(/[\\/]/g,"_").replace(/[\u0000-\u001f]/g,"_")||"sem-nome";
+          const path=prefix+clean+(node.kind==="folder"?"/":"");
+          if(node.kind==="folder")visit(node,path,depth+1);
+          else files.push({item:node,path});
+        }
+      }
+      const name=item.name.replace(/[\\/]/g,"_").replace(/[\u0000-\u001f]/g,"_")||"pasta";
+      visit(item,name+"/",0);
+      // Evita esgotar a memoria do navegador: ZIP temporario usa RAM.
+      const totalBytes=files.reduce((sum,x)=>sum+Number(x.item.size_bytes||0),0);
+      if(totalBytes>500*1024*1024)throw Error("Esta pasta excede 500 MB. O download ZIP pelo navegador está limitado a 500 MB.");
+      if(files.length>10000)throw Error("Esta pasta tem arquivos demais para preparar um ZIP no navegador.");
+      setZipProgress({done:0,total:files.length,name:item.name});
+      for(let i=0;i<files.length;i++){
+        const file=files[i];
+        const signed=await api("/download-url",{method:"POST",body:JSON.stringify({file_id:file.item.id})});
+        const response=await fetch(signed.download_url);
+        if(!response.ok)throw Error("Falha ao baixar "+file.item.name+".");
+        const data=new Uint8Array(await response.arrayBuffer());
+        entries.push({path:file.path,data});
+        setZipProgress({done:i+1,total:files.length,name:item.name});
+      }
+      setMsg("Preparando arquivo ZIP...");
+      const blob=makeZip(entries);
+      const url=URL.createObjectURL(blob);
+      const anchor=document.createElement("a");
+      anchor.href=url;anchor.download=name+".zip";document.body.appendChild(anchor);anchor.click();anchor.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),60000);
+      setMsg('Pasta "'+item.name+'" preparada para download ('+files.length+' arquivos).');
+    }catch(e){setMsg(e instanceof Error?e.message:"Falha ao baixar pasta. Verifique se o R2 permite downloads CORS.")}
+    finally{setZipProgress(null);setBusy(false)}
+  }
+
   async function generateShare(){
     if(!shareItem)return;
     setBusy(true);setMsg("");setShareUrl("");
@@ -326,6 +380,7 @@ export default function Cloud(){
     if(item.kind==="folder"){
       return <div className="fileActions">
         <button onClick={()=>openFolder(item)}>Abrir</button>
+        <button disabled={busy} onClick={()=>downloadFolder(item)}><Download size={16}/> Baixar ZIP</button>
         <button onClick={()=>chooseTarget(item,"copy")}>Copiar</button>
         <button onClick={()=>chooseTarget(item,"move")}>Mover</button>
         <button onClick={()=>rename(item)}>Renomear</button>
@@ -363,6 +418,13 @@ export default function Cloud(){
       </div>
     </div>
     <div className="storageBar" aria-label="Uso do armazenamento"><i style={{width:pct+"%"}}/></div>
+    {zipProgress&&<div role="status" aria-live="polite" style={{padding:"12px 16px",borderRadius:10,background:"rgba(80,130,230,.10)",margin:"12px 0"}}>
+      <strong>Preparando ZIP: {zipProgress.name}</strong>
+      <div style={{height:8,marginTop:10,borderRadius:99,background:"rgba(130,130,130,.22)",overflow:"hidden"}}>
+        <div style={{height:"100%",width:(zipProgress.total?100*zipProgress.done/zipProgress.total:8)+"%",background:"#477de6",borderRadius:99,transition:"width .25s ease"}}/>
+      </div>
+      <small>{zipProgress.total?zipProgress.done+" de "+zipProgress.total+" arquivos ("+Math.round(100*zipProgress.done/zipProgress.total)+"%)":"Verificando conteúdo da pasta..."}</small>
+    </div>}
     {msg&&<p className="portalMessage">{msg}</p>}
 
     {selected.size>0&&<div className="bulkBar">
