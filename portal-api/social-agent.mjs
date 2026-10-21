@@ -723,18 +723,6 @@ async function ensureVisualGenerationSetup(){
   await prepareArtworkForQueue();
 }
 setTimeout(()=>withSocialDbLock(ensureVisualGenerationSetup).catch(e=>console.error("[Social Agent] Configuração visual:",e.message)),7000);
-// Read-only rollout diagnosis: no post, preview or publication is saved.
-setTimeout(()=>withSocialDbLock(async()=>{
-  const db=structuredClone(await loadDb()),catalog=await loadDriveCatalog();
-  const occupied=new Set(db.posts.filter(p=>!["deleted","rejected","published","cancelled"].includes(p.status)).map(p=>p.driveFileId||p.strategy?.visual?.fileId).filter(Boolean));
-  const files=(catalog.files||[]).filter(f=>f.object_key&&!occupied.has(f.id));
-  const used=new Set(db.posts.map(p=>p.driveFileId||p.strategy?.visual?.fileId).filter(Boolean));
-  const stats={catalog:catalog.files?.length||0,unreserved:files.length,unseen:files.filter(f=>!used.has(f.id)).length};
-  const file=files.find(f=>!used.has(f.id))||files[0];
-  if(file)try{await prepareManualArtwork({db,catalog,file,virtual:[...db.posts,...(db.meta.manualPreviewHistory||[])],seed:Number(db.meta.manualPreviewSequence||0),id,dryRun:true});stats.sample="ready"}
-  catch(e){stats.sampleError=e.message}
-  console.log("[Social Agent] Manual availability diagnostic:",JSON.stringify(stats));
-}).catch(e=>console.error("[Social Agent] Manual availability diagnostic:",e.message)),12000);
 setTimeout(()=>ensureRecoverySnapshot(),1000);setTimeout(()=>verifyManualPreviewFeature(),2500);setTimeout(()=>automationTick(),5000);setInterval(()=>automationTick(),60*1000);
 
 function crc32(buf){let c=0xffffffff;for(const b of buf){c^=b;for(let k=0;k<8;k++)c=(c>>>1)^((c&1)?0xedb88320:0)}return(c^0xffffffff)>>>0}

@@ -17,6 +17,9 @@ export async function generateManualPreviewBatch({loadDriveCatalog,prepareManual
 
   if(files.length<count)throw new Error("Não há "+count+" imagem(ns) livre(s) na pasta aprovada da ROVIX. Adicione imagens inéditas ou revise as postagens pendentes.");
 
+  const postedIds=new Set(db.posts.map(p=>p.driveFileId||p.strategy?.visual?.fileId).filter(Boolean));
+  if(files.every(f=>postedIds.has(f.id)))throw new Error("As imagens disponíveis já foram usadas. Adicione imagens inéditas à pasta aprovada da ROVIX para publicar sem repetir.");
+
   const entries=[];
   const virtual=[...db.posts,...history];
   const seed=Number(db.meta.manualPreviewSequence||0);

@@ -14,6 +14,12 @@ test("falha revela a causa real sem informar três propostas no pedido único",a
  await assert.rejects(generateManualPreviewBatch({loadDriveCatalog:async()=>({files:[{id:'a',object_key:'owner/a'}]}),prepareManualArtwork:async()=>{throw new Error('Imagem bloqueada: fundo ja utilizado em outra postagem.')},saveDb:async()=>{},id:x=>x},db,1),e=>/fundo ja utilizado/.test(e.message)&&!e.message.includes('três'));
  assert.equal(db.meta.manualPreviewBatch,undefined);
 });
+test("estoque esgotado informa que precisa de imagens inéditas sem gastar geração",async()=>{
+ let rendered=0;
+ const db={posts:[{id:'old',driveFileId:'a',status:'published'}],meta:{}};
+ await assert.rejects(generateManualPreviewBatch({loadDriveCatalog:async()=>({files:[{id:'a',object_key:'owner/a'}]}),prepareManualArtwork:async()=>{rendered++},saveDb:async()=>{},id:x=>x},db,1),/imagens inéditas/);
+ assert.equal(rendered,0);
+});
 
 function response(){
   return {status:0,headers:{},body:null,writeHead(status,headers){this.status=status;this.headers=headers||{}},end(body){this.body=body}};
