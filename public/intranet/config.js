@@ -43,6 +43,19 @@ window.ROVIX_HUB_CONFIG = {
           ]
         },
         {
+          "name": "Seaquest — Resgate submarino",
+          "image": "/seaquest/card.svg",
+          "description": "Releitura do clássico de submarino: resgate mergulhadores, enfrente inimigos e controle o oxigênio. Teclado e toque no celular.",
+          "status": "BETA",
+          "type": "Jogo / Retrô",
+          "links": [
+            {
+              "label": "Jogar Seaquest",
+              "url": "/seaquest/"
+            }
+          ]
+        },
+        {
           "name": "Dangerous Dave",
           "image": "/images/hub/dangerous-dave-20261005.webp",
           "description": "Jogue o clássico renovado: dez fases, diamantes, troféu, arma e jetpack. Com música e efeitos sonoros.",
@@ -317,7 +330,12 @@ window.ROVIX_HUB_CONFIG = {
           "description": "Página de avaliação para equipamentos e instrumentos vinculados, sugestão de tags e exportação CSV. Dados locais no navegador.",
           "status": "BETA",
           "type": "Tagueamento industrial",
-          "links": [{"label": "Abrir Tagueamento", "url": "/tagueamento/"}]
+          "links": [
+            {
+              "label": "Abrir Tagueamento",
+              "url": "/tagueamento/"
+            }
+          ]
         },
         {
           "name": "TAGCheck Fase 2",
