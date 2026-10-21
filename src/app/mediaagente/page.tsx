@@ -14,7 +14,7 @@ export default function MediaAgentePage(){
         src="https://rovix-drive-api.onrender.com/social-agent/"
         title="ROVIX Social Agent"
         style={{display:"block",width:"100%",height:"calc(100vh - 90px)",minHeight:"760px",border:0,background:"#070b12"}}
-        allow="clipboard-read; clipboard-write"
+        allow="microphone; clipboard-read; clipboard-write"
       />
     </section>
   );
