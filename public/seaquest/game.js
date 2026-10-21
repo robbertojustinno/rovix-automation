@@ -12,8 +12,8 @@ class Seaquest {
  if(this.state!=='playing')return;
  dt=clamp(dt,0,.05);this.time+=dt;const p=this.player,calm=this.mode==='calm',difficulty=Math.min(this.wave,12);
  p.inv=Math.max(0,p.inv-dt);this.cooldown-=dt;
- let dx=(keys.right?1:0)-(keys.left?1:0),dy=(keys.down?1:0)-(keys.up?1:0);let norm=dx&&dy?Math.SQRT1_2:1;
- if(dx)p.dir=dx;p.x=clamp(p.x+dx*175*dt*norm,20,620);p.y=clamp(p.y+dy*145*dt*norm,77,303);
+ let dx=clamp(((keys.right?1:0)-(keys.left?1:0))+(keys.axisX||0),-1,1),dy=clamp(((keys.down?1:0)-(keys.up?1:0))+(keys.axisY||0),-1,1);let norm=1/Math.max(1,Math.hypot(dx,dy));
+ if(dx)p.dir=dx>0?1:-1;p.x=clamp(p.x+dx*175*dt*norm,20,620);p.y=clamp(p.y+dy*145*dt*norm,77,303);
  if(keys.fire&&this.cooldown<=0){this.bullets.push({x:p.x+p.dir*22,y:p.y,w:10,h:3,v:p.dir*360});this.cooldown=.23;this.event('fire');}
  const atSurface=p.y<=80;
  if(atSurface){this.oxygen=Math.min(100,this.oxygen+65*dt);if(!this.surface){if(this.saved===6){this.score+=1000+Math.floor(this.oxygen)*10;this.wave++;this.saved=0;this.event('rescue');}else if(this.saved>0){this.saved--;this.event('partial');}}}
@@ -59,19 +59,26 @@ function draw(){
 function tone(freq,duration=.08){if(!sound||!ac)return;const o=ac.createOscillator(),v=ac.createGain();o.type='square';o.frequency.value=freq;v.gain.setValueAtTime(.035,ac.currentTime);v.gain.exponentialRampToValueAtTime(.001,ac.currentTime+duration);o.connect(v);v.connect(ac.destination);o.start();o.stop(ac.currentTime+duration);}
 function audio(){if(!ac){const C=window.AudioContext||window.webkitAudioContext;if(C)ac=new C();}if(ac&&ac.state==='suspended')ac.resume().catch(()=>{});}
 function overlay(title,message,hint){$('overlay').hidden=false;$('heading').textContent=title;$('message').textContent=message;$('hint').textContent=hint;}
-function clearKeys(){for(const k in keys)delete keys[k];document.querySelectorAll('.held').forEach(b=>b.classList.remove('held'));}
-function pause(){if(g.state==='playing'){g.state='paused';clearKeys();$('pause').textContent='Continuar';overlay('PAUSADO','Respire. Sua missão espera por você.','Toque em Continuar ou pressione P');}else if(g.state==='paused'){g.state='playing';$('pause').textContent='Pausar';$('overlay').hidden=true;}}
-$('start').onclick=()=>{if(g.state==='playing'&&!confirm('Reiniciar a missão atual?'))return;audio();clearKeys();g.reset($('mode').value);$('overlay').hidden=true;$('start').textContent='↻ Reiniciar';$('pause').disabled=false;$('pause').textContent='Pausar';$('mode').disabled=true;$('start').blur();};
-$('pause').onclick=pause;
+let stickPointer=null;
+function resetStick(){stickPointer=null;keys.axisX=0;keys.axisY=0;$('stick').style.transform='translate(0px,0px)';}
+function clearKeys(){resetStick();for(const k in keys)delete keys[k];document.querySelectorAll('.held').forEach(b=>b.classList.remove('held'));}
+function pause(){if(g.state==='playing'){g.state='paused';clearKeys();$('pause').textContent='Continuar';$('mobile-pause').textContent='▶ VOLTAR';overlay('PAUSADO','Respire. Sua missão espera por você.','Toque em Continuar ou pressione P');}else if(g.state==='paused'){g.state='playing';$('pause').textContent='Pausar';$('mobile-pause').textContent='Ⅱ PAUSA';$('overlay').hidden=true;}}
+$('start').onclick=()=>{if(g.state==='playing'&&!confirm('Reiniciar a missão atual?'))return;audio();clearKeys();g.reset($('mode').value);$('overlay').hidden=true;$('start').textContent='↻ Reiniciar';$('pause').disabled=false;$('mobile-pause').disabled=false;$('pause').textContent='Pausar';$('mobile-pause').textContent='Ⅱ PAUSA';$('mode').disabled=true;$('start').blur();};
+$('pause').onclick=pause;$('mobile-pause').onclick=pause;
 $('sound').onclick=()=>{sound=!sound;audio();$('sound').textContent='Som: '+(sound?'ligado':'desligado');$('sound').setAttribute('aria-pressed',String(sound));tone(440);};
 $('full').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else if($('screen').requestFullscreen)await $('screen').requestFullscreen();else $('notice').textContent='Tela cheia não disponível neste navegador. Vire o celular para ampliar.';}catch{$('notice').textContent='Não foi possível abrir a tela cheia neste navegador.';}};
 const mapping={ArrowUp:'up',w:'up',ArrowDown:'down',s:'down',ArrowLeft:'left',a:'left',ArrowRight:'right',d:'right',' ':'fire'};
 window.addEventListener('keydown',e=>{if(['SELECT','INPUT'].includes(e.target.tagName))return;const key=mapping[e.key]||mapping[e.key.toLowerCase()];if(key){e.preventDefault();keys[key]=true;}if(e.key.toLowerCase()==='p'&&!e.repeat)pause();});
 window.addEventListener('keyup',e=>{const key=mapping[e.key]||mapping[e.key.toLowerCase()];if(key){e.preventDefault();keys[key]=false;}});
+const joystick=$('joystick');
+function moveStick(e){if(e.pointerId!==stickPointer)return;const r=joystick.getBoundingClientRect(),radius=r.width*.32;let x=(e.clientX-r.left-r.width/2)/radius,y=(e.clientY-r.top-r.height/2)/radius;const distance=Math.hypot(x,y),scale=1/Math.max(1,distance);x*=scale;y*=scale;const strength=Math.max(0,(Math.min(1,distance)-.12)/.88),angle=Math.atan2(y,x);keys.axisX=Math.cos(angle)*strength;keys.axisY=Math.sin(angle)*strength;$('stick').style.transform='translate('+x*radius+'px,'+y*radius+'px)';}
+joystick.addEventListener('pointerdown',e=>{if(stickPointer!==null)return;e.preventDefault();stickPointer=e.pointerId;joystick.setPointerCapture(e.pointerId);moveStick(e);});
+joystick.addEventListener('pointermove',e=>{if(e.pointerId===stickPointer){e.preventDefault();moveStick(e);}});
+for(const type of ['pointerup','pointercancel','lostpointercapture'])joystick.addEventListener(type,e=>{if(e.pointerId===stickPointer)resetStick();});
 for(const b of document.querySelectorAll('[data-key]')){b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);keys[b.dataset.key]=true;b.classList.add('held');});const release=()=>{keys[b.dataset.key]=false;b.classList.remove('held');};b.addEventListener('pointerup',release);b.addEventListener('pointercancel',release);b.addEventListener('lostpointercapture',release);}
 window.addEventListener('blur',()=>{clearKeys();if(g.state==='playing')pause();});document.addEventListener('visibilitychange',()=>{if(document.hidden){clearKeys();if(g.state==='playing')pause();}});
 function frame(t){const dt=last?Math.min((t-last)/1000,.05):0;last=t;const was=g.state;g.update(dt,keys);for(const event of g.events.splice(0)){tone({fire:190,pickup:740,rescue:1000,partial:180,hit:70,destroy:100}[event],event==='rescue'?.35:.08);if(event==='partial')$('notice').textContent='Oxigênio renovado. Um mergulhador perdido por voltar com equipe incompleta.';if(event==='rescue')$('notice').textContent='Equipe resgatada! Nova missão liberada.';}
- if(g.state==='over'&&was!=='over'){best=Math.max(best,g.score);try{localStorage.setItem('rovix-seaquest-best',String(best));}catch{}overlay('FIM DE MISSÃO',`Você fez ${g.score} pontos. Recorde: ${best}.`,'Toque em Reiniciar para tentar novamente');$('pause').disabled=true;$('mode').disabled=false;}
+ if(g.state==='over'&&was!=='over'){best=Math.max(best,g.score);try{localStorage.setItem('rovix-seaquest-best',String(best));}catch{}overlay('FIM DE MISSÃO',`Você fez ${g.score} pontos. Recorde: ${best}.`,'Toque em Reiniciar para tentar novamente');$('pause').disabled=true;$('mobile-pause').disabled=true;$('mode').disabled=false;}
  draw();requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
 })(typeof globalThis!=='undefined'?globalThis:this);
