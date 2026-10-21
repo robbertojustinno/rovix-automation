@@ -27,7 +27,7 @@ export function makeZip(entries:ZipEntry[]):Blob{
     dv.setUint32(16,crc,true);dv.setUint32(20,data.byteLength,true);
     dv.setUint32(24,data.byteLength,true);dv.setUint16(28,name.length,true);
     dv.setUint32(42,offset,true);dir.set(name,46);
-    parts.push(local as BlobPart,data as BlobPart);central.push(dir);
+    parts.push(Uint8Array.from(local).buffer,Uint8Array.from(data).buffer);central.push(dir);
     offset+=local.byteLength+data.byteLength;
     if(offset>0xffffffff)throw Error("Pasta excede o limite do ZIP32.");
   }
@@ -37,5 +37,5 @@ export function makeZip(entries:ZipEntry[]):Blob{
   ev.setUint32(0,0x06054b50,true);ev.setUint16(8,entries.length,true);
   ev.setUint16(10,entries.length,true);ev.setUint32(12,centralSize,true);
   ev.setUint32(16,offset,true);
-  return new Blob([...parts,...central,end],{type:"application/zip"});
+  return new Blob([...parts,...central.map(c=>Uint8Array.from(c).buffer),Uint8Array.from(end).buffer],{type:"application/zip"});
 }
