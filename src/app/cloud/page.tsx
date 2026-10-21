@@ -418,12 +418,20 @@ export default function Cloud(){
       </div>
     </div>
     <div className="storageBar" aria-label="Uso do armazenamento"><i style={{width:pct+"%"}}/></div>
-    {zipProgress&&<div role="status" aria-live="polite" style={{padding:"12px 16px",borderRadius:10,background:"rgba(80,130,230,.10)",margin:"12px 0"}}>
-      <strong>Preparando ZIP: {zipProgress.name}</strong>
-      <div style={{height:8,marginTop:10,borderRadius:99,background:"rgba(130,130,130,.22)",overflow:"hidden"}}>
-        <div style={{height:"100%",width:(zipProgress.total?100*zipProgress.done/zipProgress.total:8)+"%",background:"#477de6",borderRadius:99,transition:"width .25s ease"}}/>
+    {zipProgress&&<div role="status" aria-live="polite" style={{position:"fixed",inset:0,zIndex:99999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(5,12,30,.68)",cursor:"default",padding:20}}>
+      <div style={{width:"min(440px,100%)",padding:28,borderRadius:16,background:"#15223c",color:"#fff",boxShadow:"0 18px 60px rgba(0,0,0,.35)",cursor:"default"}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
+          <span aria-hidden="true" style={{width:24,height:24,border:"3px solid #60718e",borderTopColor:"#75b8ff",borderRadius:"50%",display:"inline-block",animation:"rovixZipSpin 1s linear infinite"}}/>
+          <strong style={{fontSize:18}}>Preparando download...</strong>
+        </div>
+        <p style={{margin:"0 0 14px",overflowWrap:"anywhere"}}>Pasta: {zipProgress.name}</p>
+        <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={zipProgress.total?Math.round(100*zipProgress.done/zipProgress.total):undefined} style={{height:12,borderRadius:99,background:"#354763",overflow:"hidden"}}>
+          <div style={{height:"100%",width:(zipProgress.total?Math.round(100*zipProgress.done/zipProgress.total):12)+"%",background:"#69aaff",borderRadius:99,transition:"width .25s ease"}}/>
+        </div>
+        <p style={{margin:"12px 0 0",fontSize:14}}>{zipProgress.total?zipProgress.done+" de "+zipProgress.total+" arquivos preparados ("+Math.round(100*zipProgress.done/zipProgress.total)+"%)":"Localizando arquivos e subpastas..."}</p>
+        <p style={{margin:"10px 0 0",fontSize:13,color:"#becce0"}}>Aguarde. Não feche esta página até o download começar.</p>
       </div>
-      <small>{zipProgress.total?zipProgress.done+" de "+zipProgress.total+" arquivos ("+Math.round(100*zipProgress.done/zipProgress.total)+"%)":"Verificando conteúdo da pasta..."}</small>
+      <style>{"@keyframes rovixZipSpin{to{transform:rotate(360deg)}}"}</style>
     </div>}
     {msg&&<p className="portalMessage">{msg}</p>}
 
