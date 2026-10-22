@@ -16,19 +16,7 @@ window.ROVIX_HUB_CONFIG = {
       "group": "ROVIX",
       "icon": "🚀",
       "items": [
-{
-  "name": "Mamono Hunter Youko",
-  "image": "/youko/card.svg",
-  "description": "Dai 7 no Keishou: o jogo original de Mega Drive, com música, analógico virtual, botões A/B/C e ajuste de sensibilidade.",
-  "status": "BETA",
-  "type": "Jogo / Mega Drive",
-  "links": [
-    {
-      "label": "Jogar Youko",
-      "url": "/youko/"
-    }
-  ]
-},
+
         {
           "name": "LIA — Assistente pessoal",
           "image": "/images/hub/lia-avatar-aprovado-20261006.jpg",
@@ -42,45 +30,9 @@ window.ROVIX_HUB_CONFIG = {
             }
           ]
         },
-        {
-          "name": "ROVIX Retro Games",
-          "image": "/images/hub/retro-games-20261005.webp",
-          "description": "Um espaço para desestressar: oito jogos gratuitos, modo tranquilo, pausa, volume e controles de teclado e toque.",
-          "status": "PRODUÇÃO",
-          "type": "Jogos / Desestresse",
-          "links": [
-            {
-              "label": "Jogar agora",
-              "url": "https://rovixautomation.com.br/retrogames/"
-            }
-          ]
-        },
-        {
-          "name": "Seaquest — Resgate submarino",
-          "image": "/seaquest/card.svg",
-          "description": "Releitura do clássico de submarino: resgate mergulhadores, enfrente inimigos e controle o oxigênio. Teclado e toque no celular.",
-          "status": "BETA",
-          "type": "Jogo / Retrô",
-          "links": [
-            {
-              "label": "Jogar Seaquest",
-              "url": "/seaquest/"
-            }
-          ]
-        },
-        {
-          "name": "Dangerous Dave",
-          "image": "/images/hub/dangerous-dave-20261005.webp",
-          "description": "Jogue o clássico renovado: dez fases, diamantes, troféu, arma e jetpack. Com música e efeitos sonoros.",
-          "status": "BETA",
-          "type": "Jogo / Retrô",
-          "links": [
-            {
-              "label": "Jogar agora",
-              "url": "/dave/"
-            }
-          ]
-        },
+        
+        
+        
         {
           "name": "ROVIX LinkedIn Agent",
           "image": "/images/hub/linkedin-agent-20261005.webp",
@@ -260,6 +212,41 @@ window.ROVIX_HUB_CONFIG = {
             {
               "label": "Abrir O67",
               "url": "https://o67-opportunity-os.onrender.com/work"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": "RETRO GAMES",
+      "icon": "🎮",
+      "items": [
+        {
+          "name": "RETRO GAMES",
+          "image": "/images/hub/retro-games-20261005.webp",
+          "description": "Central gratuita: Mega Drive, SNES, Atari 2600 e Arcade; carregar ROM própria, controles virtuais e acesso aos jogos ROVIX.",
+          "status": "BETA",
+          "type": "Jogos / Console e Arcade",
+          "links": [
+            {
+              "label": "Abrir Retro Games",
+              "url": "/retro/"
+            },
+            {
+              "label": "Seaquest",
+              "url": "/seaquest/"
+            },
+            {
+              "label": "Mamono Hunter Youko",
+              "url": "/youko/"
+            },
+            {
+              "label": "Dangerous Dave",
+              "url": "/dave/"
+            },
+            {
+              "label": "Jogos casuais",
+              "url": "/retrogames/"
             }
           ]
         }
