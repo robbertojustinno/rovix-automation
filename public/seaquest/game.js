@@ -59,6 +59,12 @@ function draw(){
 function tone(freq,duration=.08){if(!sound||!ac)return;const o=ac.createOscillator(),v=ac.createGain();o.type='square';o.frequency.value=freq;v.gain.setValueAtTime(.035,ac.currentTime);v.gain.exponentialRampToValueAtTime(.001,ac.currentTime+duration);o.connect(v);v.connect(ac.destination);o.start();o.stop(ac.currentTime+duration);}
 function audio(){if(!ac){const C=window.AudioContext||window.webkitAudioContext;if(C)ac=new C();}if(ac&&ac.state==='suspended')ac.resume().catch(()=>{});}
 function overlay(title,message,hint){$('overlay').hidden=false;$('heading').textContent=title;$('message').textContent=message;$('hint').textContent=hint;}
+const sensitivityLevels=[{label:'Baixa',gain:.6},{label:'Normal',gain:1},{label:'Alta',gain:1.6}];
+let sensitivityIndex=1;
+try{const saved=localStorage.getItem('rovix-seaquest-sensitivity');if(saved!==null&&['0','1','2'].includes(saved))sensitivityIndex=Number(saved);}catch{}
+function showSensitivity(){const label=sensitivityLevels[sensitivityIndex].label;$('sensitivity').textContent='Sensibilidade: '+label;$('sensitivity').setAttribute('aria-label','Sensibilidade do analógico: '+label+'. Toque para alterar.');}
+showSensitivity();
+$('sensitivity').onclick=()=>{sensitivityIndex=(sensitivityIndex+1)%sensitivityLevels.length;resetStick();showSensitivity();try{localStorage.setItem('rovix-seaquest-sensitivity',String(sensitivityIndex));}catch{}$('notice').textContent='Sensibilidade '+sensitivityLevels[sensitivityIndex].label.toLowerCase()+': '+(sensitivityIndex===0?'movimento mais suave.':sensitivityIndex===2?'resposta rápida com menos deslocamento.':'resposta padrão.');};
 let stickPointer=null;
 function resetStick(){stickPointer=null;keys.axisX=0;keys.axisY=0;$('stick').style.transform='translate(0px,0px)';}
 function clearKeys(){resetStick();for(const k in keys)delete keys[k];document.querySelectorAll('.held').forEach(b=>b.classList.remove('held'));}
@@ -71,7 +77,7 @@ const mapping={ArrowUp:'up',w:'up',ArrowDown:'down',s:'down',ArrowLeft:'left',a:
 window.addEventListener('keydown',e=>{if(['SELECT','INPUT'].includes(e.target.tagName))return;const key=mapping[e.key]||mapping[e.key.toLowerCase()];if(key){e.preventDefault();keys[key]=true;}if(e.key.toLowerCase()==='p'&&!e.repeat)pause();});
 window.addEventListener('keyup',e=>{const key=mapping[e.key]||mapping[e.key.toLowerCase()];if(key){e.preventDefault();keys[key]=false;}});
 const joystick=$('joystick');
-function moveStick(e){if(e.pointerId!==stickPointer)return;const r=joystick.getBoundingClientRect(),radius=r.width*.32;let x=(e.clientX-r.left-r.width/2)/radius,y=(e.clientY-r.top-r.height/2)/radius;const distance=Math.hypot(x,y),scale=1/Math.max(1,distance);x*=scale;y*=scale;const strength=Math.max(0,(Math.min(1,distance)-.12)/.88),angle=Math.atan2(y,x);keys.axisX=Math.cos(angle)*strength;keys.axisY=Math.sin(angle)*strength;$('stick').style.transform='translate('+x*radius+'px,'+y*radius+'px)';}
+function moveStick(e){if(e.pointerId!==stickPointer)return;const r=joystick.getBoundingClientRect(),radius=r.width*.32;let x=(e.clientX-r.left-r.width/2)/radius,y=(e.clientY-r.top-r.height/2)/radius;const distance=Math.hypot(x,y),scale=1/Math.max(1,distance);x*=scale;y*=scale;const strength=Math.min(1,Math.max(0,(Math.min(1,distance)-.12)/.88)*sensitivityLevels[sensitivityIndex].gain),angle=Math.atan2(y,x);keys.axisX=Math.cos(angle)*strength;keys.axisY=Math.sin(angle)*strength;$('stick').style.transform='translate('+x*radius+'px,'+y*radius+'px)';}
 joystick.addEventListener('pointerdown',e=>{if(stickPointer!==null)return;e.preventDefault();stickPointer=e.pointerId;joystick.setPointerCapture(e.pointerId);moveStick(e);});
 joystick.addEventListener('pointermove',e=>{if(e.pointerId===stickPointer){e.preventDefault();moveStick(e);}});
 for(const type of ['pointerup','pointercancel','lostpointercapture'])joystick.addEventListener(type,e=>{if(e.pointerId===stickPointer)resetStick();});
