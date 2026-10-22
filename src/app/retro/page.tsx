@@ -53,6 +53,12 @@ export default function RetroPage(){
  <p style={{letterSpacing:3,color:"#b8a4ff",fontWeight:800,fontSize:12}}>ROVIX AUTOMATION · ARCADE</p>
  <h1 style={{fontSize:"clamp(32px,6vw,64px)",lineHeight:1.1,margin:"12px 0"}}>ROVIX <span style={{color:"#e68bfd"}}>Retro Games</span></h1>
  <p style={{color:"#c6c0d7",maxWidth:680}}>Sua central retrô no navegador. Selecione o sistema correto para a ROM (Seaquest original: Atari 2600), depois toque em Jogar e Start. Versão experimental.</p>
+ <section style={{margin:"24px 0",border:"1px solid #694998",borderRadius:18,padding:18,background:"#171229"}}>
+ <h2 style={{fontSize:23,margin:"0 0 6px"}}>🎮 Biblioteca RETRO GAMES</h2>
+ <p style={{color:"#bdb4d4",margin:"0 0 14px"}}>Atalhos para os jogos ROVIX. Ou escolha um console e carregue uma ROM local abaixo.</p>
+ <div style={{display:"flex",flexWrap:"wrap",gap:10}}>
+ {[{label:"Seaquest",href:"/seaquest/"},{label:"Mamono Hunter Youko",href:"/youko/"},{label:"Dangerous Dave",href:"/dave/"},{label:"Jogos casuais ROVIX",href:"/retrogames/"}].map(game=><a key={game.href} href={game.href} style={{padding:"12px 16px",background:"#32204e",border:"1px solid #8862ac",borderRadius:12,color:"#fff",fontWeight:700,textDecoration:"none"}}>{game.label} ↗</a>)}
+ </div></section>
  <div style={{display:"flex",gap:12,flexWrap:"wrap",margin:"26px 0"}}>
  {systems.map(s=><button key={s.id} onClick={()=>{setSystem(s.id);setRom(null);setStatus("Selecione uma ROM compatível.");}} style={{background:system===s.id?"#7342cd":"#1b1a2c",color:"white",border:"1px solid #614879",borderRadius:14,padding:"16px 22px",cursor:"pointer",textAlign:"left",minWidth:170}}><strong style={{display:"block",fontSize:17}}>{s.title}</strong><small>{s.subtitle}</small></button>)}
  </div>
