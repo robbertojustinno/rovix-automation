@@ -16,6 +16,19 @@ window.ROVIX_HUB_CONFIG = {
       "group": "ROVIX",
       "icon": "🚀",
       "items": [
+{
+  "name": "Mamono Hunter Youko",
+  "image": "/youko/card.svg",
+  "description": "Dai 7 no Keishou: o jogo original de Mega Drive, com música, analógico virtual, botões A/B/C e ajuste de sensibilidade.",
+  "status": "BETA",
+  "type": "Jogo / Mega Drive",
+  "links": [
+    {
+      "label": "Jogar Youko",
+      "url": "/youko/"
+    }
+  ]
+},
         {
           "name": "LIA — Assistente pessoal",
           "image": "/images/hub/lia-avatar-aprovado-20261006.jpg",
