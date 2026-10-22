@@ -16,6 +16,23 @@ window.ROVIX_HUB_CONFIG = {
       "group": "ROVIX",
       "icon": "🚀",
       "items": [
+{
+          "name": "ROVIX Mural Digital",
+          "image": "/images/hub/screensaver-20261005.webp",
+          "description": "Mural online com imagens, PDFs e vídeos MP4, folhas móveis e redimensionáveis, salvamento na nuvem e modo TV. Acesso privado com login.",
+          "status": "BETA",
+          "type": "Comunicação / Mural e TV",
+          "links": [
+                    {
+                              "label": "Abrir Mural",
+                              "url": "https://rovix-mural-digital.norcrj.chatgpt.site"
+                    },
+                    {
+                              "label": "Modo TV",
+                              "url": "https://rovix-mural-digital.norcrj.chatgpt.site/?tv=1"
+                    }
+          ]
+},
 
         {
           "name": "LIA — Assistente pessoal",
