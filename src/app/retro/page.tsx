@@ -166,7 +166,7 @@ export default function RetroDrive(){
  <section aria-label="Consoles" style={{display:"flex",gap:10,flexWrap:"wrap",margin:"20px 0"}}>
  {systems.map(s=><button key={s.id} onClick={()=>setSystem(s.id)} type="button" style={{background:system===s.id?"#8a4ee8":"#231a34",color:"white",border:"1px solid #77539c",borderRadius:12,padding:"13px 17px",cursor:"pointer"}}>{s.name} ({games.filter(g=>g.system===s.id).length})</button>)}
  </section>
- <section style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:12,marginBottom:25}} aria-label="Jogos do Drive">
+ <section style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12,marginBottom:25,maxHeight:420,overflowY:"auto",overscrollBehavior:"contain",padding:6,border:"1px solid #45335c",borderRadius:14}} aria-label="Jogos do Drive">
  {games.filter(x=>x.system===system).map(g=><article key={g.id} style={{background:"#1f192e",border:"1px solid #4b3a61",padding:18,borderRadius:15}}>
  <div style={{fontSize:28}}>🕹️</div><strong style={{display:"block",overflowWrap:"anywhere",minHeight:45}}>{g.name.replace(/\.(zip|bin|gen|md|smd|smc|sfc|a26)$/i,"")}</strong>
  <small style={{color:"#bcb0d0"}}>{g.size? (g.size/1024/1024).toFixed(2)+" MB":"ROM do Drive"}</small>
