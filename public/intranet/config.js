@@ -246,8 +246,8 @@ window.ROVIX_HUB_CONFIG = {
           "type": "Jogos / Console e Arcade",
           "links": [
             {
-              "label": "Abrir Retro Games",
-              "url": "/retro/"
+              "label": "Minha biblioteca no Drive",
+              "url": "https://rovix-drive-preview.onrender.com/retro/"
             },
             {
               "label": "Seaquest",
