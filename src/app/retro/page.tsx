@@ -134,7 +134,7 @@ export default function RetroDrive(){
  <p style={{color:"#cfc4dd"}}>Seus jogos são listados diretamente das pastas do ROVIX Drive. Não é necessário enviar novamente.</p>
  <nav style={{display:"flex",flexWrap:"wrap",gap:10,margin:"20px 0"}}>
  <a href="/cloud" style={{color:"#d1b4ff"}}>Abrir meu Drive ↗</a>
- <a href="/retro/audio-test/" style={{color:"#d1b4ff"}}>🔊 Testar som</a>
+ <a href="https://rovixautomation.com.br/retro/audio-test/" style={{color:"#d1b4ff"}}>🔊 Testar som</a>
  <button type="button" onClick={()=>void load()} disabled={loading} style={{background:"#322447",color:"white",border:"1px solid #9476b7",borderRadius:10,padding:"9px 15px",cursor:"pointer"}}>↻ Atualizar lista</button>
  </nav>
  {needsLogin&&<p style={{padding:15,background:"#30203e",borderRadius:12}}><a href="/login" style={{color:"#e6bcff",fontWeight:800}}>Entrar na conta ROVIX</a> e depois voltar à biblioteca.</p>}
