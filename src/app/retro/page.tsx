@@ -53,6 +53,7 @@ export default function RetroPage(){
  <p style={{letterSpacing:3,color:"#b8a4ff",fontWeight:800,fontSize:12}}>ROVIX AUTOMATION · ARCADE</p>
  <h1 style={{fontSize:"clamp(32px,6vw,64px)",lineHeight:1.1,margin:"12px 0"}}>ROVIX <span style={{color:"#e68bfd"}}>Retro Games</span></h1>
  <p style={{color:"#c6c0d7",maxWidth:680}}>Sua central retrô no navegador. Selecione o sistema correto para a ROM (Seaquest original: Atari 2600), depois toque em Jogar e Start. Versão experimental.</p>
+ <p style={{margin:"18px 0"}}><a href="/retro/audio-test/" style={{display:"inline-block",padding:"12px 18px",borderRadius:12,background:"#35234b",border:"1px solid #a280c7",color:"#fff",fontWeight:700,textDecoration:"none"}}>🔊 Testar som antes de jogar</a></p>
  <section style={{margin:"24px 0",border:"1px solid #694998",borderRadius:18,padding:18,background:"#171229"}}>
  <h2 style={{fontSize:23,margin:"0 0 6px"}}>🎮 Biblioteca RETRO GAMES</h2>
  <p style={{color:"#bdb4d4",margin:"0 0 14px"}}>Atalhos para os jogos ROVIX. Ou escolha um console e carregue uma ROM local abaixo.</p>
