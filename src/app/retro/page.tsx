@@ -41,6 +41,7 @@ export default function RetroDrive(){
  const [needsLogin,setNeedsLogin]=useState(false);
  const [folderReport,setFolderReport]=useState<string[]>([]);
  const [playerKey,setPlayerKey]=useState(0);
+ const [activeGame,setActiveGame]=useState<string|null>(null);
  const playerRef=useRef<HTMLDivElement|null>(null);
  const romRef=useRef<File|null>(null);
  const coreRef=useRef("segaMD");
@@ -126,29 +127,33 @@ export default function RetroDrive(){
    coreRef.current=systems.find(s=>s.id===game.system)!.core;
    setSystem(game.system);
    setStatus("Inicializando "+game.name+". Toque em Start dentro do emulador.");
+   setActiveGame(game.name);
    setPlayerKey(k=>k+1);
   }catch(e){setStatus("Não foi possível abrir "+game.name+": "+(e instanceof Error?e.message:String(e)));}
   finally{setBusy(null)}
  }
+ function closeGame(){
+   // Removing the entire iframe releases its audio engine, event listeners and WASM runtime.
+   setPlayerKey(0);setActiveGame(null);romRef.current=null;
+   setStatus("Jogo encerrado. Áudio interrompido. Escolha outro jogo.");
+ }
  useEffect(()=>{
-  if(!playerKey||!playerRef.current||!romRef.current)return;
-  playerRef.current.innerHTML="";
-  const mount=document.createElement("div");mount.id="rovix-drive-player";mount.style.cssText="width:100%;height:100%;min-height:0;max-height:100%;overflow:hidden;box-sizing:border-box;position:relative;";
-  playerRef.current.appendChild(mount);
-  playerRef.current.scrollIntoView({behavior:"smooth",block:"center"});
-  window.EJS_player="#rovix-drive-player";
-  window.EJS_core=coreRef.current;
-  window.EJS_controlScheme=coreRef.current;
-  window.EJS_gameUrl=romRef.current;
-  window.EJS_pathtodata="https://cdn.emulatorjs.org/4.2.3/data/";
-  window.EJS_startOnLoaded=true;window.EJS_volume=.6;window.EJS_threads=false;
-  window.EJS_defaultOptions={"save-state-location":"download"};
-  window.EJS_Buttons={playPause:true,restart:true,mute:true,settings:true,volume:true,saveState:true,loadState:true,gamepad:true,fullscreen:true};
-  window.EJS_onGameStart=()=>setStatus("Jogo iniciado! Verifique o som e use os comandos na tela.");
-  const script=document.createElement("script");script.src=window.EJS_pathtodata+"loader.js";script.async=true;
-  script.onerror=()=>setStatus("Falha ao carregar o emulador. Confira a conexão.");
-  document.body.appendChild(script);
-  return()=>{script.remove()};
+   if(!playerKey||!romRef.current)return;
+   const currentKey=playerKey;
+   function onMessage(event:MessageEvent){
+     if(event.origin!==window.location.origin||event.source!==playerRef.current?.contentWindow)return;
+     const data=event.data;
+     if(!data||data.source!=="rovix-retro-player")return;
+     if(data.type==="ready"&&romRef.current){
+       playerRef.current?.contentWindow?.postMessage({source:"rovix-retro-parent",type:"launch",file:romRef.current,core:coreRef.current},window.location.origin);
+     }else if(data.type==="started"){
+       setStatus(String(data.message||"Jogo iniciado."));
+     }else if(data.type==="error"){
+       setStatus(String(data.message||"Falha ao iniciar o emulador."));
+     }
+   }
+   window.addEventListener("message",onMessage);
+   return()=>{window.removeEventListener("message",onMessage);};
  },[playerKey]);
  return <main style={{minHeight:"100vh",background:"linear-gradient(160deg,#151025,#090d19)",color:"#f9f4ff",padding:"32px 16px 70px"}}>
  <div style={{maxWidth:1100,margin:"auto"}}>
@@ -175,9 +180,12 @@ export default function RetroDrive(){
  {!loading&&games.filter(x=>x.system===system).length===0&&<p style={{color:"#afa6c0"}}>Nenhum jogo encontrado nesta categoria.</p>}
  </section>
  <section style={{background:"#11101d",border:"1px solid #51405f",padding:16,borderRadius:16,minWidth:0,maxWidth:"100%",overflow:"hidden"}}>
- <h2 style={{fontSize:20,margin:"0 0 10px"}}>Tela do jogo</h2>
- <div ref={playerRef} style={{height:"clamp(380px,72dvh,720px)",maxHeight:"720px",minHeight:0,width:"100%",maxWidth:"100%",minWidth:0,background:"#050509",borderRadius:10,overflow:"hidden",position:"relative",contain:"layout size",boxSizing:"border-box"}}>
- {!playerKey&&<p style={{textAlign:"center",padding:20,color:"#aaa"}}>Selecione um jogo acima para iniciar.</p>}
+ <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:10}}>
+ <h2 style={{fontSize:20,margin:0}}>Tela do jogo {activeGame?"— "+activeGame:""}</h2>
+ {playerKey>0&&<button type="button" onClick={closeGame} style={{background:"#b42f56",color:"#fff",border:0,borderRadius:10,padding:"11px 16px",cursor:"pointer",fontWeight:800}}>■ Fechar jogo e parar áudio</button>}
+ </div>
+ <div style={{height:"clamp(380px,72dvh,720px)",maxHeight:"720px",minHeight:0,width:"100%",maxWidth:"100%",minWidth:0,background:"#050509",borderRadius:10,overflow:"hidden",position:"relative",contain:"layout size",boxSizing:"border-box"}}>
+ {playerKey>0?<iframe ref={playerRef} key={playerKey} title="Emulador ROVIX Retro Games" src="/retro/player/" allow="autoplay; fullscreen; gamepad" style={{width:"100%",height:"100%",border:0,display:"block"}}/>:<p style={{textAlign:"center",padding:20,color:"#aaa"}}>Selecione um jogo acima para iniciar.</p>}
  </div>
  </section>
  <p style={{fontSize:12,color:"#a79caf",marginTop:20}}>Sua biblioteca é privada e exige login. Use ROMs para as quais você tenha autorização. Alguns conjuntos WinKawaks podem não ser compatíveis com o núcleo Arcade. Controles e som precisam ser validados em cada sistema.</p>
