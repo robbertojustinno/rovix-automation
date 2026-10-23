@@ -91,7 +91,10 @@ export default function RetroDrive(){
          count++;
        }
      }
-     report.push(folder.name+": "+count+" arquivo(s) compatível(is) neste nível");
+     const extensions=new Map<string,number>();
+     for(const item of relevant){const ext=item.name.includes(".")?item.name.slice(item.name.lastIndexOf(".")).toLowerCase():"(sem extensão)";extensions.set(ext,(extensions.get(ext)||0)+1);}
+     const types=[...extensions.entries()].map(([ext,n])=>ext+" "+n).join(", ");
+     report.push(folder.name+": "+count+" compatível(is) de "+relevant.length+" arquivo(s)"+(types?" · formatos: "+types:"")+(relevant.length&&count===0?" · exemplos: "+relevant.slice(0,3).map(x=>x.name).join(", "):""));
      for(const sub of children.filter(x=>x.kind==="folder"))await explore(sub,current,depth+1);
    }
    for(const root of roots)await explore(root,null,0);
