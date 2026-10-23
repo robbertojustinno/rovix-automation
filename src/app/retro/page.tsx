@@ -133,8 +133,9 @@ export default function RetroDrive(){
  useEffect(()=>{
   if(!playerKey||!playerRef.current||!romRef.current)return;
   playerRef.current.innerHTML="";
-  const mount=document.createElement("div");mount.id="rovix-drive-player";mount.style.cssText="width:100%;min-height:560px;height:100%";
+  const mount=document.createElement("div");mount.id="rovix-drive-player";mount.style.cssText="width:100%;height:100%;min-height:0;max-height:100%;overflow:hidden;box-sizing:border-box;position:relative;";
   playerRef.current.appendChild(mount);
+  playerRef.current.scrollIntoView({behavior:"smooth",block:"center"});
   window.EJS_player="#rovix-drive-player";
   window.EJS_core=coreRef.current;
   window.EJS_controlScheme=coreRef.current;
@@ -173,9 +174,9 @@ export default function RetroDrive(){
  </article>)}
  {!loading&&games.filter(x=>x.system===system).length===0&&<p style={{color:"#afa6c0"}}>Nenhum jogo encontrado nesta categoria.</p>}
  </section>
- <section style={{background:"#11101d",border:"1px solid #51405f",padding:16,borderRadius:16}}>
+ <section style={{background:"#11101d",border:"1px solid #51405f",padding:16,borderRadius:16,minWidth:0,maxWidth:"100%",overflow:"hidden"}}>
  <h2 style={{fontSize:20,margin:"0 0 10px"}}>Tela do jogo</h2>
- <div ref={playerRef} style={{minHeight:560,width:"100%",background:"#050509",borderRadius:10,overflow:"hidden",display:"grid",placeItems:"center"}}>
+ <div ref={playerRef} style={{height:"clamp(380px,72dvh,720px)",maxHeight:"720px",minHeight:0,width:"100%",maxWidth:"100%",minWidth:0,background:"#050509",borderRadius:10,overflow:"hidden",position:"relative",contain:"layout size",boxSizing:"border-box"}}>
  {!playerKey&&<p style={{textAlign:"center",padding:20,color:"#aaa"}}>Selecione um jogo acima para iniciar.</p>}
  </div>
  </section>
