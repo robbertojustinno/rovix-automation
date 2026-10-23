@@ -16,7 +16,7 @@ function detect(name:string):System|null{
  if(n.includes("megadrive")||n.includes("mega drive")||n.includes("genesis"))return "megadrive";
  if(n.includes("snes")||n.includes("super nintendo"))return "snes";
  if(n.includes("atari"))return "atari2600";
- if(n.includes("arcade")||n.includes("kawaks")||n.includes("cps")||n.includes("neogeo"))return "arcade";
+ if(n.includes("arcade")||n.includes("kawaks")||n.includes("finalburn")||n.includes("final burn")||n.includes("fbneo")||n.includes("fba")||n.includes("cps")||n.includes("neogeo"))return "arcade";
  return null;
 }
 function supported(name:string,s:System):boolean{
