@@ -39,6 +39,7 @@ export default function RetroDrive(){
  const [busy,setBusy]=useState<string|null>(null);
  const [status,setStatus]=useState("Buscando suas ROMs no ROVIX Drive…");
  const [needsLogin,setNeedsLogin]=useState(false);
+ const [folderReport,setFolderReport]=useState<string[]>([]);
  const [playerKey,setPlayerKey]=useState(0);
  const playerRef=useRef<HTMLDivElement|null>(null);
  const romRef=useRef<File|null>(null);
@@ -51,32 +52,50 @@ export default function RetroDrive(){
   try{
    const session=await getValidSession();
    if(!session){setNeedsLogin(true);setStatus("Entre na sua conta ROVIX para visualizar as ROMs privadas.");return}
-   const result=await authRest("rovix_files?select=id,name,kind,parent_id,size_bytes&order=name.asc&limit=2000");
-   const items=Array.isArray(result)?result as Entry[]:[];
-   filesRef.current=items;
-   const roots=items.filter(x=>x.kind==="folder"&&x.name.toLowerCase()==="games-retro");
-   if(!roots.length){setGames([]);setStatus("Pasta Games-Retro não encontrada nesta conta. Confira o ROVIX Drive.");return;}
-   const groups=new Map<string,System>();
-   for(const root of roots){
-    const children=items.filter(x=>x.parent_id===root.id&&x.kind==="folder");
-    for(const folder of children){const s=detect(folder.name);if(s)groups.set(folder.id,s)}
+   // Query one directory at a time. PostgREST/Supabase may impose a 1,000-row
+   // response cap, so fetching the entire Drive and grouping locally can hide
+   // SNES and Atari directories after a large Mega Drive collection.
+   async function directory(parentId:string|null):Promise<Entry[]>{
+     const collected:Entry[]=[];
+     const chunk=300;
+     for(let offset=0;offset<30000;offset+=chunk){
+       const filter=parentId===null?"parent_id=is.null":"parent_id=eq."+encodeURIComponent(parentId);
+       const page=await authRest("rovix_files?select=id,name,kind,parent_id,size_bytes&"+filter+
+         "&order=name.asc,id.asc&limit="+chunk+"&offset="+offset) as Entry[];
+       if(!Array.isArray(page))throw new Error("Resposta inesperada do ROVIX Drive.");
+       collected.push(...page);
+       if(page.length<chunk)break;
+     }
+     return collected;
    }
+   const rootItems=await directory(null);
+   const roots=rootItems.filter(x=>x.kind==="folder"&&x.name.trim().toLowerCase()==="games-retro");
+   if(!roots.length){setGames([]);setFolderReport([]);setStatus("Pasta Games-Retro não encontrada nesta conta. Confira o ROVIX Drive.");return;}
    const found:Game[]=[];
-   for(const item of items){
-    if(item.kind!=="file")continue;
-    let parent=item.parent_id;const visited=new Set<string>();let matched:System|null=null;let inside=false;
-    while(parent&&!visited.has(parent)){
-     visited.add(parent);if(groups.has(parent)){matched=groups.get(parent)!;inside=true;break}
-     const folder=items.find(x=>x.id===parent&&x.kind==="folder");
-     if(!folder)break;
-     if(roots.some(x=>x.id===folder.id)){inside=true;break}
-     parent=folder.parent_id;
-    }
-    if(!inside)continue;
-    const ext=item.name.slice(item.name.lastIndexOf(".")).toLowerCase();
-    const sys=matched||([".sfc",".smc"].includes(ext)?"snes":[".a26"].includes(ext)?"atari2600":[".md",".gen",".smd"].includes(ext)?"megadrive":null);
-    if(sys&&supported(item.name,sys))found.push({id:item.id,name:item.name,system:sys,size:Number(item.size_bytes||0)});
+   const report:string[]=[];
+   const visited=new Set<string>();
+   async function explore(folder:Entry,assigned:System|null,depth:number){
+     if(visited.has(folder.id)||depth>12)return;
+     visited.add(folder.id);
+     const children=await directory(folder.id);
+     const current=detect(folder.name)||assigned;
+     const relevant=children.filter(x=>x.kind==="file");
+     let count=0;
+     for(const item of relevant){
+       const ext=item.name.slice(item.name.lastIndexOf(".")).toLowerCase();
+       const inferred: System|null=ext===".sfc"||ext===".smc"?"snes":ext===".a26"?"atari2600":
+         [".md",".gen",".smd"].includes(ext)?"megadrive":null;
+       const sys=current||inferred;
+       if(sys&&supported(item.name,sys)){
+         found.push({id:item.id,name:item.name,system:sys,size:Number(item.size_bytes||0)});
+         count++;
+       }
+     }
+     report.push(folder.name+": "+count+" arquivo(s) compatível(is) neste nível");
+     for(const sub of children.filter(x=>x.kind==="folder"))await explore(sub,current,depth+1);
    }
+   for(const root of roots)await explore(root,null,0);
+   setFolderReport(report);
    setGames(found);
    setStatus(found.length?`${found.length} ROM(s) encontrada(s). Selecione um console e toque em Jogar.`:"Nenhuma ROM compatível encontrada nas pastas.");
   }catch(e){const message=e instanceof Error?e.message:String(e);setNeedsLogin(message==="AUTH_REQUIRED");setStatus(message==="AUTH_REQUIRED"?"Sua sessão expirou. Entre novamente.":"Erro ao listar os arquivos: "+message)}
@@ -139,6 +158,7 @@ export default function RetroDrive(){
  </nav>
  {needsLogin&&<p style={{padding:15,background:"#30203e",borderRadius:12}}><a href="/login" style={{color:"#e6bcff",fontWeight:800}}>Entrar na conta ROVIX</a> e depois voltar à biblioteca.</p>}
  <p role="status" style={{color:"#d1c0ec",minHeight:24}}>{status}</p>
+ <details style={{margin:"10px 0",color:"#c9b9e1"}}><summary style={{cursor:"pointer"}}>Pastas encontradas no Drive ({folderReport.length})</summary><div style={{padding:12,background:"#1b1727",borderRadius:10,marginTop:8}}>{folderReport.map((f,i)=><p key={i} style={{margin:"6px 0"}}>{f}</p>)}</div></details>
  <section aria-label="Consoles" style={{display:"flex",gap:10,flexWrap:"wrap",margin:"20px 0"}}>
  {systems.map(s=><button key={s.id} onClick={()=>setSystem(s.id)} type="button" style={{background:system===s.id?"#8a4ee8":"#231a34",color:"white",border:"1px solid #77539c",borderRadius:12,padding:"13px 17px",cursor:"pointer"}}>{s.name} ({games.filter(g=>g.system===s.id).length})</button>)}
  </section>
