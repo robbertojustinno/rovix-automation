@@ -115,7 +115,9 @@ export default function RetroDrive(){
  }
  async function play(game:Game){
   if(busy)return;
-  setBusy(game.id);setStatus("Preparando "+game.name+"…");
+  // Stop the previous emulator immediately, before downloading the next ROM.
+  setPlayerKey(0);setActiveGame(null);romRef.current=null;
+  setBusy(game.id);setStatus("Encerrando jogo anterior e preparando "+game.name+"…");
   try{
    const signed=await api("/download-url",{file_id:game.id});
    if(!signed.download_url)throw new Error("Link temporário indisponível.");
