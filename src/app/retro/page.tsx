@@ -42,7 +42,7 @@ export default function RetroDrive(){
  const [folderReport,setFolderReport]=useState<string[]>([]);
  const [playerKey,setPlayerKey]=useState(0);
  const [activeGame,setActiveGame]=useState<string|null>(null);
- const playerRef=useRef<HTMLDivElement|null>(null);
+ const playerRef=useRef<HTMLIFrameElement|null>(null);
  const romRef=useRef<File|null>(null);
  const coreRef=useRef("segaMD");
  const filesRef=useRef<Entry[]>([]);
