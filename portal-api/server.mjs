@@ -96,20 +96,52 @@ async function supa(path,token,init={}){
   const t=await r.text();
   const result=t?JSON.parse(t):null;
   if(path.startsWith("rovix_files")&&["POST","PATCH","DELETE"].includes(init.method)){
-    try{await syncOrpheusCatalog(token);await syncSocialCatalog(token)}catch(e){console.error("ORPHEUS catalog sync failed",e.message)}
+    try{await syncOrpheusCatalog(token);await syncLinkedinCatalog(token);await syncSocialCatalog(token)}catch(e){console.error("Drive agent catalog sync failed",e.message)}
   }
   return result;
 }
-async function syncOrpheusCatalog(token){
-  const folderId="080b03b1-8429-44a1-9ae2-2dcaf086a4f7",ownerId="c926b386-69e0-4fbb-be99-6aa1a7872d86";
-  const folders=await supa("rovix_files?id=eq."+folderId+"&owner_id=eq."+ownerId+"&kind=eq.folder&select=id",token);
-  if(!folders?.length)return;
-  const files=[];let offset=0;
-  while(true){
-    const page=await supa("rovix_files?parent_id=eq."+folderId+"&owner_id=eq."+ownerId+"&kind=eq.file&select=id,name,object_key,mime_type,size_bytes&order=id&limit=500&offset="+offset,token);
-    files.push(...(page||[]));if(!page||page.length<500)break;offset+=500;
+async function syncNamedDriveCatalog(token,{ownerId,pathParts,key}){
+  let parentId=null;
+  for(const part of pathParts){
+    const parentFilter=parentId?"parent_id=eq."+encodeURIComponent(parentId):"parent_id=is.null";
+    const rows=await supa("rovix_files?owner_id=eq."+ownerId+"&kind=eq.folder&"+parentFilter+"&name=eq."+encodeURIComponent(part)+"&select=id,name,parent_id",token);
+    const folder=rows?.[0];
+    if(!folder)return 0;
+    parentId=folder.id;
   }
-  await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:"orpheus-agent/preapproved-catalog.json",Body:JSON.stringify({folderId,ownerId,files,updatedAt:new Date().toISOString()}),ContentType:"application/json"}));
+  const folderId=parentId;
+  const folders=[folderId];
+  for(let i=0;i<folders.length;i++){
+    const rows=await supa("rovix_files?owner_id=eq."+ownerId+"&kind=eq.folder&parent_id=eq."+encodeURIComponent(folders[i])+"&select=id&order=name.asc",token);
+    for(const row of rows||[])folders.push(row.id);
+  }
+  const files=[];
+  for(const id of folders){
+    let offset=0;
+    while(true){
+      const page=await supa("rovix_files?parent_id=eq."+encodeURIComponent(id)+"&owner_id=eq."+ownerId+"&kind=eq.file&select=id,name,object_key,mime_type,size_bytes,parent_id&order=id&limit=500&offset="+offset,token);
+      files.push(...(page||[]));
+      if(!page||page.length<500)break;
+      offset+=500;
+    }
+  }
+  const path="Meu Drive → "+pathParts.join(" → ");
+  await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:key,Body:JSON.stringify({folderId,ownerId,path,recursive:true,files,updatedAt:new Date().toISOString()}),ContentType:"application/json"}));
+  return files.length;
+}
+async function syncOrpheusCatalog(token){
+  return syncNamedDriveCatalog(token,{
+    ownerId:"c926b386-69e0-4fbb-be99-6aa1a7872d86",
+    pathParts:["ORPHEUS Social Agent"],
+    key:"orpheus-agent/preapproved-catalog.json"
+  });
+}
+async function syncLinkedinCatalog(token){
+  return syncNamedDriveCatalog(token,{
+    ownerId:"c926b386-69e0-4fbb-be99-6aa1a7872d86",
+    pathParts:["Linkedin Social Agent"],
+    key:"linkedin-rovix-agent/preapproved-catalog.json"
+  });
 }
 async function syncSocialCatalog(token){
  const {ownerId,pathParts=[],recursive=true}=DRIVE_IMAGE_POLICY;
@@ -171,7 +203,7 @@ const server=http.createServer(async(req,res)=>{
 
     if(req.method==="POST"&&req.url==="/social-drive-catalog/sync"){const count=await syncSocialCatalog(token);return reply(res,200,{ok:true,availableImages:count||0},origin)}
     if(req.method==="GET"&&req.url==="/usage"){
-      await syncSocialCatalog(token);
+      await Promise.all([syncSocialCatalog(token),syncOrpheusCatalog(token),syncLinkedinCatalog(token)]);
       await requireAdmin(token);
       const used=await usedBytes(token);
       return reply(res,200,{used_bytes:used,max_bytes:MAX_BYTES,remaining_bytes:Math.max(0,MAX_BYTES-used)},origin);
