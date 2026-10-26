@@ -112,12 +112,37 @@ async function syncOrpheusCatalog(token){
   await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:"orpheus-agent/preapproved-catalog.json",Body:JSON.stringify({folderId,ownerId,files,updatedAt:new Date().toISOString()}),ContentType:"application/json"}));
 }
 async function syncSocialCatalog(token){
- const {folderId,ownerId}=DRIVE_IMAGE_POLICY;
- const folders=await supa("rovix_files?id=eq."+folderId+"&owner_id=eq."+ownerId+"&kind=eq.folder&select=id",token);
- if(!folders?.length)return;
- const files=[];let offset=0;
- while(true){const page=await supa("rovix_files?parent_id=eq."+folderId+"&owner_id=eq."+ownerId+"&kind=eq.file&select=id,name,object_key,mime_type,size_bytes&order=id&limit=500&offset="+offset,token);files.push(...(page||[]));if(!page||page.length<500)break;offset+=500;}
- await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:"social-agent/preapproved-catalog.json",Body:JSON.stringify({folderId,ownerId,files,updatedAt:new Date().toISOString()}),ContentType:"application/json"}));
+ const {ownerId,pathParts=[],recursive=true}=DRIVE_IMAGE_POLICY;
+ let parentId=null;
+ for(const part of pathParts){
+   const parentFilter=parentId?"parent_id=eq."+encodeURIComponent(parentId):"parent_id=is.null";
+   const rows=await supa("rovix_files?owner_id=eq."+ownerId+"&kind=eq.folder&"+parentFilter+"&name=eq."+encodeURIComponent(part)+"&select=id,name,parent_id",token);
+   const folder=rows?.[0];
+   if(!folder)return;
+   parentId=folder.id;
+ }
+ const folderId=parentId;
+ if(!folderId)return;
+
+ const folders=[folderId];
+ if(recursive){
+   for(let i=0;i<folders.length;i++){
+     const rows=await supa("rovix_files?owner_id=eq."+ownerId+"&kind=eq.folder&parent_id=eq."+encodeURIComponent(folders[i])+"&select=id&order=name.asc",token);
+     for(const row of rows||[])folders.push(row.id);
+   }
+ }
+
+ const files=[];
+ for(const id of folders){
+   let offset=0;
+   while(true){
+     const page=await supa("rovix_files?parent_id=eq."+encodeURIComponent(id)+"&owner_id=eq."+ownerId+"&kind=eq.file&select=id,name,object_key,mime_type,size_bytes,parent_id&order=id&limit=500&offset="+offset,token);
+     files.push(...(page||[]));
+     if(!page||page.length<500)break;
+     offset+=500;
+   }
+ }
+ await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:"social-agent/preapproved-catalog.json",Body:JSON.stringify({folderId,ownerId,path:DRIVE_IMAGE_POLICY.path,recursive,files,updatedAt:new Date().toISOString()}),ContentType:"application/json"}));
  return files.length;
 }
 async function requireAdmin(token){
