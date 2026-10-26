@@ -24,7 +24,7 @@ const ADMIN_PASSWORD_HASH=process.env.LINKEDIN_ROVIX_ADMIN_PASSWORD_HASH||"";
 const SESSION_SECRET=process.env.LINKEDIN_ROVIX_SESSION_SECRET||"";
 const SOCIAL_PUBLIC_BASE=(process.env.LINKEDIN_ROVIX_PUBLIC_BASE||"https://rovix-drive-api.onrender.com/linkedin-rovix-agent").replace(/\/$/,"");
 const VISUAL_ENGINE="rovix-v6-drive-curated";
-const DRIVE_CATALOG_KEY="social-agent/preapproved-catalog.json";
+const DRIVE_CATALOG_KEY="linkedin-rovix-agent/preapproved-catalog.json";
 const MAX_FAST_IMAGES_PER_RUN=12;
 const DIVERSITY_POLICY="unique-art-v1";
 const HORDE_BASE="https://aihorde.net/api/v2";
@@ -375,10 +375,10 @@ async function finishOriginalArtwork(post,project,db){
 }
 async function loadDriveCatalog(){
   try{const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:DRIVE_CATALOG_KEY}));return JSON.parse(await readStream(r.Body))}
-  catch(e){if(e?.name!=="NoSuchKey"&&e?.$metadata?.httpStatusCode!==404)throw e;const catalog=JSON.parse(process.env.LINKEDIN_ROVIX_DRIVE_CATALOG_BOOTSTRAP||"{}");if(catalog.folderId!==DRIVE_IMAGE_POLICY.folderId||catalog.ownerId!==DRIVE_IMAGE_POLICY.ownerId)throw new Error("Catálogo da pasta ROVIX ainda não configurado");return catalog}
+  catch(e){if(e?.name!=="NoSuchKey"&&e?.$metadata?.httpStatusCode!==404)throw e;const catalog=JSON.parse(process.env.LINKEDIN_ROVIX_DRIVE_CATALOG_BOOTSTRAP||"{}");if(catalog.ownerId!==DRIVE_IMAGE_POLICY.ownerId||catalog.path!==DRIVE_IMAGE_POLICY.path)throw new Error("Catálogo da pasta LinkedIn ainda não configurado");return catalog}
 }
 async function prepareDriveArtwork(post,db,catalog){
-  if(catalog.folderId!==DRIVE_IMAGE_POLICY.folderId||catalog.ownerId!==DRIVE_IMAGE_POLICY.ownerId)throw new Error("Pasta ROVIX inválida");
+  if(catalog.ownerId!==DRIVE_IMAGE_POLICY.ownerId||catalog.path!==DRIVE_IMAGE_POLICY.path)throw new Error("Pasta LinkedIn inválida");
   const history=db.posts.filter(p=>p.id!==post.id);
   const blocked=post.rejectedDriveFileIds||[];
   let selected=post.strategy?.visual?.fileId?catalog.files.find(f=>f.id===post.strategy.visual.fileId):null;
@@ -543,7 +543,7 @@ async function api(req,res,u){
     try{
       const post=await publishVoicePost({network:"linkedin",saveDb,publish,
         preflight:async db=>{if(!metaConfigured())throw new Error("Conecte o LinkedIn primeiro");if(db.meta.apiAccessBlocked)throw new Error("Acesso à rede social bloqueado");const until=activeCooldown(db);if(until)throw new Error(cooldownMessage(until));const connection=await testMeta();if(!connection.connected)throw new Error(connection.error||"Conexão indisponível");},
-        generate:db=>generateVoiceEntry({kind:"rovix",folderId:"786679ae-0c1c-49e4-9967-618788427a9d",ownerId:"c926b386-69e0-4fbb-be99-6aa1a7872d86",loadCatalog:loadDriveCatalog,compose:composeStrategy,id,
+        generate:db=>generateVoiceEntry({kind:"rovix",folderId:null,ownerId:"c926b386-69e0-4fbb-be99-6aa1a7872d86",loadCatalog:loadDriveCatalog,compose:composeStrategy,id,
             prepare:(entry,db,catalog,file,project)=>prepareRovixVoiceArtwork({driveContent,render:renderArtworkBuffer,fingerprint:imageFingerprint,assertUnique:assertUniqueArtwork,
               readImage:async key=>{const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:key}));return Buffer.from(await r.Body.transformToByteArray())},
               storeImage:async(postId,bytes)=>{const key="linkedin-rovix-agent/voice/"+postId+".jpg";await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:key,Body:bytes,ContentType:"image/jpeg"}));return key}
