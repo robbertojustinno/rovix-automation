@@ -256,7 +256,7 @@ function titleLines(value){
 const PREAPPROVED_KEY="orpheus-agent/preapproved-catalog.json";
 async function loadDriveCatalog(){
  const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:PREAPPROVED_KEY}));const c=JSON.parse(await r.Body.transformToString());
- if(c.folderId!=="080b03b1-8429-44a1-9ae2-2dcaf086a4f7"||c.ownerId!=="c926b386-69e0-4fbb-be99-6aa1a7872d86")throw new Error('Catálogo ORPHEUS inválido');
+ if(c.ownerId!=="c926b386-69e0-4fbb-be99-6aa1a7872d86"||c.path!=="Meu Drive → ORPHEUS Social Agent")throw new Error('Catálogo ORPHEUS inválido');
  c.files=(c.files||[]).filter(f=>/^image\/(png|jpeg|webp)$/.test(f.mime_type)&&f.object_key?.startsWith(c.ownerId+'/'));return c;
 }
 async function sourceUrl(fileId){const c=await loadDriveCatalog(),f=c.files.find(x=>x.id===fileId);if(!f)throw new Error('Imagem removida');return getSignedUrl(s3(),new GetObjectCommand({Bucket:R2_BUCKET,Key:f.object_key}),{expiresIn:900});}
@@ -438,7 +438,7 @@ async function api(req,res,u){
     try{
       const post=await publishVoicePost({network:"instagram",saveDb,publish,
         preflight:async db=>{if(!metaConfigured())throw new Error("Conecte o Instagram primeiro");if(db.meta.apiAccessBlocked)throw new Error("Acesso à rede social bloqueado");const until=activeCooldown(db);if(until)throw new Error(cooldownMessage(until));const connection=await testMeta();if(!connection.connected)throw new Error(connection.error||"Conexão indisponível");},
-        generate:db=>generateVoiceEntry({kind:"orpheus",folderId:"080b03b1-8429-44a1-9ae2-2dcaf086a4f7",ownerId:"c926b386-69e0-4fbb-be99-6aa1a7872d86",loadCatalog:loadDriveCatalog,compose:composeStrategy,id,
+        generate:db=>generateVoiceEntry({kind:"orpheus",folderId:null,ownerId:"c926b386-69e0-4fbb-be99-6aa1a7872d86",loadCatalog:loadDriveCatalog,compose:composeStrategy,id,
             prepare:async(entry,db)=>{
               const art=await attachPreapproved(db,entry);if(!art.made)throw new Error(art.error||"Falha ao preparar a imagem");
               if(!entry.artHash||!entry.imageKey)throw new Error("Arte armazenada ainda não validada");
