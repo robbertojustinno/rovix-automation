@@ -28,7 +28,7 @@ export async function publishVoicePost(deps, db, requestId) {
 
 export async function generateVoiceEntry(deps, db) {
   const catalog = await deps.loadCatalog();
-  if (catalog.folderId !== deps.folderId || catalog.ownerId !== deps.ownerId) throw new Error('Pasta de imagens diferente do acervo autorizado para esta plataforma');
+  if ((deps.folderId && catalog.folderId !== deps.folderId) || catalog.ownerId !== deps.ownerId) throw new Error('Pasta de imagens diferente do acervo autorizado para esta plataforma');
   const history = db.meta.manualPreviewHistory || [];
   const all = [...db.posts, ...history];
   const active = db.posts.filter(p => !['deleted','rejected','published','cancelled'].includes(p.status));
