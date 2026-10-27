@@ -13,6 +13,11 @@ export const DRIVE_IMAGE_POLICY=Object.freeze({
     'Não inventar resultados, especificações ou funcionalidades; usar rovixautomation.com.br.',
     'Aplicar as mesmas regras à criação manual pelo agente e à automação; manter após reinicializações e deploys.']
 });
+export function isApprovedDriveCatalog(catalog){
+ if(!catalog||catalog.ownerId!==DRIVE_IMAGE_POLICY.ownerId||!Array.isArray(catalog.files))return false;
+ if(DRIVE_IMAGE_POLICY.folderId)return catalog.folderId===DRIVE_IMAGE_POLICY.folderId;
+ return typeof catalog.folderId==='string'&&catalog.folderId.length>0&&catalog.path===DRIVE_IMAGE_POLICY.path&&catalog.recursive===true;
+}
 const normalize=s=>String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 export function driveContent(file,cycle=0){
  const n=normalize(file.name);let projectId='rovix',topic='Tecnologia aplicada',explanation='Automação começa com processos bem definidos, equipamentos adequados e informação acessível.',hashtags='#AutomacaoIndustrial #Tecnologia';

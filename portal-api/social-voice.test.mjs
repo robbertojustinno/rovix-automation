@@ -1,8 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createRequire} from 'node:module';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
 import {publishVoicePost} from './social-voice.mjs';
-const {parseCommand}=createRequire(import.meta.url)('./social-agent-public/voice.js');
+const voiceContext={module:{exports:{}}};
+vm.runInNewContext(readFileSync(new URL('./social-agent-public/voice.js',import.meta.url),'utf8'),voiceContext);
+const {parseCommand}=voiceContext.module.exports;
 test('the exact Portuguese command publishes; negation and unrelated requests do not',()=>{
   assert.equal(parseCommand('Faça uma postagem manual').action,'publish');
   assert.equal(parseCommand('Lia, faça uma postagem manual agora').action,'publish');

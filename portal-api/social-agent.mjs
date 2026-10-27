@@ -9,7 +9,7 @@ import {fileURLToPath} from "node:url";
 import {S3Client,PutObjectCommand,GetObjectCommand} from "@aws-sdk/client-s3";
 import {getSignedUrl} from "@aws-sdk/s3-request-presigner";
 import sharp from "sharp";
-import {DRIVE_IMAGE_POLICY,driveContent,chooseDriveFile} from "./social-drive-content.mjs";
+import {DRIVE_IMAGE_POLICY,isApprovedDriveCatalog,driveContent,chooseDriveFile} from "./social-drive-content.mjs";
 import {STRATEGY_POLICY,composeStrategy,createWeeklyPlan,assertCreativeUnique,learnFromPosts,validateMetrics,subjectFor} from "./social-strategy.mjs";
 import {createStrategyApi} from "./social-strategy-routes.mjs";
 import {createManualPreviewApi,generateManualPreviewBatch} from "./social-manual-previews.mjs";
@@ -441,19 +441,19 @@ async function loadDriveCatalog(){
   let catalog;
   try{const r=await s3().send(new GetObjectCommand({Bucket:R2_BUCKET,Key:DRIVE_CATALOG_KEY}));catalog=JSON.parse(await readStream(r.Body))}
   catch(e){if(e?.name!=="NoSuchKey"&&e?.$metadata?.httpStatusCode!==404)throw e}
-  if(catalog?.folderId===DRIVE_IMAGE_POLICY.folderId&&catalog?.ownerId===DRIVE_IMAGE_POLICY.ownerId)return catalog;
+  if(isApprovedDriveCatalog(catalog))return catalog;
   // Migrate the stale, empty catalogue to the exact folder selected by the owner.
   const bundled=JSON.parse(fs.readFileSync(path.join(__dirname,"social-drive-catalog-bootstrap.json"),"utf8"));
   const env=JSON.parse(process.env.SOCIAL_DRIVE_CATALOG_BOOTSTRAP||"{}");
-  catalog=env.folderId===DRIVE_IMAGE_POLICY.folderId&&env.ownerId===DRIVE_IMAGE_POLICY.ownerId?env:bundled;
-  if(catalog.folderId!==DRIVE_IMAGE_POLICY.folderId||catalog.ownerId!==DRIVE_IMAGE_POLICY.ownerId)throw new Error("Catálogo da pasta ROVIX ainda não configurado");
+  catalog=isApprovedDriveCatalog(env)?env:bundled;
+  if(!isApprovedDriveCatalog(catalog))throw new Error("Catálogo da pasta ROVIX ainda não sincronizado. Abra a pasta de imagens no ROVIX Drive para atualizar o catálogo.");
   await s3().send(new PutObjectCommand({Bucket:R2_BUCKET,Key:DRIVE_CATALOG_KEY,Body:JSON.stringify(catalog),ContentType:"application/json"}));
   console.log("[Social Agent] Catálogo atualizado:",DRIVE_IMAGE_POLICY.path,(catalog.files||[]).length,"imagens");
   return catalog;
 }
 
 async function prepareDriveArtwork(post,db,catalog){
-  if(catalog.folderId!==DRIVE_IMAGE_POLICY.folderId||catalog.ownerId!==DRIVE_IMAGE_POLICY.ownerId)throw new Error("Pasta ROVIX inválida");
+  if(!isApprovedDriveCatalog(catalog))throw new Error("Pasta ROVIX inválida");
   const history=db.posts.filter(p=>p.id!==post.id);
   const blocked=post.rejectedDriveFileIds||[];
   let selected=post.strategy?.visual?.fileId?catalog.files.find(f=>f.id===post.strategy.visual.fileId):null;
@@ -483,7 +483,7 @@ async function prepareDriveArtwork(post,db,catalog){
   console.log("[Social Agent] Imagem do Drive pronta:",post.id,file.name,"ciclo",cycle);
 }
 async function prepareManualArtwork({db,catalog,file,virtual,seed,id:idFn,dryRun=false}){
-  if(catalog.folderId!==DRIVE_IMAGE_POLICY.folderId||catalog.ownerId!==DRIVE_IMAGE_POLICY.ownerId)throw new Error("Pasta ROVIX inválida");
+  if(!isApprovedDriveCatalog(catalog))throw new Error("Pasta ROVIX inválida");
   if(!file?.object_key||!file.object_key.startsWith(DRIVE_IMAGE_POLICY.ownerId+"/"))throw new Error("Imagem fora da pasta autorizada");
   const content=composeStrategy(file,virtual,seed);
   const project=db.projects.find(p=>p.id===content.projectId&&p.active);
@@ -869,7 +869,15 @@ async function api(req,res,u){
 
 export async function handleSocialAgent(req,res){
   const u=new URL(req.url,"http://localhost");
-  if(u.pathname.startsWith("/social-api/")){if(u.pathname==="/social-api/auth/status")await api(req,res,u);else await withSocialDbLock(()=>api(req,res,u));return true}
+  if(u.pathname.startsWith("/social-api/")){
+    try{if(u.pathname==="/social-api/auth/status")await api(req,res,u);else await withSocialDbLock(()=>api(req,res,u))}
+    catch(e){
+      console.error("[Social Agent] Falha na API",u.pathname,e.message);
+      if(!res.headersSent)json(res,500,{error:/^Catálogo da pasta ROVIX|^Pasta ROVIX inválida/.test(e.message||"")?e.message:"Não foi possível concluir a operação no Social Agent. Tente novamente em instantes."});
+      else if(!res.writableEnded)res.end();
+    }
+    return true;
+  }
   if(u.pathname==="/social-agent/emblem.png"){res.writeHead(200,{"Content-Type":"image/png","Cache-Control":"public, max-age=86400"});res.end(EMBLEM_PNG);return true}
   if(u.pathname==="/social-agent/brand.png"){res.writeHead(200,{"Content-Type":"image/png","Cache-Control":"public, max-age=86400"});res.end(brandPng());return true}
   if(u.pathname==="/social-agent"){res.writeHead(302,{Location:"/social-agent/"});res.end();return true}
