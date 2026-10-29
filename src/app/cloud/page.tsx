@@ -404,7 +404,7 @@ export default function Cloud(){
       </div>
     }
     return <div className="fileActions">
-      <button onClick={()=>openFile(item)}>{/^(audio|video)\\//i.test(String(item.mime_type||""))?"Reproduzir":"Abrir"}</button>
+      <button onClick={()=>openFile(item)}>{String(item.mime_type||"").startsWith("audio/")||String(item.mime_type||"").startsWith("video/")?"Reproduzir":"Abrir"}</button>
       <button onClick={()=>download(item)}><Download size={16}/> Baixar</button>
       <button onClick={()=>{setShareItem(item);setShareHours(24);setShareUrl("")}}><Share2 size={16}/> Compartilhar</button>
       <button onClick={()=>chooseTarget(item,"copy")}>Copiar</button>
