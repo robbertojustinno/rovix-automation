@@ -393,24 +393,35 @@ export default function Cloud(){
   }
 
   function actions(item:Item){
+    const isMedia=String(item.mime_type||"").startsWith("audio/")||String(item.mime_type||"").startsWith("video/");
     if(item.kind==="folder"){
-      return <div className="fileActions">
-        <button onClick={()=>openFolder(item)}>Abrir</button>
-        <button disabled={busy} onClick={()=>downloadFolder(item)}><Download size={16}/> Baixar ZIP</button>
-        <button onClick={()=>chooseTarget(item,"copy")}>Copiar</button>
-        <button onClick={()=>chooseTarget(item,"move")}>Mover</button>
-        <button onClick={()=>rename(item)}>Renomear</button>
-        <button onClick={()=>remove(item)}>Excluir</button>
+      return <div className="fileActions premiumActions">
+        <button className="actionPrimary" onClick={()=>openFolder(item)}>Abrir</button>
+        <button className="actionIcon" disabled={busy} onClick={()=>downloadFolder(item)} title="Baixar pasta em ZIP"><Download size={16}/></button>
+        <details className="fileMenu">
+          <summary aria-label={"Mais ações para "+item.name}>•••</summary>
+          <div className="fileMenuPanel">
+            <button onClick={()=>chooseTarget(item,"copy")}>Copiar</button>
+            <button onClick={()=>chooseTarget(item,"move")}>Mover</button>
+            <button onClick={()=>rename(item)}>Renomear</button>
+            <button className="dangerAction" onClick={()=>remove(item)}>Excluir</button>
+          </div>
+        </details>
       </div>
     }
-    return <div className="fileActions">
-      <button onClick={()=>openFile(item)}>{String(item.mime_type||"").startsWith("audio/")||String(item.mime_type||"").startsWith("video/")?"Reproduzir":"Abrir"}</button>
-      <button onClick={()=>download(item)}><Download size={16}/> Baixar</button>
-      <button onClick={()=>{setShareItem(item);setShareHours(24);setShareUrl("")}}><Share2 size={16}/> Compartilhar</button>
-      <button onClick={()=>chooseTarget(item,"copy")}>Copiar</button>
-      <button onClick={()=>chooseTarget(item,"move")}>Mover</button>
-      <button onClick={()=>rename(item)}>Renomear</button>
-      <button onClick={()=>remove(item)}>Excluir</button>
+    return <div className="fileActions premiumActions">
+      <button className="actionPrimary" onClick={()=>openFile(item)}>{isMedia?"Reproduzir":"Abrir"}</button>
+      <button className="actionIcon" onClick={()=>download(item)} title="Baixar arquivo"><Download size={16}/></button>
+      <details className="fileMenu">
+        <summary aria-label={"Mais ações para "+item.name}>•••</summary>
+        <div className="fileMenuPanel">
+          <button onClick={()=>{setShareItem(item);setShareHours(24);setShareUrl("")}}><Share2 size={16}/> Compartilhar</button>
+          <button onClick={()=>chooseTarget(item,"copy")}>Copiar</button>
+          <button onClick={()=>chooseTarget(item,"move")}>Mover</button>
+          <button onClick={()=>rename(item)}>Renomear</button>
+          <button className="dangerAction" onClick={()=>remove(item)}>Excluir</button>
+        </div>
+      </details>
     </div>
   }
 
