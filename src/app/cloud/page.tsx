@@ -34,7 +34,10 @@ export default function Cloud(){
   const[shareItem,setShareItem]=useState<Item|null>(null);
   const[shareHours,setShareHours]=useState(24);
   const[shareUrl,setShareUrl]=useState("");
-  const[zipProgress,setZipProgress]=useState<{done:number;total:number;name:string}|null>(null);\n  const[playerItem,setPlayerItem]=useState<Item|null>(null);\n  const[playerUrl,setPlayerUrl]=useState("");\n  const[playerLoading,setPlayerLoading]=useState(false);
+  const[zipProgress,setZipProgress]=useState<{done:number;total:number;name:string}|null>(null);
+  const[playerItem,setPlayerItem]=useState<Item|null>(null);
+  const[playerUrl,setPlayerUrl]=useState("");
+  const[playerLoading,setPlayerLoading]=useState(false);
 
   async function api(path:string,init:RequestInit={}){
     const s=await getValidSession();
