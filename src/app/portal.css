@@ -33,3 +33,37 @@
 .loadingRow,.emptyRow{grid-template-columns:34px minmax(0,1fr) 100px 130px 260px}
 @media(max-width:900px){.fileRow{grid-template-columns:30px minmax(0,1fr) 88px 110px}.fileRow>span:last-child{grid-column:2/-1}.bulkBar{align-items:flex-start;flex-direction:column}}
 @media(max-width:720px){.fileRow{grid-template-columns:30px 1fr;padding:10px 8px}.fileRow.header{display:grid}.fileRow.header>span:nth-of-type(n+2){display:none}.fileRow>*:not(:first-child):not(:nth-child(2)){font-size:.86rem;opacity:.7}.fileRow>span:nth-child(3),.fileRow>span:nth-child(4),.fileRow>span:nth-child(5){grid-column:2}.fileActions{flex-wrap:wrap}.fileThumb{width:38px;height:38px;flex-basis:38px}}
+
+
+/* ROVIX Drive — premium file list */
+.fileTable{max-width:1260px}
+.fileTable{border:1px solid rgba(130,160,210,.12);border-radius:22px;background:linear-gradient(180deg,rgba(17,25,43,.76),rgba(10,16,29,.92));box-shadow:0 22px 70px rgba(0,0,0,.22);overflow:visible;padding:18px 18px 22px}
+.driveNav{padding:2px 2px 14px}
+.storageBar{height:7px;background:rgba(255,255,255,.07);margin-bottom:8px}
+.storageBar i{background:linear-gradient(90deg,#5aa8ff,#7c5cff)}
+.fileRow{grid-template-columns:34px minmax(0,1fr) 100px 130px 170px;min-height:68px;padding:10px 10px;border-bottom:1px solid rgba(255,255,255,.055);border-radius:12px}
+.fileRow:not(.header):hover{background:rgba(105,160,255,.055);border-bottom-color:rgba(105,160,255,.12)}
+.fileRow.header{min-height:40px;padding-top:4px;padding-bottom:4px;letter-spacing:.08em;border-bottom-color:rgba(255,255,255,.08);border-radius:0}
+.fileThumb{width:46px;height:46px;flex-basis:46px;border-radius:12px;border:1px solid rgba(125,160,220,.16);background:linear-gradient(145deg,rgba(83,114,170,.12),rgba(255,255,255,.025));box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.fileThumb svg{width:20px;height:20px}
+.fileTitle{font-weight:650;letter-spacing:-.01em;cursor:pointer}
+.fileName{gap:12px}
+.premiumActions{justify-content:flex-end;gap:8px;position:relative}
+.fileActions.premiumActions button{height:34px;border-radius:10px;border-color:rgba(130,160,210,.18);background:rgba(255,255,255,.025);padding:0 11px;font-size:.82rem}
+.fileActions.premiumActions button:hover{background:rgba(99,151,255,.12);border-color:rgba(99,151,255,.32)}
+.fileActions .actionPrimary{background:linear-gradient(180deg,rgba(76,132,255,.22),rgba(76,132,255,.12))!important;border-color:rgba(91,147,255,.38)!important;color:#eaf2ff;font-weight:650}
+.fileActions .actionIcon{width:36px;padding:0!important;display:inline-flex;align-items:center;justify-content:center}
+.fileMenu{position:relative}
+.fileMenu summary{list-style:none;width:36px;height:34px;border:1px solid rgba(130,160,210,.18);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#c9d5e8;background:rgba(255,255,255,.025);font-weight:800;letter-spacing:1px}
+.fileMenu summary::-webkit-details-marker{display:none}
+.fileMenu[open] summary,.fileMenu summary:hover{background:rgba(99,151,255,.12);border-color:rgba(99,151,255,.32);color:#fff}
+.fileMenuPanel{position:absolute;right:0;top:40px;z-index:200;min-width:168px;padding:7px;border:1px solid rgba(137,164,214,.18);border-radius:13px;background:rgba(14,22,38,.98);box-shadow:0 20px 55px rgba(0,0,0,.42);backdrop-filter:blur(16px)}
+.fileMenuPanel button{width:100%;justify-content:flex-start!important;display:flex!important;gap:8px!important;border:0!important;background:transparent!important;height:36px!important;border-radius:8px!important}
+.fileMenuPanel button:hover{background:rgba(99,151,255,.10)!important}
+.fileMenuPanel .dangerAction{color:#ff9c9c}
+.fileMenuPanel .dangerAction:hover{background:rgba(255,85,85,.10)!important}
+.selectBox{opacity:.55}
+.selectBox:hover,.fileRow.selected .selectBox{opacity:1}
+.fileRow.selected{background:linear-gradient(90deg,rgba(70,124,255,.13),rgba(70,124,255,.055));border-bottom-color:rgba(70,124,255,.22)}
+@media(max-width:900px){.fileRow{grid-template-columns:30px minmax(0,1fr) 88px 105px}.premiumActions{justify-content:flex-start}.fileMenuPanel{left:0;right:auto}}
+@media(max-width:720px){.fileTable{padding:12px}.fileRow{min-height:64px}.premiumActions{justify-content:flex-start}.fileMenuPanel{left:0;right:auto}}
