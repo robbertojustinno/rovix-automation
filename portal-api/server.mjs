@@ -284,7 +284,8 @@ const server=http.createServer(async(req,res)=>{
       const rows=await supa("rovix_files?id=eq."+encodeURIComponent(body.file_id)+"&kind=eq.file&select=id,name,object_key,mime_type",token);
       const file=rows?.[0];
       if(!file)return reply(res,404,{error:"file_not_found"},origin);
-      if(!String(file.mime_type||"").startsWith("image/"))return reply(res,400,{error:"preview_not_supported"},origin);
+      const previewMime=String(file.mime_type||"");
+      if(!previewMime.startsWith("image/")&&!previewMime.startsWith("audio/")&&!previewMime.startsWith("video/")&&previewMime!=="application/pdf")return reply(res,400,{error:"preview_not_supported"},origin);
       const cmd=new GetObjectCommand({
         Bucket:R2_BUCKET,
         Key:file.object_key,
