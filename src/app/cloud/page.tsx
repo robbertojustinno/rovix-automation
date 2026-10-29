@@ -34,7 +34,7 @@ export default function Cloud(){
   const[shareItem,setShareItem]=useState<Item|null>(null);
   const[shareHours,setShareHours]=useState(24);
   const[shareUrl,setShareUrl]=useState("");
-  const[zipProgress,setZipProgress]=useState<{done:number;total:number;name:string}|null>(null);
+  const[zipProgress,setZipProgress]=useState<{done:number;total:number;name:string}|null>(null);\n  const[playerItem,setPlayerItem]=useState<Item|null>(null);\n  const[playerUrl,setPlayerUrl]=useState("");\n  const[playerLoading,setPlayerLoading]=useState(false);
 
   async function api(path:string,init:RequestInit={}){
     const s=await getValidSession();
@@ -275,11 +275,24 @@ export default function Cloud(){
     setBusy(true);setMsg("");
     try{
       const p=await api("/preview-url",{method:"POST",body:JSON.stringify({file_id:item.id})});
+      const mime=String(item.mime_type||"").toLowerCase();
+      if(mime.startsWith("audio/")||mime.startsWith("video/")){
+        setPlayerItem(item);
+        setPlayerUrl(p.preview_url);
+        setPlayerLoading(true);
+        return;
+      }
       const opened=window.open(p.preview_url,"_blank","noopener,noreferrer");
       if(!opened)setMsg("O navegador bloqueou a nova aba. Libere pop-ups para o ROVIX Drive.");
     }catch(e){
       setMsg(e instanceof Error?e.message:"Falha ao abrir o arquivo.");
     }finally{setBusy(false)}
+  }
+
+  function closePlayer(){
+    setPlayerItem(null);
+    setPlayerUrl("");
+    setPlayerLoading(false);
   }
 
   async function download(item:Item){
@@ -388,7 +401,7 @@ export default function Cloud(){
       </div>
     }
     return <div className="fileActions">
-      <button onClick={()=>openFile(item)}>Abrir</button>
+      <button onClick={()=>openFile(item)}>{/^(audio|video)\\//i.test(String(item.mime_type||""))?"Reproduzir":"Abrir"}</button>
       <button onClick={()=>download(item)}><Download size={16}/> Baixar</button>
       <button onClick={()=>{setShareItem(item);setShareHours(24);setShareUrl("")}}><Share2 size={16}/> Compartilhar</button>
       <button onClick={()=>chooseTarget(item,"copy")}>Copiar</button>
@@ -469,6 +482,31 @@ export default function Cloud(){
       <span>{actions(item)}</span>
     </div>)}
   </section>
+
+  {playerItem&&<div role="dialog" aria-modal="true" aria-label={"Player de "+playerItem.name} onClick={closePlayer} style={{position:"fixed",inset:0,zIndex:100000,display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"rgba(3,8,20,.86)",backdropFilter:"blur(8px)"}}>
+    <div onClick={e=>e.stopPropagation()} style={{width:"min(980px,96vw)",maxHeight:"92vh",overflow:"auto",border:"1px solid rgba(120,170,255,.24)",borderRadius:18,background:"#0e1a30",boxShadow:"0 28px 90px rgba(0,0,0,.55)"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,padding:"16px 18px",borderBottom:"1px solid rgba(255,255,255,.08)"}}>
+        <div style={{minWidth:0}}>
+          <span className="kicker">ROVIX Player</span>
+          <h2 style={{margin:"4px 0 0",fontSize:18,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{playerItem.name}</h2>
+        </div>
+        <button type="button" onClick={closePlayer} aria-label="Fechar player" title="Fechar" style={{flex:"0 0 auto",width:38,height:38,borderRadius:10,border:"1px solid rgba(255,255,255,.16)",background:"rgba(255,255,255,.06)",color:"#fff",fontSize:24,cursor:"pointer"}}>×</button>
+      </div>
+      <div style={{padding:18,background:"#050a13",minHeight:120,display:"flex",alignItems:"center",justifyContent:"center"}}>
+        {playerLoading&&<div style={{position:"absolute",color:"#c7d8ef",fontSize:14}}>Carregando mídia...</div>}
+        {String(playerItem.mime_type||"").startsWith("video/")?
+          <video src={playerUrl} controls autoPlay playsInline onCanPlay={()=>setPlayerLoading(false)} onError={()=>{setPlayerLoading(false);setMsg("Não foi possível reproduzir este formato de vídeo no navegador.")}} style={{display:"block",width:"100%",maxHeight:"70vh",background:"#000",borderRadius:12}}/>:
+          <div style={{width:"100%",padding:"34px 18px"}}>
+            <div style={{textAlign:"center",color:"#dbe8ff",marginBottom:22,fontSize:15}}>Áudio pronto para reprodução</div>
+            <audio src={playerUrl} controls autoPlay onCanPlay={()=>setPlayerLoading(false)} onError={()=>{setPlayerLoading(false);setMsg("Não foi possível reproduzir este formato de áudio no navegador.")}} style={{display:"block",width:"100%"}}/>
+          </div>}
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,padding:"12px 18px",color:"#9fb1ca",fontSize:13}}>
+        <span>{playerItem.mime_type||"arquivo de mídia"} · {formatBytes(playerItem.size_bytes)}</span>
+        <button type="button" onClick={()=>download(playerItem)} disabled={busy} style={{border:"1px solid rgba(255,255,255,.14)",background:"rgba(255,255,255,.06)",color:"#fff",borderRadius:10,padding:"8px 12px",cursor:"pointer"}}>Baixar arquivo</button>
+      </div>
+    </div>
+  </div>}
 
   {shareItem&&<div className="shareOverlay" role="dialog" aria-modal="true">
     <div className="shareDialog">
