@@ -1,6 +1,7 @@
 "use client";
 import{ArrowLeft,CheckSquare,Download,FileText,Folder,HardDrive,Image as ImageIcon,Share2,Square,Upload}from"lucide-react";
-import{useEffect,useMemo,useRef,useState}from"react";
+import{useEffect,useMemo,useRef,useState,type DragEvent}from"react";
+import{readDrop}from"./drop";
 import{useRouter}from"next/navigation";
 import{makeZip,type ZipEntry}from"./zip";
 import{authRest,getValidSession}from"@/services/rovix-auth";
@@ -22,6 +23,9 @@ export default function Cloud(){
   const router=useRouter();
   const inputRef=useRef<HTMLInputElement>(null);
   const folderInputRef=useRef<HTMLInputElement>(null);
+  const dragDepth=useRef(0);
+  const dropLock=useRef(false);
+  const[dragActive,setDragActive]=useState(false);
   const[items,setItems]=useState<Item[]>([]);
   const[usage,setUsage]=useState<Usage>({used_bytes:0,max_bytes:10*1024*1024*1024,remaining_bytes:10*1024*1024*1024});
   const[loading,setLoading]=useState(true);
@@ -96,10 +100,12 @@ export default function Cloud(){
   const allSelected=items.length>0&&selected.size===items.length;
 
   function openFolder(item:Item){
+    if(busy||dropLock.current)return;
     setFolderStack(s=>[...s,item]);
     setCurrentFolder(item.id);
   }
   function goUp(){
+    if(busy||dropLock.current)return;
     if(!currentFolder)return;
     setFolderStack(s=>{
       const next=s.slice(0,-1);
@@ -108,6 +114,7 @@ export default function Cloud(){
     });
   }
   function goToCrumb(index:number){
+    if(busy||dropLock.current)return;
     if(index<0){setFolderStack([]);setCurrentFolder(null);return}
     setFolderStack(s=>{
       const next=s.slice(0,index+1);
@@ -182,33 +189,35 @@ export default function Cloud(){
     finally{setBusy(false);if(inputRef.current)inputRef.current.value=""}
   }
 
-  async function uploadFolder(files:FileList){
+  async function uploadFolder(files:FileList|File[],relativePaths?:Map<File,string>,directories:string[]=[]){
     const selectedFiles=Array.from(files);
-    if(!selectedFiles.length)return;
+    if(!selectedFiles.length&&!directories.length)return;
     setBusy(true);setMsg("");
     const folderCache=new Map<string,string|null>();
     folderCache.set("",currentFolder);
     let sent=0;
     const failed:string[]=[];
+    async function ensureDirectory(parts:string[]){
+      let path="",parentId=currentFolder;
+      for(const part of parts){
+        const nextPath=path?path+"/"+part:part;
+        if(!folderCache.has(nextPath)){
+          const folder=await createFolderAt(part,parentId);
+          folderCache.set(nextPath,folder.id);
+        }
+        parentId=folderCache.get(nextPath)??currentFolder;
+        path=nextPath;
+      }
+      return parentId;
+    }
     try{
+      for(const directory of directories)await ensureDirectory(directory.split("/").filter(Boolean));
       for(let i=0;i<selectedFiles.length;i++){
-        const file=selectedFiles[i] as File & {webkitRelativePath?:string};
-        const rel=file.webkitRelativePath||file.name;
+        const file=selectedFiles[i];
+        const rel=relativePaths?.get(file)||file.webkitRelativePath||file.name;
         const parts=rel.split("/").filter(Boolean);
         const fileName=parts.pop()||file.name;
-        let path="";
-        let parentId=currentFolder;
-        for(const part of parts){
-          const nextPath=path?path+"/"+part:part;
-          if(folderCache.has(nextPath)){
-            parentId=folderCache.get(nextPath)??currentFolder;
-          }else{
-            const folder=await createFolderAt(part,parentId);
-            parentId=folder.id;
-            folderCache.set(nextPath,parentId);
-          }
-          path=nextPath;
-        }
+        const parentId=await ensureDirectory(parts);
         setMsg("Enviando pasta: "+(i+1)+" de "+selectedFiles.length+" — "+rel);
         try{
           const renamed=new File([file],fileName,{type:file.type,lastModified:file.lastModified});
@@ -216,10 +225,23 @@ export default function Cloud(){
           sent++;
         }catch{failed.push(rel)}
       }
-      setMsg(failed.length?sent+" arquivos enviados; "+failed.length+" falharam.":"Pasta enviada com sucesso: "+sent+" arquivos.");
       await load();
+      setMsg(failed.length?sent+" arquivos enviados; "+failed.length+" falharam: "+failed.join(", "):"Envio concluído: "+sent+" arquivos"+(directories.length?" e "+directories.length+" pastas":"")+".");
     }catch(e){setMsg(e instanceof Error?e.message:"Falha ao enviar a pasta.")}
     finally{setBusy(false);if(folderInputRef.current)folderInputRef.current.value=""}
+  }
+
+  async function handleDrop(event:DragEvent<HTMLElement>){
+    event.preventDefault();event.stopPropagation();
+    dragDepth.current=0;setDragActive(false);
+    if(busy||dropLock.current||!API||loading)return;
+    dropLock.current=true;setBusy(true);setMsg("Preparando arquivos e pastas...");
+    try{
+      const content=await readDrop(event.dataTransfer);
+      if(!content.files.length&&!content.directories.length){setMsg("Arraste arquivos ou pastas do seu computador.");return}
+      await uploadFolder(content.files.map(item=>item.file),new Map(content.files.map(item=>[item.file,item.path])),content.directories);
+    }catch(error){setMsg(error instanceof Error?error.message:"Não foi possível ler os arquivos arrastados.")}
+    finally{dropLock.current=false;setBusy(false)}
   }
 
   async function pickTarget(excludedIds:Set<string>){
@@ -437,7 +459,15 @@ export default function Cloud(){
     <span className="portalBadge"><HardDrive/> {usedGb.toFixed(2)} GB de 10 GB</span>
   </div>
 
-  <section className="fileTable">
+  <section className={"fileTable driveDropTarget"+(dragActive?" dragActive":"")}
+    onDragEnter={event=>{if(event.dataTransfer.types.includes("Files")){event.preventDefault();dragDepth.current++;if(!busy&&API&&!loading)setDragActive(true)}}}
+    onDragOver={event=>{if(event.dataTransfer.types.includes("Files")){event.preventDefault();event.dataTransfer.dropEffect=busy||!API||loading?"none":"copy"}}}
+    onDragLeave={event=>{event.preventDefault();dragDepth.current=Math.max(0,dragDepth.current-1);if(!dragDepth.current)setDragActive(false)}}
+    onDrop={handleDrop}>
+    <button type="button" className="driveDropZone" disabled={busy||!API||loading} onClick={()=>inputRef.current?.click()}>
+      <Upload size={28}/><strong>{dragActive?"Solte aqui para enviar":"Arraste arquivos ou pastas para cá"}</strong>
+      <span>{busy?"Aguarde o envio terminar.":"Destino: "+(folderStack.at(-1)?.name||"Meu Drive")+" · ou clique para escolher arquivos"}</span>
+    </button>
     <div className="driveNav">
       <button className="driveBack" type="button" onClick={goUp} disabled={!currentFolder} title="Voltar um diretório acima"><ArrowLeft size={18}/></button>
       <div className="driveBreadcrumb">

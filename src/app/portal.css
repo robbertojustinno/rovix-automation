@@ -67,3 +67,11 @@
 .fileRow.selected{background:linear-gradient(90deg,rgba(70,124,255,.13),rgba(70,124,255,.055));border-bottom-color:rgba(70,124,255,.22)}
 @media(max-width:900px){.fileRow{grid-template-columns:30px minmax(0,1fr) 88px 105px}.premiumActions{justify-content:flex-start}.fileMenuPanel{left:0;right:auto}}
 @media(max-width:720px){.fileTable{padding:12px}.fileRow{min-height:64px}.premiumActions{justify-content:flex-start}.fileMenuPanel{left:0;right:auto}}
+
+/* File and folder drop target, retaining the Drive's current palette. */
+.driveDropTarget{transition:outline-color .15s,background .15s}
+.driveDropTarget.dragActive{outline:2px solid #6daeff;outline-offset:3px}
+.driveDropZone{display:flex;flex-direction:column;align-items:center;gap:8px;width:calc(100% - 32px);margin:16px;padding:28px 16px;border:2px dashed rgba(109,174,255,.45);border-radius:14px;background:rgba(109,174,255,.05);color:inherit;text-align:center;cursor:pointer;font:inherit}
+.driveDropZone svg{color:#6daeff}.driveDropZone span{font-size:13px;opacity:.75}.driveDropZone:focus-visible{outline:3px solid #6daeff;outline-offset:3px}
+.dragActive .driveDropZone{background:rgba(109,174,255,.18);border-color:#6daeff}
+.driveDropZone:disabled{cursor:default;opacity:.65}
