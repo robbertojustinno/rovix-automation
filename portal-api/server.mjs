@@ -1,3 +1,4 @@
+import {handleFolderSharing,serveFolderShare} from "./folder-sharing.mjs";
 import http from "node:http";
 import {DRIVE_IMAGE_POLICY} from "./social-drive-content.mjs";
 import {handleSocialAgent} from "./social-agent.mjs";
@@ -190,6 +191,7 @@ function safeName(v){
 }
 
 const server=http.createServer(async(req,res)=>{
+  if((req.url||"").startsWith("/shared/folders/"))return serveFolderShare(req,res,{s3,GetObjectCommand,bucket:R2_BUCKET});
   if(await handleSocialAgent(req,res))return;
   const origin=corsOrigin(req);
   if(req.method==="OPTIONS"){
@@ -294,6 +296,12 @@ const server=http.createServer(async(req,res)=>{
       });
       const previewUrl=await getSignedUrl(s3(),cmd,{expiresIn:900});
       return reply(res,200,{preview_url:previewUrl,expires_in:900},origin);
+    }
+
+    if(req.method==="POST"&&req.url==="/folder-share-url"){
+      await requireAdmin(token);
+      const body=await readBody(req);
+      return await handleFolderSharing(req,res,{user,token,body,supa,s3,GetObjectCommand,PutObjectCommand,getSignedUrl,bucket:R2_BUCKET,reply,origin});
     }
 
     if(req.method==="POST"&&req.url==="/share-url"){

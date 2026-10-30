@@ -363,8 +363,8 @@ export default function Cloud(){
     if(!shareItem)return;
     setBusy(true);setMsg("");setShareUrl("");
     try{
-      const d=await api("/share-url",{method:"POST",body:JSON.stringify({file_id:shareItem.id,hours:shareHours})});
-      setShareUrl(d.share_url);
+      const d=await api(shareItem.kind==="folder"?"/folder-share-url":"/share-url",{method:"POST",body:JSON.stringify({file_id:shareItem.id,hours:shareHours})});
+      setShareUrl(new URL(d.share_url,API).href);
     }catch(e){setMsg(e instanceof Error?e.message:"Falha ao compartilhar.")}
     finally{setBusy(false)}
   }
@@ -397,6 +397,7 @@ export default function Cloud(){
     if(item.kind==="folder"){
       return <div className="fileActions premiumActions">
         <button className="actionPrimary" onClick={()=>openFolder(item)}>Abrir</button>
+        <button className="actionIcon" disabled={busy||!API} onClick={()=>{setShareItem(item);setShareHours(24);setShareUrl("")}} title="Compartilhar pasta" aria-label={"Compartilhar pasta "+item.name}><Share2 size={16}/></button>
         <button className="actionIcon" disabled={busy} onClick={()=>downloadFolder(item)} title="Baixar pasta em ZIP"><Download size={16}/></button>
         <details className="fileMenu">
           <summary aria-label={"Mais ações para "+item.name}>•••</summary>
@@ -524,8 +525,8 @@ export default function Cloud(){
 
   {shareItem&&<div className="shareOverlay" role="dialog" aria-modal="true">
     <div className="shareDialog">
-      <div className="shareHead"><div><span className="kicker">Compartilhar arquivo</span><h2>{shareItem.name}</h2></div><button className="shareClose" type="button" onClick={()=>{setShareItem(null);setShareUrl("")}}>×</button></div>
-      <p className="muted">O arquivo continua privado. O link deixa de funcionar automaticamente quando expirar.</p>
+      <div className="shareHead"><div><span className="kicker">{shareItem.kind==="folder"?"Compartilhar pasta":"Compartilhar arquivo"}</span><h2>{shareItem.name}</h2></div><button className="shareClose" type="button" onClick={()=>{setShareItem(null);setShareUrl("")}}>×</button></div>
+      <p className="muted">{shareItem.kind==="folder"?"Qualquer pessoa com o link poderá listar e baixar os arquivos e subpastas atuais, sem editar. Novos arquivos exigem um novo link. O acesso expira automaticamente.":"Qualquer pessoa com o link poderá baixar este arquivo até o prazo expirar."}</p>
       <div className="shareChoices">
         {[1,24,168].map(h=><button key={h} className={shareHours===h?"shareChoice active":"shareChoice"} type="button" onClick={()=>{setShareHours(h);setShareUrl("")}}>{h===1?"1 hora":h===24?"24 horas":"7 dias"}</button>)}
       </div>
