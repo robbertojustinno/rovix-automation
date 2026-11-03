@@ -17,6 +17,19 @@ window.ROVIX_HUB_CONFIG = {
       "icon": "🚀",
       "items": [
 {
+  "name": "ROVIX Central de Prioridades",
+  "image": "/images/hub/projects-20261005.webp",
+  "description": "Planejamento semanal dos projetos ativos, com foco na conclusão e comercialização da TagCheck V2. Prioridades, ações críticas, evidências e histórico com atualização manual.",
+  "status": "PRIVADO",
+  "type": "Gestão / Prioridades semanais",
+  "links": [
+    {
+      "label": "Abrir Central de Prioridades",
+      "url": "https://rovix-prioridades-semanais.norcrj.chatgpt.site"
+    }
+  ]
+},
+{
           "name": "ROVIX Mural Digital",
           "image": "/images/hub/screensaver-20261005.webp",
           "description": "Mural online com imagens, PDFs e vídeos MP4, folhas móveis e redimensionáveis, salvamento na nuvem e modo TV. Acesso privado com login.",
