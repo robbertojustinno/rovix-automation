@@ -267,7 +267,11 @@ window.ROVIX_HUB_CONFIG = {
               "url": "/seaquest/"
             },
             {
-              "label": "Mamono Hunter Youko",
+              "label": "Mamono Hunter HD · jogar e salvar",
+              "url": "https://mamono-hunter-hd.norcrj.chatgpt.site"
+            },
+            {
+              "label": "Mamono Hunter original",
               "url": "/youko/"
             },
             {

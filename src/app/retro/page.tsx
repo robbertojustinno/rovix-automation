@@ -59,7 +59,7 @@ export default function RetroPage(){
  <h2 style={{fontSize:23,margin:"0 0 6px"}}>🎮 Biblioteca RETRO GAMES</h2>
  <p style={{color:"#bdb4d4",margin:"0 0 14px"}}>Atalhos para os jogos ROVIX. Ou escolha um console e carregue uma ROM local abaixo.</p>
  <div style={{display:"flex",flexWrap:"wrap",gap:10}}>
- {[{label:"Seaquest",href:"/seaquest/"},{label:"Mamono Hunter Youko",href:"/youko/"},{label:"Dangerous Dave",href:"/dave/"},{label:"Jogos casuais ROVIX",href:"/retrogames/"}].map(game=><a key={game.href} href={game.href} style={{padding:"12px 16px",background:"#32204e",border:"1px solid #8862ac",borderRadius:12,color:"#fff",fontWeight:700,textDecoration:"none"}}>{game.label} ↗</a>)}
+ {[{label:"Seaquest",href:"/seaquest/"},{label:"Mamono Hunter HD",href:"https://mamono-hunter-hd.norcrj.chatgpt.site"},{label:"Mamono Hunter original",href:"/youko/"},{label:"Dangerous Dave",href:"/dave/"},{label:"Jogos casuais ROVIX",href:"/retrogames/"}].map(game=><a key={game.href} href={game.href} style={{padding:"12px 16px",background:"#32204e",border:"1px solid #8862ac",borderRadius:12,color:"#fff",fontWeight:700,textDecoration:"none"}}>{game.label} ↗</a>)}
  </div></section>
  <div style={{display:"flex",gap:12,flexWrap:"wrap",margin:"26px 0"}}>
  {systems.map(s=><button key={s.id} onClick={()=>{setSystem(s.id);setRom(null);setStatus("Selecione uma ROM compatível.");}} style={{background:system===s.id?"#7342cd":"#1b1a2c",color:"white",border:"1px solid #614879",borderRadius:14,padding:"16px 22px",cursor:"pointer",textAlign:"left",minWidth:170}}><strong style={{display:"block",fontSize:17}}>{s.title}</strong><small>{s.subtitle}</small></button>)}
