@@ -323,7 +323,7 @@ window.ROVIX_HUB_CONFIG = {
 {
   "name": "TagCheck V2 — Central Comercial",
   "image": "/images/products/tagcheck-20261005.webp",
-  "description": "Prontidão do SaaS, planos e preços editáveis, custos e margem, cenários, oportunidades, evidências e decisões. Atualização manual; acesso privado pela conta ChatGPT.",
+  "description": "Prontidão do SaaS, planos e preços editáveis, custos e margem, cenários, oportunidades, evidências e decisões. Atualização manual; acesso com o mesmo login e senha do Super Admin do TagCheck.",
   "status": "PRIVADO",
   "type": "Gestão / Comercial SaaS",
   "links": [
