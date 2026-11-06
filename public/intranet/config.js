@@ -320,6 +320,19 @@ window.ROVIX_HUB_CONFIG = {
       "group": "TAGCHECK / GESTÃO INDUSTRIAL",
       "icon": "🏷️",
       "items": [
+{
+  "name": "TagCheck V2 — Central Comercial",
+  "image": "/images/products/tagcheck-20261005.webp",
+  "description": "Prontidão do SaaS, planos e preços editáveis, custos e margem, cenários, oportunidades, evidências e decisões. Atualização manual; acesso privado pela conta ChatGPT.",
+  "status": "PRIVADO",
+  "type": "Gestão / Comercial SaaS",
+  "links": [
+    {
+      "label": "Abrir Central Comercial",
+      "url": "https://tagcheck-central-comercial.norcrj.chatgpt.site"
+    }
+  ]
+},
         {
           "name": "TAGCheck",
           "image": "/images/products/tagcheck-20261005.webp",
