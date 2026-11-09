@@ -34,6 +34,7 @@ export default function Cloud(){
   const[shareItem,setShareItem]=useState<Item|null>(null);
   const[shareHours,setShareHours]=useState(24);
   const[shareUrl,setShareUrl]=useState("");
+  const[revokeUrl,setRevokeUrl]=useState("");
   const[zipProgress,setZipProgress]=useState<{done:number;total:number;name:string}|null>(null);
   const[playerItem,setPlayerItem]=useState<Item|null>(null);
   const[playerUrl,setPlayerUrl]=useState("");
@@ -363,9 +364,24 @@ export default function Cloud(){
     if(!shareItem)return;
     setBusy(true);setMsg("");setShareUrl("");
     try{
-      const d=await api(shareItem.kind==="folder"?"/folder-share-url":"/share-url",{method:"POST",body:JSON.stringify({file_id:shareItem.id,hours:shareHours})});
+      const d=await api(shareItem.kind==="folder"?"/folder-share-url":"/share-url",{method:"POST",body:JSON.stringify({file_id:shareItem.id,hours:shareHours,live:shareHours===0})});
       setShareUrl(new URL(d.share_url,API).href);
     }catch(e){setMsg(e instanceof Error?e.message:"Falha ao compartilhar.")}
+    finally{setBusy(false)}
+  }
+
+  async function revokeShare(){
+    if(shareItem?.kind!=="folder")return;
+    const url=URL.canParse(revokeUrl.trim())?new URL(revokeUrl.trim()):null;
+    const shareToken=url?.origin===new URL(API).origin?url.pathname.match(/^\/shared\/folders\/([a-f0-9]{64})$/)?.[1]:null;
+    if(!shareToken){setMsg("Cole o link permanente desta pasta.");return}
+    setBusy(true);setMsg("");
+    try{
+      await api("/folder-share-revoke",{method:"POST",body:JSON.stringify({file_id:shareItem.id,share_token:shareToken})});
+      setRevokeUrl("");
+      if(shareUrl===url?.href)setShareUrl("");
+      setMsg("Link revogado.");
+    }catch(e){setMsg(e instanceof Error?e.message:"Falha ao revogar o link.")}
     finally{setBusy(false)}
   }
 
@@ -397,7 +413,7 @@ export default function Cloud(){
     if(item.kind==="folder"){
       return <div className="fileActions premiumActions">
         <button className="actionPrimary" onClick={()=>openFolder(item)}>Abrir</button>
-        <button className="actionIcon" disabled={busy||!API} onClick={()=>{setShareItem(item);setShareHours(24);setShareUrl("")}} title="Compartilhar pasta" aria-label={"Compartilhar pasta "+item.name}><Share2 size={16}/></button>
+        <button className="actionIcon" disabled={busy||!API} onClick={()=>{setShareItem(item);setShareHours(24);setShareUrl("");setRevokeUrl("")}} title="Compartilhar pasta" aria-label={"Compartilhar pasta "+item.name}><Share2 size={16}/></button>
         <button className="actionIcon" disabled={busy} onClick={()=>downloadFolder(item)} title="Baixar pasta em ZIP"><Download size={16}/></button>
         <details className="fileMenu">
           <summary aria-label={"Mais ações para "+item.name}>•••</summary>
@@ -416,7 +432,7 @@ export default function Cloud(){
       <details className="fileMenu">
         <summary aria-label={"Mais ações para "+item.name}>•••</summary>
         <div className="fileMenuPanel">
-          <button onClick={()=>{setShareItem(item);setShareHours(24);setShareUrl("")}}><Share2 size={16}/> Compartilhar</button>
+          <button onClick={()=>{setShareItem(item);setShareHours(24);setShareUrl("");setRevokeUrl("")}}><Share2 size={16}/> Compartilhar</button>
           <button onClick={()=>chooseTarget(item,"copy")}>Copiar</button>
           <button onClick={()=>chooseTarget(item,"move")}>Mover</button>
           <button onClick={()=>rename(item)}>Renomear</button>
@@ -526,12 +542,16 @@ export default function Cloud(){
   {shareItem&&<div className="shareOverlay" role="dialog" aria-modal="true">
     <div className="shareDialog">
       <div className="shareHead"><div><span className="kicker">{shareItem.kind==="folder"?"Compartilhar pasta":"Compartilhar arquivo"}</span><h2>{shareItem.name}</h2></div><button className="shareClose" type="button" onClick={()=>{setShareItem(null);setShareUrl("")}}>×</button></div>
-      <p className="muted">{shareItem.kind==="folder"?"Qualquer pessoa com o link poderá listar e baixar os arquivos e subpastas atuais, sem editar. Novos arquivos exigem um novo link. O acesso expira automaticamente.":"Qualquer pessoa com o link poderá baixar este arquivo até o prazo expirar."}</p>
+      <p className="muted">{shareItem.kind==="folder"?(shareHours===0?"Qualquer pessoa com o link poderá assistir aos vídeos compatíveis e baixar os arquivos atuais e futuros desta pasta e suas subpastas. O link funciona até ser revogado.":"Qualquer pessoa com o link poderá listar e baixar os arquivos registrados na geração do link, até o prazo expirar."):"Qualquer pessoa com o link poderá baixar este arquivo até o prazo expirar."}</p>
       <div className="shareChoices">
-        {[1,24,168].map(h=><button key={h} className={shareHours===h?"shareChoice active":"shareChoice"} type="button" onClick={()=>{setShareHours(h);setShareUrl("")}}>{h===1?"1 hora":h===24?"24 horas":"7 dias"}</button>)}
+        {(shareItem.kind==="folder"?[1,24,168,0]:[1,24,168]).map(h=><button key={h} className={shareHours===h?"shareChoice active":"shareChoice"} type="button" onClick={()=>{setShareHours(h);setShareUrl("")}}>{h===1?"1 hora":h===24?"24 horas":h===168?"7 dias":"Permanente e atualizado"}</button>)}
       </div>
       {!shareUrl?<button className="button" type="button" disabled={busy} onClick={generateShare}><Share2/> {busy?"Gerando...":"Gerar link"}</button>:
       <div className="shareResult"><input readOnly value={shareUrl}/><button className="button" type="button" onClick={copyShare}>Copiar link</button></div>}
+      {shareItem.kind==="folder"&&<details>
+        <summary>Revogar link permanente</summary>
+        <div className="shareResult"><input aria-label="Link permanente a revogar" value={revokeUrl} onChange={e=>setRevokeUrl(e.target.value)} placeholder="Cole o link permanente"/><button className="button" type="button" disabled={busy||!revokeUrl.trim()} onClick={revokeShare}>Revogar</button></div>
+      </details>}
     </div>
   </div>}
   <p className="portalNote">{API?"ROVIX Drive pronto para uso.":"Backend do ROVIX Drive ainda não configurado."}</p></>

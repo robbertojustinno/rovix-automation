@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {collectFolderFiles,handleFolderSharing,serveFolderShare,shareKey} from './folder-sharing.mjs';
+import {collectFolderFiles,handleFolderSharing,serveFolderShare,revokeFolderShare,shareKey} from './folder-sharing.mjs';
 
 const root={id:'root',name:'Projetos',kind:'folder',owner_id:'owner'};
 const child=(id,parent_id,kind='file',owner_id='owner')=>({id,parent_id,kind,owner_id,name:id,object_key:'private/'+id,size_bytes:42});
@@ -59,4 +59,55 @@ test('public folder page escapes names and URLs and forbids caching and embeddin
   assert.equal(res.headers['Cache-Control'],'no-store');
   assert.equal(res.headers['Referrer-Policy'],'no-referrer');
   assert.ok(res.headers['Content-Security-Policy'].includes("frame-ancestors 'none'"));
+});
+
+test('one permanent link lists new videos and excludes files moved outside the shared folder',async()=>{
+  class Command{constructor(input){this.input=input}}
+  const objects=new Map();
+  const s3=()=>({send:async ({input})=>{
+    if(input.Body) objects.set(input.Key,input.Body);
+    else if(!objects.has(input.Key)) throw Object.assign(new Error(),{name:'NoSuchKey'});
+    else return {Body:{transformToString:async()=>objects.get(input.Key)}};
+  }});
+  let files=[];
+  const supa=async path=>{
+    assert.ok(path.includes('owner_id=eq.owner'));
+    return path.includes('kind=eq.folder')?[root]:files;
+  };
+  let result;
+  await handleFolderSharing({}, {},{user:{id:'owner'},body:{file_id:'root',live:true},liveEnabled:true,supa,s3,PutObjectCommand:Command,bucket:'bucket',reply:(_res,status,body)=>{assert.equal(status,200);result=body}});
+  const request={url:result.share_url,method:'GET'};
+  const options={s3,GetObjectCommand:Command,bucket:'bucket',readLiveFiles:supa,mediaOrigin:'https://storage.test',getSignedUrl:async(_client,{input},{expiresIn})=>{
+    assert.equal(expiresIn,900);
+    return 'https://storage.test/'+input.Key+'?mode='+encodeURIComponent(input.ResponseContentDisposition);
+  }};
+  const empty=response();
+  await serveFolderShare(request,empty,options);
+  assert.match(empty.body,/0 arquivo/);
+  files=[child('clip.mp4','root'),child('private.mp4','outside'),child('foreign.mp4','root','file','other')];
+  const populated=response();
+  await serveFolderShare(request,populated,options);
+  assert.match(populated.body,/<video controls[^>]+clip\.mp4\?mode=inline/);
+  assert.match(populated.body,/mode=attachment/);
+  assert.doesNotMatch(populated.body,/private\.mp4|foreign\.mp4/);
+  files=[];
+  const moved=response();
+  await serveFolderShare(request,moved,options);
+  assert.match(moved.body,/0 arquivo/);
+
+  const shareToken=result.share_url.split('/').pop();
+  const revokeOptions={body:{file_id:'root',share_token:shareToken},s3:()=>({send:async command=>{
+    if(command instanceof DeleteCommand) objects.delete(command.input.Key);
+    else return s3().send(command);
+  }}),GetObjectCommand:Command,DeleteObjectCommand:class DeleteCommand extends Command{},bucket:'bucket',reply:(res,status)=>{res.status=status}};
+  const DeleteCommand=revokeOptions.DeleteObjectCommand;
+  const denied=response();
+  await revokeFolderShare(denied,{...revokeOptions,user:{id:'other'}});
+  assert.equal(denied.status,404);
+  const revoked=response();
+  await revokeFolderShare(revoked,{...revokeOptions,user:{id:'owner'}});
+  assert.equal(revoked.status,200);
+  const unavailable=response();
+  await serveFolderShare(request,unavailable,options);
+  assert.equal(unavailable.status,404);
 });
