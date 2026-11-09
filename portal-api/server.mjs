@@ -1,3 +1,4 @@
+import {copyDriveItem,listDriveRows} from "./drive-copy.mjs";
 import {handleFolderSharing,revokeFolderShare,serveFolderShare} from "./folder-sharing.mjs";
 import http from "node:http";
 import {DRIVE_IMAGE_POLICY} from "./social-drive-content.mjs";
@@ -184,7 +185,7 @@ async function requireAdmin(token){
   if(rows?.[0]?.role!=="admin")throw Object.assign(new Error("ADMIN_REQUIRED"),{status:403});
 }
 async function usedBytes(token){
-  const rows=await supa("rovix_files?select=size_bytes&kind=eq.file",token);
+  const rows=await listDriveRows(supa,"rovix_files?select=size_bytes&kind=eq.file",token);
   return (rows||[]).reduce((n,x)=>n+Number(x.size_bytes||0),0);
 }
 function safeName(v){
@@ -364,69 +365,11 @@ const server=http.createServer(async(req,res)=>{
     if(req.method==="POST"&&req.url==="/copy"){
       await requireAdmin(token);
       const body=await readBody(req);
-      if(!body.item_id)return reply(res,400,{error:"missing_item_id"},origin);
-      const targetParent=body.target_parent_id||null;
-
-      const rootRows=await supa("rovix_files?id=eq."+encodeURIComponent(body.item_id)+"&select=*",token);
-      const root=rootRows?.[0];
-      if(!root)return reply(res,404,{error:"not_found"},origin);
-
-      const all=await supa("rovix_files?select=*",token);
-      const byParent=new Map();
-      for(const item of all||[]){
-        const key=item.parent_id||"ROOT";
-        if(!byParent.has(key))byParent.set(key,[]);
-        byParent.get(key).push(item);
-      }
-
-      const collect=(item,out=[])=>{
-        out.push(item);
-        if(item.kind==="folder"){
-          for(const child of byParent.get(item.id)||[])collect(child,out);
-        }
-        return out;
-      };
-      const subtree=collect(root,[]);
-      const bytes=subtree.filter(x=>x.kind==="file").reduce((n,x)=>n+Number(x.size_bytes||0),0);
-      const used=await usedBytes(token);
-      if(used+bytes>MAX_BYTES)return reply(res,413,{error:"storage_limit",used_bytes:used,max_bytes:MAX_BYTES},origin);
-
-      const copySource=key=>R2_BUCKET+"/"+encodeURIComponent(key).replace(/%2F/g,"/");
-      const idMap=new Map();
-
-      for(const item of subtree){
-        const parentId=item.id===root.id?targetParent:(idMap.get(item.parent_id)||targetParent);
-        if(item.kind==="folder"){
-          const rows=await supa("rovix_files",token,{
-            method:"POST",
-            body:JSON.stringify({
-              owner_id:user.id,parent_id:parentId,kind:"folder",
-              name:item.id===root.id?safeName(item.name+" - cópia"):item.name,
-              size_bytes:0
-            })
-          });
-          idMap.set(item.id,rows?.[0]?.id);
-        }else{
-          const newKey=user.id+"/"+crypto.randomUUID()+"/"+safeName(item.name);
-          await s3().send(new CopyObjectCommand({
-            Bucket:R2_BUCKET,
-            Key:newKey,
-            CopySource:copySource(item.object_key)
-          }));
-          const rows=await supa("rovix_files",token,{
-            method:"POST",
-            body:JSON.stringify({
-              owner_id:user.id,parent_id:parentId,kind:"file",
-              name:item.id===root.id?safeName(item.name.replace(/(\.[^.]*)?$/, " - cópia$1")):item.name,
-              bucket:R2_BUCKET,object_key:newKey,mime_type:item.mime_type||null,
-              size_bytes:Number(item.size_bytes||0),sha256:item.sha256||null,
-              is_product_asset:false,product_id:null
-            })
-          });
-          idMap.set(item.id,rows?.[0]?.id);
-        }
-      }
-      return reply(res,201,{ok:true,copied_items:subtree.length},origin);
+      const result=await copyDriveItem({
+        user,token,body,supa,usedBytes,maxBytes:MAX_BYTES,bucket:R2_BUCKET,s3,
+        CopyObjectCommand,DeleteObjectCommand,safeName
+      });
+      return reply(res,result.status,result.body,origin);
     }
 
     if(req.method==="POST"&&req.url==="/move"){
