@@ -1,4 +1,4 @@
-import {handleFolderSharing,serveFolderShare} from "./folder-sharing.mjs";
+import {handleFolderSharing,revokeFolderShare,serveFolderShare} from "./folder-sharing.mjs";
 import http from "node:http";
 import {DRIVE_IMAGE_POLICY} from "./social-drive-content.mjs";
 import {handleSocialAgent} from "./social-agent.mjs";
@@ -15,6 +15,7 @@ import {getSignedUrl} from "@aws-sdk/s3-request-presigner";
 const PORT=Number(process.env.PORT||10000);
 const SUPABASE_URL=process.env.SUPABASE_URL||"";
 const SUPABASE_PUBLISHABLE_KEY=process.env.SUPABASE_PUBLISHABLE_KEY||"";
+const SUPABASE_SERVICE_ROLE_KEY=process.env.SUPABASE_SERVICE_ROLE_KEY||"";
 const R2_ENDPOINT=process.env.R2_ENDPOINT||"";
 const R2_ACCESS_KEY_ID=process.env.R2_ACCESS_KEY_ID||"";
 const R2_SECRET_ACCESS_KEY=process.env.R2_SECRET_ACCESS_KEY||"";
@@ -190,8 +191,16 @@ function safeName(v){
   return String(v||"").replace(/[\\/\0]/g,"_").trim().slice(0,180);
 }
 
+const readLiveFiles = SUPABASE_SERVICE_ROLE_KEY
+  ? path => supa(path,SUPABASE_SERVICE_ROLE_KEY,{headers:{apikey:SUPABASE_SERVICE_ROLE_KEY}})
+  : undefined;
+const sharedMediaEndpoint = URL.canParse(R2_ENDPOINT) ? new URL(R2_ENDPOINT) : null;
+const sharedMediaOrigin = sharedMediaEndpoint
+  ? [sharedMediaEndpoint.origin, `${sharedMediaEndpoint.protocol}//${R2_BUCKET}.${sharedMediaEndpoint.host}`].join(" ")
+  : undefined;
+
 const server=http.createServer(async(req,res)=>{
-  if((req.url||"").startsWith("/shared/folders/"))return serveFolderShare(req,res,{s3,GetObjectCommand,bucket:R2_BUCKET});
+  if((req.url||"").startsWith("/shared/folders/"))return serveFolderShare(req,res,{s3,GetObjectCommand,bucket:R2_BUCKET,readLiveFiles,getSignedUrl,mediaOrigin:sharedMediaOrigin});
   if(await handleSocialAgent(req,res))return;
   const origin=corsOrigin(req);
   if(req.method==="OPTIONS"){
@@ -301,7 +310,13 @@ const server=http.createServer(async(req,res)=>{
     if(req.method==="POST"&&req.url==="/folder-share-url"){
       await requireAdmin(token);
       const body=await readBody(req);
-      return await handleFolderSharing(req,res,{user,token,body,supa,s3,GetObjectCommand,PutObjectCommand,getSignedUrl,bucket:R2_BUCKET,reply,origin});
+      return await handleFolderSharing(req,res,{user,token,body,supa,s3,GetObjectCommand,PutObjectCommand,getSignedUrl,bucket:R2_BUCKET,reply,origin,liveEnabled:Boolean(readLiveFiles)});
+    }
+
+    if(req.method==="POST"&&req.url==="/folder-share-revoke"){
+      await requireAdmin(token);
+      const body=await readBody(req);
+      return await revokeFolderShare(res,{user,body,s3,GetObjectCommand,DeleteObjectCommand,bucket:R2_BUCKET,reply,origin});
     }
 
     if(req.method==="POST"&&req.url==="/share-url"){
