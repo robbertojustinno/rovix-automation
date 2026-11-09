@@ -17,6 +17,44 @@ type Item={
 };
 type Usage={used_bytes:number;max_bytes:number;remaining_bytes:number};
 
+type DriveEntry=Pick<Item,"id"|"kind"|"name"|"parent_id"|"size_bytes">;
+type TargetRequest={items:Item[];mode:"move"|"copy"};
+type Destination={id:string|null;name:string;path:string;size?:number};
+
+async function readDriveEntries(){
+  const entries:DriveEntry[]=[];
+  for(let offset=0;;offset+=500){
+    const page=await authRest("rovix_files?select=id,kind,name,parent_id,size_bytes&order=id.asc&limit=500&offset="+offset) as DriveEntry[];
+    entries.push(...page);
+    if(page.length<500)return entries;
+  }
+}
+
+function folderDetails(entries:DriveEntry[]){
+  const folders=new Map(entries.filter(entry=>entry.kind==="folder").map(folder=>[folder.id,folder]));
+  const sizes=new Map<string,number>();
+  function ancestors(id:string|null|undefined){
+    const chain:DriveEntry[]=[];
+    const seen=new Set<string>();
+    while(id){
+      const folder=folders.get(id);
+      if(!folder||seen.has(id))return null;
+      seen.add(id);
+      chain.push(folder);
+      id=folder.parent_id;
+    }
+    return chain;
+  }
+  for(const entry of entries){
+    if(entry.kind!=="file")continue;
+    const bytes=Number(entry.size_bytes)||0;
+    for(const folder of ancestors(entry.parent_id)||[]){
+      sizes.set(folder.id,(sizes.get(folder.id)||0)+bytes);
+    }
+  }
+  return {folders,sizes,ancestors};
+}
+
 const API=process.env.NEXT_PUBLIC_ROVIX_DRIVE_API||"";
 
 export default function Cloud(){
@@ -35,6 +73,9 @@ export default function Cloud(){
   const[folderStack,setFolderStack]=useState<Item[]>([]);
   const[selected,setSelected]=useState<Set<string>>(new Set());
   const[thumbs,setThumbs]=useState<Record<string,string>>({});
+  const[driveEntries,setDriveEntries]=useState<DriveEntry[]|null>(null);
+  const[targetRequest,setTargetRequest]=useState<TargetRequest|null>(null);
+  const details=useMemo(()=>driveEntries?folderDetails(driveEntries):null,[driveEntries]);
   const[shareItem,setShareItem]=useState<Item|null>(null);
   const[shareHours,setShareHours]=useState(24);
   const[shareUrl,setShareUrl]=useState("");
@@ -62,7 +103,7 @@ export default function Cloud(){
   }
 
   async function load(){
-    setLoading(true);setMsg("");
+    setLoading(true);setMsg("");setDriveEntries(null);
     try{
       const s=await getValidSession();
       if(!s){router.replace("/login");return}
@@ -74,6 +115,8 @@ export default function Cloud(){
       setItems(list);
       setSelected(new Set());
       setThumbs({});
+      try{setDriveEntries(await readDriveEntries())}
+      catch{setMsg("Não foi possível carregar os tamanhos das pastas.")}
       if(API){
         const u=await api("/usage");
         setUsage(u);
@@ -245,42 +288,32 @@ export default function Cloud(){
     finally{dropLock.current=false;setBusy(false)}
   }
 
-  async function pickTarget(excludedIds:Set<string>){
-    const folders=await authRest("rovix_files?kind=eq.folder&select=id,name,parent_id&order=name.asc") as Item[];
-    const filtered=folders.filter(f=>!excludedIds.has(f.id));
-    const options=["0 - Raiz",...filtered.map((f,i)=>(i+1)+" - "+f.name)];
-    const answer=window.prompt("Escolha a pasta de destino:\n\n"+options.join("\n")+"\n\nDigite o número do destino:","0");
-    if(answer===null)return undefined;
-    const n=Number(answer);
-    if(!Number.isInteger(n)||n<0||n>filtered.length)throw new Error("Destino inválido.");
-    return n===0?null:filtered[n-1].id;
+  function chooseTarget(item:Item,mode:TargetRequest["mode"]){
+    if(!busy&&!loading)setTargetRequest({items:[item],mode});
   }
 
-  async function chooseTarget(item:Item,mode:"move"|"copy"){
-    setBusy(true);setMsg("");
-    try{
-      const target=await pickTarget(new Set([item.id]));
-      if(target===undefined)return;
-      await api(mode==="move"?"/move":"/copy",{method:"POST",body:JSON.stringify({item_id:item.id,target_parent_id:target})});
-      setMsg(mode==="move"?"Item movido.":"Cópia criada.");
-      await load();
-    }catch(e){setMsg(e instanceof Error?e.message:"Operação não concluída.")}
-    finally{setBusy(false)}
+  function bulkTarget(mode:TargetRequest["mode"]){
+    if(!busy&&!loading&&selectedItems.length)setTargetRequest({items:selectedItems,mode});
   }
 
-  async function bulkTarget(mode:"move"|"copy"){
-    if(!selectedItems.length)return;
+  async function applyTarget(target:string|null){
+    if(!targetRequest||busy)return;
+    const {items:source,mode}=targetRequest;
+    setTargetRequest(null);
     setBusy(true);setMsg("");
+    let completed=0;
     try{
-      const target=await pickTarget(new Set(selectedItems.map(i=>i.id)));
-      if(target===undefined)return;
-      for(const item of selectedItems){
+      for(const item of source){
         await api(mode==="move"?"/move":"/copy",{method:"POST",body:JSON.stringify({item_id:item.id,target_parent_id:target})});
+        completed++;
       }
-      setMsg(`${selectedItems.length} itens ${mode==="move"?"movidos":"copiados"}.`);
       await load();
-    }catch(e){setMsg(e instanceof Error?e.message:"Operação em lote não concluída.")}
-    finally{setBusy(false)}
+      setMsg(mode==="move"?`Movimentação concluída. ${completed} item(ns).`:`Cópia concluída. ${completed} item(ns).`);
+    }catch(e){
+      if(completed)await load();
+      const message=e instanceof Error?e.message:"Operação não concluída.";
+      setMsg(completed?`${completed} de ${source.length} itens concluídos. ${message}`:message);
+    }finally{setBusy(false)}
   }
 
   async function bulkDelete(){
@@ -538,7 +571,7 @@ export default function Cloud(){
         </span>
         <button className="fileTitle" type="button" onClick={()=>item.kind==="folder"?openFolder(item):openFile(item)}>{item.name}</button>
       </div>
-      <span>{item.kind==="folder"?"—":formatBytes(item.size_bytes)}</span>
+      <span>{item.kind==="file"?formatBytes(item.size_bytes):details?formatBytes(details.sizes.get(item.id)??0):"Indisponível"}</span>
       <span>{new Date(item.updated_at).toLocaleDateString("pt-BR")}</span>
       <span>{actions(item)}</span>
     </div>)}
@@ -569,6 +602,7 @@ export default function Cloud(){
     </div>
   </div>}
 
+  {targetRequest&&<DestinationPicker request={targetRequest} details={details} onCancel={()=>setTargetRequest(null)} onChoose={applyTarget}/>}
   {shareItem&&<div className="shareOverlay" role="dialog" aria-modal="true">
     <div className="shareDialog">
       <div className="shareHead"><div><span className="kicker">{shareItem.kind==="folder"?"Compartilhar pasta":"Compartilhar arquivo"}</span><h2>{shareItem.name}</h2></div><button className="shareClose" type="button" onClick={()=>{setShareItem(null);setShareUrl("")}}>×</button></div>
@@ -586,4 +620,70 @@ export default function Cloud(){
   </div>}
   <p className="portalNote">{API?"ROVIX Drive pronto para uso.":"Backend do ROVIX Drive ainda não configurado."}</p></>
 }
+function DestinationPicker({request,details,onCancel,onChoose}:{
+  request:TargetRequest;
+  details:ReturnType<typeof folderDetails>|null;
+  onCancel:()=>void;
+  onChoose:(id:string|null)=>void;
+}){
+  const dialog=useRef<HTMLDialogElement>(null);
+  const searchInput=useRef<HTMLInputElement>(null);
+  const[query,setQuery]=useState("");
+  const[destination,setDestination]=useState<Destination|null>(null);
+  const action=request.mode==="move"?"Mover":"Copiar";
+
+  useEffect(()=>{
+    const element=dialog.current;
+    element?.showModal();
+    searchInput.current?.focus();
+    return ()=>element?.close();
+  },[]);
+
+  const options=useMemo(()=>{
+    if(!details)return [];
+    const excluded=new Set(request.items.map(item=>item.id));
+    const folders:Destination[]=[];
+    for(const folder of details.folders.values()){
+      const chain=details.ancestors(folder.id);
+      if(!chain||excluded.has(folder.id)||request.mode==="move"&&chain.some(node=>excluded.has(node.id)))continue;
+      folders.push({
+        id:folder.id,name:folder.name,
+        path:["Meu Drive",...chain.reverse().map(node=>node.name)].join(" / "),
+        size:details.sizes.get(folder.id)??0,
+      });
+    }
+    folders.sort((a,b)=>a.path.localeCompare(b.path,"pt-BR",{numeric:true}));
+    return [{id:null,name:"Raiz",path:"Meu Drive"},...folders];
+  },[details,request]);
+
+  const normalize=(value:string)=>value.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/\p{M}/gu,"");
+  const term=normalize(query.trim());
+  const matches=options.filter(option=>normalize(option.name+" "+option.path).includes(term));
+
+  return <dialog ref={dialog} className="driveDestination" aria-labelledby="destinationTitle"
+    onCancel={event=>{event.preventDefault();onCancel()}}>
+    <div className="shareHead">
+      <div><span className="kicker">ROVIX Drive</span><h2 id="destinationTitle">{action} para qual pasta?</h2></div>
+      <button className="shareClose" type="button" onClick={onCancel} aria-label="Fechar seletor">×</button>
+    </div>
+    <p className="driveDestinationSource">{request.items.length===1?request.items[0].name:`${request.items.length} itens selecionados`}</p>
+    <label htmlFor="destinationSearch">Buscar por nome ou caminho</label>
+    <input ref={searchInput} id="destinationSearch" type="search" value={query} onChange={event=>setQuery(event.target.value)} disabled={!details}/>
+    <p role="status">{details?`${matches.length} destinos encontrados`:"A lista de pastas está indisponível. Atualize o Drive e tente novamente."}</p>
+    <div className="driveDestinationList" role="group" aria-label="Pastas de destino">
+      {matches.map(option=><button key={option.id??"root"} type="button" aria-pressed={destination?.id===option.id}
+        onClick={()=>setDestination(option)}>
+        <Folder size={20} aria-hidden="true"/>
+        <span><strong>{option.name}</strong><small>{option.path}</small></span>
+        {option.size!==undefined&&<span className="driveDestinationSize">{formatBytes(option.size)}</span>}
+      </button>)}
+    </div>
+    <p className="driveDestinationSelection">{destination?`Destino selecionado: ${destination.path}`:"Selecione uma pasta para continuar."}</p>
+    <div className="driveDestinationActions">
+      <button className="shareChoice" type="button" onClick={onCancel}>Cancelar</button>
+      <button className="button" type="button" disabled={!destination} onClick={()=>{if(destination)onChoose(destination.id)}}>{action} para cá</button>
+    </div>
+  </dialog>;
+}
+
 function formatBytes(n:number){if(n<1024)return n+" B";if(n<1048576)return (n/1024).toFixed(1)+" KB";if(n<1073741824)return (n/1048576).toFixed(1)+" MB";return (n/1073741824).toFixed(2)+" GB"}

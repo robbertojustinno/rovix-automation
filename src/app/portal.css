@@ -75,3 +75,18 @@
 .driveDropZone svg{color:#6daeff}.driveDropZone span{font-size:13px;opacity:.75}.driveDropZone:focus-visible{outline:3px solid #6daeff;outline-offset:3px}
 .dragActive .driveDropZone{background:rgba(109,174,255,.18);border-color:#6daeff}
 .driveDropZone:disabled{cursor:default;opacity:.65}
+
+.fileRow .fileTitle{white-space:normal;overflow-wrap:anywhere;text-overflow:clip}
+.driveDestination{width:min(760px,calc(100% - 24px));max-height:90dvh;margin:auto;padding:clamp(14px,4vw,26px);background:#101827;color:#f1f5ff;border:1px solid #50617d;border-radius:18px;overflow:auto}
+.driveDestination::backdrop{background:rgba(2,6,14,.76)}
+.driveDestinationSource,.driveDestinationSelection{overflow-wrap:anywhere}
+.driveDestination label{display:block;margin-bottom:6px;font-weight:650}
+.driveDestination input{width:100%;padding:10px 12px;border:1px solid #50617d;border-radius:9px;background:#0a101b;color:inherit;font:inherit}
+.driveDestinationList{display:grid;gap:7px;max-height:min(40dvh,380px);overflow:auto;padding:3px 6px 3px 3px}
+.driveDestinationList button{display:grid;grid-template-columns:20px minmax(0,1fr) auto;align-items:start;gap:10px;text-align:left;padding:12px;border:1px solid #50617d;border-radius:9px;background:#172337;color:inherit;font:inherit;cursor:pointer}
+.driveDestinationList button:hover,.driveDestinationList button[aria-pressed=true]{background:#203e64;border-color:#a5c8ff}
+.driveDestinationList button:focus-visible,.driveDestination input:focus-visible{outline:2px solid #a5c8ff;outline-offset:1px}
+.driveDestinationList strong,.driveDestinationList small{display:block;overflow-wrap:anywhere}
+.driveDestinationList small{margin-top:4px;font-size:.875rem;color:#c6d4eb}
+.driveDestinationSize{white-space:nowrap;font-variant-numeric:tabular-nums}
+.driveDestinationActions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
